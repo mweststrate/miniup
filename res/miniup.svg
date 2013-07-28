@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="744.09448819"
+   height="1052.3622047"
+   id="svg2"
+   version="1.1"
+   inkscape:version="0.48.2 r9819"
+   sodipodi:docname="miniup.svg">
+  <defs
+     id="defs4">
+    <filter
+       id="filter3922"
+       inkscape:label="Drop shadow"
+       width="1.5"
+       height="1.5"
+       x="-.25"
+       y="-.25">
+      <feGaussianBlur
+         id="feGaussianBlur3924"
+         in="SourceAlpha"
+         stdDeviation="3.7"
+         result="blur" />
+      <feColorMatrix
+         id="feColorMatrix3926"
+         result="bluralpha"
+         type="matrix"
+         values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0.651 0 " />
+      <feOffset
+         id="feOffset3928"
+         in="bluralpha"
+         dx="4.1"
+         dy="1.5"
+         result="offsetBlur" />
+      <feMerge
+         id="feMerge3930">
+        <feMergeNode
+           id="feMergeNode3932"
+           in="offsetBlur" />
+        <feMergeNode
+           id="feMergeNode3934"
+           in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="0.42368311"
+     inkscape:cx="962.3975"
+     inkscape:cy="840.45206"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer1"
+     showgrid="true"
+     showguides="false"
+     inkscape:window-width="1230"
+     inkscape:window-height="696"
+     inkscape:window-x="50"
+     inkscape:window-y="24"
+     inkscape:window-maximized="1"
+     inkscape:snap-global="false">
+    <inkscape:grid
+       type="xygrid"
+       id="grid2985"
+       empspacing="5"
+       visible="false"
+       enabled="true"
+       snapvisiblegridlinesonly="true"
+       dotted="true" />
+  </sodipodi:namedview>
+  <metadata
+     id="metadata7">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <path
+       sodipodi:type="arc"
+       style="fill:#d45500;fill-rule:evenodd;stroke:none"
+       id="path2987"
+       sodipodi:cx="280"
+       sodipodi:cy="202.36218"
+       sodipodi:rx="160"
+       sodipodi:ry="160"
+       d="m 440,202.36218 a 160,160 0 1 1 -320,0 160,160 0 1 1 320,0 z"
+       transform="matrix(0.70271792,0,0,0.70271792,83.238982,50.15865)"
+       inkscape:export-filename="/home/michel/Dropbox/miniup/res/rect3035.png"
+       inkscape:export-xdpi="96.739998"
+       inkscape:export-ydpi="96.739998" />
+    <flowRoot
+       xml:space="preserve"
+       id="flowRoot2989"
+       style="font-size:40px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#ffffff;fill-opacity:1;stroke:none;font-family:Sans"><flowRegion
+         id="flowRegion2991"><rect
+           id="rect2993"
+           width="384.72028"
+           height="200.41113"
+           x="195.27972"
+           y="151.95105"
+           style="fill:#ffffff" /></flowRegion><flowPara
+         id="flowPara2995"
+         style="font-size:144px;font-style:italic;font-variant:normal;font-weight:bold;font-stretch:normal;fill:#ffffff;font-family:URW Chancery L;-inkscape-font-specification:URW Chancery L Bold Italic" /></flowRoot>    <path
+       style="fill:#ffffff;stroke:none;filter:url(#filter3922)"
+       d="M 280.34375 109.59375 L 185.59375 204.375 L 240 204.375 L 240 268.375 L 268.71875 268.375 L 270.8125 266.34375 L 270.8125 186.6875 L 253.71875 186.6875 L 251.4375 188.59375 L 249.15625 204.28125 L 239.3125 204.28125 L 239.3125 178.34375 L 321.5625 178.34375 L 321.5625 204.28125 L 311.75 204.28125 L 309.3125 188.59375 L 307.1875 186.6875 L 290.0625 186.6875 L 290.0625 266.34375 L 292.1875 268.375 L 320 268.375 L 320 204.375 L 375.125 204.375 L 280.34375 109.59375 z "
+       id="rect3035"
+       inkscape:export-xdpi="96.739998"
+       inkscape:export-ydpi="96.739998" />
+    <path
+       sodipodi:type="arc"
+       style="fill:#d45500;fill-rule:evenodd;stroke:none"
+       id="path2987-2"
+       sodipodi:cx="280"
+       sodipodi:cy="202.36218"
+       sodipodi:rx="160"
+       sodipodi:ry="160"
+       d="m 440,202.36218 a 160,160 0 1 1 -320,0 160,160 0 1 1 320,0 z"
+       transform="matrix(0.70271792,0,0,0.70271792,105.35157,362.57959)" />
+    <path
+       inkscape:connector-curvature="0"
+       id="rect3035-2"
+       style="fill:#ffffff;stroke:none"
+       d="m 262.11259,480.78312 80,0 0,99.9999 -80,0 z m 40.35847,-58.77861 94.77861,94.77862 -94.77861,-10e-6 -94.77862,0 z" />
+    <flowRoot
+       xml:space="preserve"
+       id="flowRoot3022-8"
+       style="font-size:40px;font-style:normal;font-weight:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#d45500;fill-opacity:1;stroke:none;font-family:Sans"
+       transform="matrix(0.98995672,0,0,1.0169124,230.03942,380.67583)"><flowRegion
+         id="flowRegion3024-2"><rect
+           id="rect3026-6"
+           width="449.38849"
+           height="303.95004"
+           x="29.41452"
+           y="60.439205"
+           style="fill:#d45500" /></flowRegion><flowPara
+         id="flowPara3028-2"
+         style="font-size:144px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;fill:#d45500;font-family:Bitstream Charter;-inkscape-font-specification:Bitstream Charter">T</flowPara></flowRoot>  </g>
+</svg>

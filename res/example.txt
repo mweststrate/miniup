@@ -1,0 +1,30 @@
+language example
+[
+	casesensitive    : true,
+	startsymbol      : script,
+	usedefaulttokens : false,
+	disableautowhitespace : false
+]
+
+token IDENTIFIER             = /[a-zA-Z]\w*/;
+token NUMBER                 = /-?\d+/;
+token WHITESPACE[whitespace] = /\s+/;
+
+list script[allowtrailing]   = statement ';';
+
+choice   statement  = vardecl | assignment | return | functiondeclaration | expression;
+
+sequence vardecl    = 'var' IDENTIFIER ;
+
+sequence assignment = IDENTIFIER '=' expression ;
+
+sequence return     = 'return' expression ;
+
+choice   expression =  functioncall | addition | multiplication |  IDENTIFIER | NUMBER | parenthesizedExpression;
+
+sequence parenthesizedExpression = '(' expression ')';
+operator multiplication          = ('*' | '/') expression;
+operator addition                = ('+' | '-') expression;
+
+sequence functiondeclaration = 'function' funcname: IDENTIFIER? '(' formalargs: (IDENTIFIER ',')* ')' '{' statements:script '}' ;
+sequence functioncall        = function: IDENTIFIER '(' (expression ',')* ')';
