@@ -1223,36 +1223,35 @@ module miniup {
 
 		}
 
-		export class MatchMemoizer {
-		number cachehits = 0;
-		number cachemisses = 0;
+	export class MatchMemoizer {
+		cachehits: number = 0;
+		cachemisses: number = 0;
 
-		Map <Integer, Map <string, Match >> matchCache = new HashMap < Integer, Map <string, Match >>();
+		private matchCache = {}; //number -> { string -> match }
 
-	 isInCache : bool(number curpos, AbstractMatcher matcher) {
+		isInCache (curpos: number, matcher: AbstractMatcher):bool {
 			if (!Miniup.USE_TOKEN_MEMOIZATION)
 				return false;
 
-		 res : bool = matcher instanceof TokenMatcher;
+			var res : bool = matcher instanceof TokenMatcher;
 
 			if (res) {
-				if (!matchCache.containsKey(curpos)) {
-					matchCache.put(curpos, new HashMap < string, Match > ());
-						res = false; //appearantly, it is not in cache :)
-					}
-					else
-					res = matchCache.get(curpos).containsKey(matcher.getName());
+				if (!this.matchCache[curpos]) {
+					this.matchCache[curpos] = {};
+					res = false; //appearantly, it is not in cache :)
+				else
+					res = !!this.matchCache[curpos][matcher.getName()];
 				}
 
 				if (res)
-					cachehits += 1;
+					this.cachehits += 1;
 				else
-					cachemisses += 1;
+					this.cachemisses += 1;
 				return res;
 			}
 
-		 consumeFromCache : bool(Match parent, token:string, number curpos) {
-				Match catched = matchCache.get(curpos).get(token);
+		 consumeFromCache (parent: Match, token:string, curpos: number):bool {
+				Match catched = this.matchCache[curpos][token];
 				if (catched != null) {
 					parent.register(catched);
 					return true;
@@ -1260,16 +1259,15 @@ module miniup {
 				return false;
 			}
 
-		 storeInCache(Match parent, number curpos, AbstractMatcher matcher) {
+		 storeInCache(parent: Match, curpos: number, matcher: AbstractMatcher) {
 				if (!Miniup.USE_TOKEN_MEMOIZATION)
 					return;
 
 				if (matcher instanceof TokenMatcher)
-					matchCache.get(curpos).put(matcher.getName(),
+					matchCache[curpos][matcher.getName()] =
 							parent == null
-									? null                //not a match
+									? undefined                //not a match
 									: parent.lastChild()  //match
-							);
 			}
 
 		}
@@ -1278,45 +1276,42 @@ module miniup {
 
 			export class ParseException extends Exception {
 
-		/**
-		 *
-		 */
-		private static final long serialVersionUID = -826584894413162138L;
-		private StringBuilder msg;
-		private Stack <Pair <string, Integer >> stack;
+		private  msg: string[];
+		private  stack=[]; //Stack <Pair <string, Integer >>
 
 		/**
 		 *
 		 * @param p
 		 * @param usebestMatchStack, true: display the stack that gave us the best result, false: display the current stack
-		 * @param 		 */:string
+		 * @param 		 */
 		@SuppressWarnings("unchecked")
-		public ParseException(Parser p, usebestMatchStack : bool, string:string) {
+		public constructor(p: Parser, usebestMatchStack : bool, str:string) {
 			super();
-			this.msg = new StringBuilder();
-			msg.append("Parse exception: " + string);
+			this.msg = [];
+			this.msg.push("Parse exception: " + str);
 
 			if (p.bestPoint > -1)
-				msg.append(Util.hightlightLine(p.getInputString(), p.getCurrentLineNr(p.bestPoint), p.getCurrentColNr(p.bestPoint)));
+				this.msg.push(Util.hightlightLine(p.getInputString(), p.getCurrentLineNr(p.bestPoint), p.getCurrentColNr(p.bestPoint)));
 
 			if (usebestMatchStack && p.expected.size() > 0)
-				msg.append("\nExpected: " + Util.join(p.expected, " or ") + "\n");
+				this.msg.push("\nExpected: " + Util.join(p.expected, " or ") + "\n");
 
-			this.stack = (Stack < Pair < string, Integer >>)(usebestMatchStack ? p.bestStack.clone() : p.stack.clone());
+			this.stack = usebestMatchStack ? Util.clone(p.bestStack) : Util.clone(p.stack;
 
 			if (Miniup.VERBOSE) {
-				msg.append("\nParse stack: \n");
+				this.msg.push("\nParse stack: \n");
 
-				for (Pair < string, Integer > item: this.stack)
-					msg.append("\t" + item.getFirst() + (item.getSecond() > 0 ? " no. " + (item.getSecond() + 1) : "") + "\n");
+				this.stach.forEach(item =>
+					this.msg.push("\t" + item.getFirst() + (item.getSecond() > 0 ? " no. " + (item.getSecond() + 1) : "") + "\n");
+				);
 			}
 		}
 
 			public getMessage:string() {
-				return msg.toString();
+				return this.msg.join();
 			}
 
-			public Stack < Pair < string, Integer >> getParseStack() {
+			public getParseStack() {
 				return this.stack;
 			}
 
@@ -1324,117 +1319,113 @@ module miniup {
 
 
 
-		export class Parser {
-		Grammar language;
-		private inputstring:string = null;;
+	export class Parser {
+		var language: Grammar;
+		private inputstring:string = null;
 
-		Stack <Pair <string, Integer >> stack = new Stack < Pair < string, Integer >>();
-		Stack <Pair <string, Integer >> bestStack = new Stack < Pair < string, Integer >>();
-		Set <string > expected = new HashSet < >:string ();
+		var stack = []; //new Stack < Pair < string, Integer >>();
+		var bestStack = [];//new Stack < Pair < string, Integer >>();
+		var expected = {}; //new HashSet <string >: ();
 
-		number bestPoint = -1;
+		var bestPoint: number = -1;
 
-		MatchMemoizer memoizer;
+		var memoizer: MatchMemoizer;
 
 		//Fields used for statistics
-		private long start;
+		private start: number;
 
-		private number calls = 0;
-		private number found = 0;
-		private number notfound = 0;
+		private calls: number = 0;
+		private found: number = 0;
+		private notfound: number = 0;
 
 
-		public Parser(Grammar language, input:string) {
+		public constructor(language: Grammar, input:string) {
 			this.language = language;
 			this.inputstring = input;
-			memoizer = new MatchMemoizer();
+			this.memoizer = new MatchMemoizer();
 		}
 
-			public Match parse() {}{
-				return parse(null);
-			}
-
-			public parsePartial : bool(Parser parentParser, Match parentMatch, startSymbol:string) {}{
+			public parsePartial(parentParser: Parser, parentMatch: Match, startSymbol:string):bool{
 				this.stack = parentParser.stack;
 				this.bestPoint = parentParser.bestPoint;
-				consumeWhitespace(parentMatch);
-			 res : bool = consume(parentMatch, startSymbol);
+				this.consumeWhitespace(parentMatch);
+			 	var res : bool = this.consume(parentMatch, startSymbol);
 
-				if (bestPoint > parentParser.bestPoint) {
-					parentParser.expected = expected;
-					parentParser.bestPoint = bestPoint;
-					parentParser.bestStack = bestStack;
+				if (this.bestPoint > parentParser.bestPoint) {
+					parentParser.expected = this.expected;
+					parentParser.bestPoint = this.bestPoint;
+					parentParser.bestStack = this.bestStack;
 				}
 
 				return res;
 			}
 
-			public Match parse(string startSymbol) {}{
+			public parse(startSymbol?: string): Match {
 				this.start = new Date().getTime();
 
-				Match m = new Match(this);
-				consumeWhitespace(m); //consume prepending whitespace
+				var m = new Match(this);
+				this.consumeWhitespace(m); //consume prepending whitespace
 
-			 s:string = startSymbol;
-				if (s == null && language.getStartSymbol() == null)
+				var s:string = startSymbol;
+				if (s == null && this.language.getStartSymbol() == null)
 					throw new ParseException(this, false, "Grammar has no start symbol!");
 				if (s == null)
-					s = language.getStartSymbol();
+					s = this.language.getStartSymbol();
 
-				if (!consume(m, s)) {
-					if (m.getMaximumMatchedCharPos() < inputstring.length())
-						throw new ParseException(this, true, "Unexpected '" + inputstring.charAt(m.getMaximumMatchedCharPos()) + "' ");
+				if (!this.consume(m, s)) {
+					if (m.getMaximumMatchedCharPos() < this.inputstring.length())
+						throw new ParseException(this, true, "Unexpected '" + this.inputstring.charAt(m.getMaximumMatchedCharPos()) + "' ");
 					else
 						throw new ParseException(this, true, "Unexpected end of input (EOF) ");
 				}
 
-				if (m.getLastCharPos() < inputstring.length())
+				if (m.getLastCharPos() < this.inputstring.length())
 					throw new ParseException(this, true, "Parsing succeeded, but not all input was consumed ");
 
 				if (Miniup.SHOWSTATS)
 					System.out.println(string.format("Finished parsing in %d ms. Stats: %d/%d/%d/%d/%d (read attempts/successfull reads/failed reads/cache hits/cache misses)",
-							(new Date().getTime()) - start, calls, found, notfound, memoizer.cachehits, memoizer.cachemisses));
+							(new Date().getTime()) - this.start, this.calls, this.found, this.notfound, this.memoizer.cachehits, this.memoizer.cachemisses));
 				return m;
 			}
 
-			public consume : bool(Match parent, token:string) {}{
-				stack.push(Pair.pair(token, 0));
-				number curpos = parent.getLastCharPos();
-			 result : bool = false;
+			public consume(parent: Match, token:string):bool {
+				this.stack.push(Pair.pair(token, 0));
+				var curpos = parent.getLastCharPos();
+				var result = false;
 
 				if (Miniup.VERBOSE)
-					System.out.println(string.format("[%s:%s]%s", getCurrentLineNr(curpos), getCurrentColNr(curpos), Util.leftPad(token + " ?", stack.size())));
+					System.out.println(string.format("[%s:%s]%s", this.getCurrentLineNr(curpos), this.getCurrentColNr(curpos), Util.leftPad(token + " ?", this.stack.size())));
 				this.calls += 1;
 
 				try {
-					if (language.getMaxRecursionDepth() != -1 && stack.size() > language.getMaxRecursionDepth())
+					if (this.language.getMaxRecursionDepth() != -1 && this.stack.size() > this.language.getMaxRecursionDepth())
 						throw new ParseException(this, false, "Maximum stack depth reached. ");
 
-					AbstractMatcher matcher = language.getMatcher(token);
+					var matcher = this.language.getMatcher(token);
 					this.storeExpected(matcher, parent, curpos);
 
-					if (memoizer.isInCache(curpos, matcher)) {
-						result = memoizer.consumeFromCache(parent, token, curpos);
+					if (this.memoizer.isInCache(curpos, matcher)) {
+						result = this.memoizer.consumeFromCache(parent, token, curpos);
 
 						if (result)
-							consumeWhitespace(parent);
+							this.consumeWhitespace(parent);
 					}
 
 						//not in cache {
 					else {
 						if (matcher.match(this, parent)) {
-							memoizer.storeInCache(parent, curpos, matcher);
+							this.memoizer.storeInCache(parent, curpos, matcher);
 
-							consumeWhitespace(parent);
+							this.consumeWhitespace(parent);
 
 							result = true;
 						}
 						else
-							memoizer.storeInCache(null, curpos, matcher);
+							this.memoizer.storeInCache(null, curpos, matcher);
 					}
 
 					if (Miniup.VERBOSE && result)
-						System.out.println(string.format("[%s:%s]%s", getCurrentLineNr(curpos), getCurrentColNr(curpos), Util.leftPad(token + " V", stack.size())));
+						System.out.println(string.format("[%s:%s]%s", this.getCurrentLineNr(curpos), this.getCurrentColNr(curpos), Util.leftPad(token + " V", this.stack.size())));
 					if (result) {
 						this.found += 1;
 						/*	        	if (Miniup.VERBOSE)
@@ -1448,80 +1439,78 @@ module miniup {
 						return result;
 					}
 					finally {
-						stack.pop();
+						this.stack.pop();
 					}
 				}
 
-				private consumeWhitespace(Match parent) {}{
-					if (language.getDisableAutoWhitespace())
+				private consumeWhitespace(parent: Match) {
+					if (this.language.getDisableAutoWhitespace())
 						return;
 
-				 res : bool = true;
-					number curpos = parent.getLastCharPos();
+					var res = true;
+					var curpos = parent.getLastCharPos();
 
 					while (res) {
 						res = false;
-						for (TokenMatcher wsMatcher: language.getWhiteSpaceTokens()) {
-							if (memoizer.isInCache(curpos, wsMatcher))
-								res = memoizer.consumeFromCache(parent, wsMatcher.getName(), curpos);
+						this.language.getWhiteSpaceTokens().forEach(wsMatcher =>  {
+							if (this.memoizer.isInCache(curpos, wsMatcher))
+								res = this.memoizer.consumeFromCache(parent, wsMatcher.getName(), curpos);
 							else
 								res = wsMatcher.match(this, parent);
 							if (res)
 								break;
-						}
+						});
 					}
 				}
 
-				public consumeLambda(Match parent, token:string) {
-					Match match = new Match(this, parent, null);
+				public consumeLambda(parent: Match, token:string) {
+					var match = new Match(this, parent, null);
 					match.setNil(token);
 
 					if (Miniup.VERBOSE)
-						System.out.println(Util.leftPad("-", stack.size()));
+						System.out.println(Util.leftPad("-", this.stack.size()));
 				}
 
 				public getInputString:string() {
 					return this.inputstring;
 				}
 
-				@SuppressWarnings("unchecked")
-				private storeExpected(AbstractMatcher matcher, Match parent, number curpos) {
-					if (curpos > bestPoint) {
-						bestPoint = curpos;
-						bestStack = (Stack < Pair < string, Integer >>) stack.clone();
-						expected.clear();
+				private storeExpected(matcher: AbstractMatcher, parent: Match, curpos: number) {
+					if (curpos > this.bestPoint) {
+						this.bestPoint = curpos;
+						this.bestStack = Util.clone(this.sstack);
+						this.expected.clear();
 					}
-					if (matcher instanceof TokenMatcher && curpos >= bestPoint) {
-						expected.add(matcher.getName());
+					if (matcher instanceof TokenMatcher && curpos >= this.bestPoint) {
+						this.expected.add(matcher.getName());
 					}
 				}
 
-				public setStackIter(number index) {
-					stack.push(Pair.pair(stack.pop().getFirst(), index));
+				public setStackIter(index: number) {
+					this.stack.push([stack.pop()[0], index]);
 				}
 
-				public number getCurrentLineNr(number curpos) {
+				public getCurrentLineNr(curpos: number):number {
 					if (curpos == -1)
 						return -1;
 
-				 input:string = getInputString().substring(0, curpos);
-					number line = 1 + Util.countMatches(input, "\n");
+				 	var input = this.getInputString().substring(0, curpos);
+					var line = 1 + Util.countMatches(input, "\n");
 					return line;
 				}
 
-				public number getCurrentColNr(number curpos) {
+				public getCurrentColNr(curpos: number):number {
 					if (curpos == -1)
 						return -1;
 
-				 input:string = getInputString().substring(0, curpos);
-					number last = input.lastIndexOf('\n');
-					number col = input.length() - last;
+					var input:string = this.getInputString().substring(0, curpos);
+					var last = this.input.lastIndexOf('\n');
+					var col = this.input.length() - last;
 					return col;
 				}
 
-				public getCurrentInputLine:string(number curpos) {
-				 input:string = getInputString();
-					return Util.getInputLineByPos(input, curpos);
+				public getCurrentInputLine(curpos: number):string {
+					return Util.getInputLineByPos(this.getInputString(), curpos);
 				}
 
 
@@ -1529,213 +1518,23 @@ module miniup {
 
 
 
-			export class TestSuite {
-
-		public static runTestsuite() {}{
-			test1();
-			test2();
-			test3();
-			test4();
-			//System.exit(0);
-			Grammar b = GrammarBuilder.createBootstrapper();
-
-			//run sugar test
-			GrammarBuilder.languageFromAST(Grammar.get("Miniup").parse(Util.readFileAsString("res/sugartest.txt")).toAST());
-
-			Node n = Grammar.get("sugartest").parse(
-				"sublist bla boe > subchoice 'hoi' subcomp zeker"
-			).toAST();
-
-			test(n.toString(),
-			"(test (subrule_1 'bla' 'boe') ''hoi'' (subrule_3 - 'zeker'))");
-
-			test(n.get("jatoch").findText(1), "zeker");
-			test(n.get("ids").toString(), "(subrule_1 'bla' 'boe')");
-			test(n.get("string").text(), "'hoi'");
-
-			//load Miniup from the official def, should behave the same..
-		 data:string;
-			data = Util.readFileAsString("res/miniup.txt");
-
-			//test bootstrap
-			Match m = b.parse(data);
-
-			Node t = m.toAST();
-			System.out.println(t);
-			Grammar b2 = GrammarBuilder.languageFromAST(t);
-
-			//try to parse ourselves a few times... that makes a nice unit test
-			for (number i = 0; i < 3; i++) {
-				System.out.println("Yeaah, parsed for the " + (i + 1) + " time");
-				m = b2.parse(data);
-				t = m.toAST();
-				b2 = GrammarBuilder.languageFromAST(t);
-			}
-
-			//Match m = b.parse(data);
-			//System.out.println(m);
-
-			GrammarBuilder.languageFromAST(Grammar.get("Miniup").parse(Util.readFileAsString("res/sugartest.txt")).toAST());
-
-			n = Grammar.get("sugartest").parse(
-				"sublist bla boe > subchoice 'hoi' subcomp zeker"
-			).toAST();
-
-			test(n.toString(),
-			"(test (subrule_1 'bla' 'boe') ''hoi'' (subrule_3 - 'zeker'))");
-
-			test(n.get("jatoch").findText(1), "zeker");
-			test(n.get("ids").toString(), "(subrule_1 'bla' 'boe')");
-			test(n.get("string").text(), "'hoi'");
-
-			System.out.println("Finished!");
-		}
-
-
-			@SuppressWarnings("unused")
-			private static test1() {}{
-			 data:string = Util.readFileAsString("res/test1.txt");
-
-				Grammar bootstrap = new Grammar("test1");
-				bootstrap.addTokenmatcher("identifier", "\\w+", false);
-				bootstrap.addTokenmatcher("whitespace", "\\s+", true);
-				bootstrap.addTokenmatcher("number", "\\d+", true);
-				bootstrap.keyword("bla");
-				bootstrap.keyword("bla");
-				bootstrap.keyword(">=");
-				bootstrap.keyword("==");
-				bootstrap.keyword(">");
-				bootstrap.keyword("=");
-			}
-
-			private static test2() {}{
-
-				Grammar x = new Grammar("test2");
-			 ID:string = "identifier";
-				x.addTokenmatcher("identifier", "\\w+", false);
-				x.addTokenmatcher("whitespace", "\\s+", true);
-				x.addTokenmatcher("number", "\\d+", true);
-
-				SequenceMatcher hw = x.addSequence("hw", new SequenceItem(ID), new SequenceItem(ID, false));
-
-				x.setStartSymbol(hw.getName());
-				Match m = x.parse("hello");
-				test(m.toMatchString(), "(hw: 'hello' -)");
-
-				Match m2 = x.parse("hello world");
-				test(m2.toMatchString(), "(hw: 'hello' 'world')");
-
-			 o:string = x.keyword("other");
-			 p:string = x.keyword("planet");
-				x.setStartSymbol(x.addChoice("op", o, p));
-				test(x.parse("  planet  \n").toMatchString(), "(op: planet)");
-
-				x.setStartSymbol(x.addList("list1", true, ID, null, o, p, true));
-				test(x.parse("other planet").toMatchString(), "(list1: other planet)");
-				test(x.parse("other blaat blaat planet").toMatchString(), "(list1: other 'blaat' 'blaat' planet)");
-
-				x.setStartSymbol(x.addList("list2", true, ID, x.keyword(","), o, p, true));
-				// test(x.parse("other planet").toAST().toString(),"(list2 (list2))");
-				test(x.parse("other hoi , hoi planet").toAST().toString(), "(list2 'hoi' 'hoi')");
-				test(x.parse("other hoi , hoi, planet").toAST().toString(), "(list2 'hoi' 'hoi')");
-				test(x.parse("other oi,planet").toMatchString(), "(list2: other 'oi' , planet)");
-				test(x.parse("other blaat, blaat planet").toMatchString(), "(list2: other 'blaat' , 'blaat' planet)");
-
-				x.addList("planets", true, "identifier", null, null, null, false);
-				x.addSequence("emptyListEOF", new SequenceItem("identifier"), new SequenceItem("planets"));
-				//MWE: bug found: this should not throw EOF!
-				test(x.parse("bladibla", "emptyListEOF").toMatchString(), "(emptyListEOF: 'bladibla' (planets:))");
-
-			}
-
-			private static test3() {}{
-				//language without backtracking
-				Grammar x = new Grammar("test3");
-				x.addTokenmatcher("whitespace", "\\s+", true);
-			 Number:string = "number";
-				x.addTokenmatcher("number", "\\d+", false);
-
-			 mul:string = x.addOperator("mul", true, x.keyword("*"), Number);
-			 add:string = x.addOperator("add", false, x.keyword("+"), mul);
-			 Expr:string = x.addChoice("expr", add);
-				x.setStartSymbol(Expr);
-
-				/*      test(x.parse("1 * 2").toMatchString(), "(expr: (add: (mul: '1' * '2')))");
-					  test(x.parse("1 * 2 * 3").toMatchString(), "(expr: (add: (mul: '1' * '2' * '3')))");
-					  test(x.parse("1 + 2 + 3").toMatchString(), "(expr: (add: (mul: '1') + (add: (mul: '2') + (add: (mul: '3')))))");
-					  test(x.parse("1 * 2 + 3 * 4").toMatchString(), "(expr: (add: (mul: '1' * '2') + (add: (mul: '3' * '4'))))");
-					  test(x.parse("1 + 2 + 3 * 4 * 5 * 6").toMatchString(), "(expr: (add: (mul: '1') + (add: (mul: '2') + (add: (mul: '3' * '4' * '5' * '6')))))");
-				 */
-				test(x.parse("1 * 2").toAST().toString(), "(mul '*' '1' '2')");
-				test(x.parse("1 * 2 * 3").toAST().toString(), "(mul '*' (mul '*' '1' '2') '3')");
-				test(x.parse("1 + 2 + 3").toAST().toString(), "(add '+' '1' (add '+' '2' '3'))");
-				test(x.parse("1 * 2 + 3 * 4").toAST().toString(), "(add '+' (mul '*' '1' '2') (mul '*' '3' '4'))");
-				test(x.parse("1 + 2 + 3 * 4 * 5 * 6").toAST().toString(), "(add '+' '1' (add '+' '2' (mul '*' (mul '*' (mul '*' '3' '4') '5') '6')))");
-				test(x.parse("1 + 2 + 3 * 4 * 5 + 6 * 2 + 7").toAST().toString(), "(add '+' '1' (add '+' '2' (add '+' (mul '*' (mul '*' '3' '4') '5') (add '+' (mul '*' '6' '2') '7'))))");
-			}
-
-			private static test4() {}{
-				//language with backtracking
-				Grammar x = new Grammar("test4");
-				x.setBacktracking(50);
-				x.addTokenmatcher("whitespace", "\\s+", true);
-			 Number:string = "number";
-				x.addTokenmatcher("number", "\\d+", false);
-
-			 mul:string = x.addOperator("mul", true, x.keyword("*"), "expr");
-			 add:string = x.addOperator("add", false, x.keyword("+"), "expr");
-				x.addSequence("paren",
-						new SequenceItem(x.keyword("(")),
-						new SequenceItem("expr"),
-						new SequenceItem(x.keyword(")")));
-			 Expr:string = x.addChoice("expr", add, mul, Number, "paren");
-				x.setStartSymbol(Expr);
-				//TODO: matchstring depends on stack, how to optimize?
-				//      test(x.parse("1 * 2").toMatchString(), "(expr: (mul: (expr: '1') * (expr: '2')))");
-				//      test(x.parse("1 + 2 + 3 * 4 * 5 * 6").toMatchString(), "(expr: (add: (mul: '1') + (add: (mul: '2') + (add: (mul: '3' * '4' * '5' * '6')))))");
-
-				//     test(x.parse("1 * 2").toAST().toString(), "(expr (mul '*' '1' '2'))");
-				//        test(x.parse("1 * 2 * 3").toAST().toString(), "(expr (mul '*' (mul '*' '1' '2') '3'))");
-				test(x.parse("1 + 2 + 3").toAST().toString(), "(add '+' '1' (add '+' '2' '3'))");
-				test(x.parse("1 + 2 + 3 * 4 * 5 * 6").toAST().toString(), "(add '+' '1' (add '+' '2' (mul '*' (mul '*' (mul '*' '3' '4') '5') '6')))");
-				test(x.parse("1 + 2 + 3 * 4 * 5 + 6 * 2 + 7").toAST().toString(), "(add '+' '1' (add '+' '2' (add '+' (mul '*' (mul '*' '3' '4') '5') (add '+' (mul '*' '6' '2') '7'))))");
-
-				test(x.parse("(1 + 2) + 3").toAST().toString(), "(add '+' (paren (add '+' '1' '2')) '3')");
-
-				test(x.parse("1 + (2 + 3) * 4 * (5 * 6)").toAST().toString(),
-				"(add '+' '1' (mul '*' (mul '*' (paren (add '+' '2' '3')) '4') (paren (mul '*' '5' '6'))))");
-				test(x.parse("(1 + 2) * 3 + 4 * (5 + 6) + (6 + 7) * 8").toAST().toString(),
-						"(add '+' (mul '*' (paren (add '+' '1' '2')) '3') (add '+' (mul '*' '4' (paren (add '+' '5' '6'))) (mul '*' (paren (add '+' '6' '7')) '8')))");
-
-			}
-
-			//TODO: add test for SetMatcher
-			//TODO: add test for endless recursion and list lambda productions
-			private static test(string ast, string:string) {
-				System.out.println(ast);
-				if (!ast.trim().equals(string))
-					throw new AssertionError("TEST FAILED: Expected:\n" + +:string "\n\nReceived:\n\n" + ast);
-			}
-		}
 
 
 
 
 		public abstract class AbstractMatcher {
 
-		protected name:string;
-		protected Grammar language;
-		private Map <string, Object > options = new HashMap < string, Object >();
+			var name:string;
+			var language: Grammar;
+		private options = {}; //new HashMap < string, Object >();
 
-		public AbstractMatcher(Grammar language, name:string) {
+		public constructor(language: Grammar, name:string) {
 			this.name = name;
 			this.language = language;
 		}
 
-			public match : bool(Parser parser, Match parent) {}{
-				//if (parent.getLastCharPos() >= parser.getInputString().length()) //EOF
-				//    return false;
-				Match match = new Match(parser, parent, this);
+			public match (parser: Parser, parent: Match) : bool{
+				var match = new Match(parser, parent, this);
 				if (!this.performMatch(parser, match)) {
 					parent.unMatch();
 					return false;
@@ -1744,22 +1543,22 @@ module miniup {
 				return true;
 			}
 
-			abstract performMatch : bool(Parser parser, Match parent) {}
+			performMatch(parser: Parser, parent: Match): bool { throw new Error("performMatch is an abstract method"); }
 
-			public getName:string() { return name; }
-			public Grammar getLanguage() { return language; }
+			public getName(): string { return this.name; }
+			public getLanguage() : Grammar{ return this.language; }
 
-			public toString:string() { return "Matcher: " + this.getName(); }
+			public toString(): string { return "Matcher: " + this.getName(); }
 
-			abstract public Node toAST(Match match);
+			public toAST(match: Match): Node { throw new Error("toAT is an abstract method"); }
 
-			public setOption(string key, Object object) {
-				this.options.put(key, object);
+			public setOption(key: string, object: any) {
+				this.options[key] = object;
 			}
 
-			public Object getOption(string key, Object defaultvalue) {
-				if (this.options.containsKey(key))
-					return options.get(key);
+			public getOption(key: string, defaultvalue: any):any {
+				if (this.options[key] !== undefined)
+					return options[key]
 				return defaultvalue;
 			}
 		}
@@ -1767,20 +1566,18 @@ module miniup {
 
 
 
-		export class ChoiceMatcher extends AbstractMatcher {
+	export class ChoiceMatcher extends AbstractMatcher {
 
-		public ChoiceMatcher(Grammar language, name:string, string[]items) {
+		private choices : string[] = [];
+
+		public constructor(language: Grammar, name:string, items:string[]) {
 			super(language, name);
-			for (string item: items)
-				this.choices.add(item);
+			this.choices = Util.clone(items);
 		}
 
-			List < >:string choices = new ArrayList < >:string ();
-
-			@Override
-		 performMatch : bool(Parser parser, Match parent) {}{
-				number index = 0;
-				for (string choice: choices) {
+		 performMatch (parser: Parser, parent: Match): bool {
+				var index = 0, choice;
+				for (var i = 0; i < this.choices.length, choice = this.choices[i]; i++) {
 					parser.setStackIter(index++);
 					if (parser.consume(parent, choice))
 						return true;
@@ -1788,8 +1585,7 @@ module miniup {
 				return false;
 			}
 
-			@Override
-			public Node toAST(Match match) {
+			public toAST(match: Match):Node {
 				Node inner = match.getLastMatch(true).toAST();
 				if (Boolean.FALSE.equals(this.getOption("wrap", Boolean.FALSE))) //nowrap?
 					return inner;
@@ -1805,14 +1601,13 @@ module miniup {
 		private languagename:string;
 		private rulename:string;
 
-		public ImportMatcher(Grammar language, name:string, languagename:string, rulename:string) {
+		public constructor(language: Grammar, name:string, languagename:string, rulename:string) {
 			super(language, name);
 			this.languagename = languagename;
 			this.rulename = rulename;
 		}
 
-			@Override
-		 performMatch : bool(Parser parser, Match parent) {}{
+		 performMatch(parser: Parser, parent: Match) : bool{
 				if (!Grammar.languages.containsKey(languagename))
 
 				try {
@@ -1824,19 +1619,15 @@ module miniup {
 				}
 			}
 
-			@Override
-			public Node toAST(Match match) {
-				Node inner = match.getLastMatch(true).toAST();
-				if (Boolean.FALSE.equals(this.getOption("wrap", Boolean.TRUE))) //nowrap?
+			public  toAST(match: Match):Node {
+				var inner = match.getLastMatch(true).toAST();
+				if (!this.getOption("wrap", true)) //nowrap? //TODO: compare with string or with boolean value?
 					return inner;
 
 				return new Node(this.getName(), inner);
 			}
 
 		}
-
-
-
 
 		export class ListMatcher extends AbstractMatcher {
 
@@ -1848,29 +1639,28 @@ module miniup {
 		private post:string = null;
 		private seperator:string;
 
-		public ListMatcher(Grammar language, name:string, token:string, seperator:string, pre:string, post:string) {
+		public constructor(language: Grammar, name:string, token:string, seperator:string, pre:string, post:string) {
 			super(language, name);
 			this.token = token;
-			this.seperator = seperator;
+			this.seperator = seperator;//TODO: separator
 			this.pre = pre;
 			this.post = post;
 		}
 
-			@Override
-		 performMatch : bool(Parser parser, Match parent) {}{
+		public performMatch (parser: Parser, parent: Match) : bool{
 				//match pre token
-				if (pre != null) {
-					if (!parser.consume(parent, pre))
+				if (this.pre != null) {
+					if (!parser.consume(parent, this.pre))
 						return false;
 				}
-				number index = 0;
-				number basepos = -1;
+				var index = 0;
+				var basepos = -1;
 
-				if (post != null && parser.consume(parent, post))
+				if (this.post != null && parser.consume(parent, this.post))
 					return this.isNullable();
 
-				if (parser.consume(parent, token)) {
-					while (seperator == null || parser.consume(parent, seperator)) {
+				if (parser.consume(parent, this.token)) {
+					while (this.seperator == null || parser.consume(parent, this.seperator)) {
 						//detect lambda matching lists...
 						if (parent.getLastCharPos() <= basepos)
 							throw new ParseException(parser, false, "The rule '" + this.name + "', never ends, its items ('" + token + "') can match an empty string");
@@ -1882,42 +1672,41 @@ module miniup {
 						//if (seperator == null && parent.getLastMatch(true).charsConsumed() == 0)
 						//	throw new ParseException(parser, false, "Unterminating match detected. List items should either consume terminals or be seperated.");
 
-						if (post != null && parser.consume(parent, post))
-							return seperator == null || this.allowTrailing();
+						if (this.post != null && parser.consume(parent, this.post))
+							return this.seperator == null || this.allowTrailing();
 
-						if (!parser.consume(parent, token)) {
-							return post == null; //we should have read post already otherwise
+						if (!parser.consume(parent, this.token)) {
+							return this.post == null; //we should have read post already otherwise
 						}
 					}
-					return post == null || parser.consume(parent, post);
+					return this.post == null || parser.consume(parent, this.post);
 				}
 				//nothing matched yet..
-				return this.isNullable() && (post == null || parser.consume(parent, post));
+				return this.isNullable() && (this.post == null || parser.consume(parent, this.post));
 			}
 
-			public allowTrailing : bool() {
-				return (Boolean) getOption(ALLOWTRAILING_OPTION, Boolean.FALSE);
+			public allowTrailing() : bool {
+				return this.getOption(ALLOWTRAILING_OPTION, false); //TODO: string compare
 			}
 
-			public isNullable : bool() {
-				return (Boolean) getOption(NULLABLE_OPTION, Boolean.TRUE);
+			public isNullable() : bool() {
+				return this.getOption(NULLABLE_OPTION, true);//TODO: string compare?
 			}
 
-			@Override
-			public Node toAST(Match match) {
-				List < Node > children = new Vector < Node > ();
-			 hasPre : bool = pre != null;
-			 hasSep : bool = seperator != null;
-			 hasPost : bool = post != null;
-				for (number i = 0; i < match.subMatchCount(true); i++) {
+			public toAST(match: Match):Node {
+				var children : Node[] = [];
+			var hasPre : bool = this.pre != null;
+			var hasSep : bool = this.seperator != null;
+			var hasPost : bool = this.post != null;
+				for (var i = 0; i < match.subMatchCount(true); i++) {
 					if (i == 0 && hasPre)
 						continue;
 					if (i == match.subMatchCount(true) - 1 && hasPost)
 						continue;
 					if (hasSep && i % 2 == (hasPre ? 0 : 1))
 						continue;
-					if (!match.getSubMatch(i, true).getMatchedBy().getName().equals(seperator))
-						children.add(match.getSubMatch(i, true).toAST());
+					if (!match.getSubMatch(i, true).getMatchedBy().getName() == this.seperator)
+						children.push(match.getSubMatch(i, true).toAST());
 				}
 				return new Node(this.name, children);
 			}
@@ -1931,43 +1720,29 @@ module miniup {
 		private operand:string;
 		private operator:string;
 
-		public static final RIGHT_OPTION:string = "right";
+		public static final RIGHT_OPTION:string = "right";//TODO: stupid name?
 
-		public OperatorMatcher(Grammar language, name:string, leftassociative : bool, operator:string, operand:string) {
+		public constructor(language: Grammar, name:string, leftassociative : bool, operator:string, operand:string) {
 			super(language, name);
 			this.operand = operand;
 			this.operator = operator;
 			if (!leftassociative)
-				setOption(RIGHT_OPTION, Boolean.TRUE);
+				setOption(RIGHT_OPTION, true);
 		}
 
-			@Override
-		 performMatch : bool(Parser parser, Match parent) {}{
+		public performMatch (parser: Parser, parent: Match):bool{
 				//left : a = b (op b)*
 				// if (this.getIsLeftAssociative()) {
-				if (isRepeatingState(parent)) //force backtrack for operators we already tried.
+				if (this.isRepeatingState(parent)) //force backtrack for operators we already tried.
 					return false;
 
-				if (!parser.consume(parent, operand))
+				if (!parser.consume(parent, this.operand))
 					return false;
-				while (parser.consume(parent, operator)) {
-					if (!parser.consume(parent, operand))
+				while (parser.consume(parent, this.operator)) {
+					if (!parser.consume(parent, this.operand))
 						return false;
 				}
 				return true;
-				/*    }
-					//right: a = b (op a)?
-					else {
-						if (isRepeatingState(parent)) //force backtrack for operators we already tried.
-							return false;
-						if (!parser.consume(parent, operand))
-							return false;
-						if (parser.consume(parent, operator)) {
-							return parser.consume(parent, this.getName());
-						}
-						return true;
-					}
-			*/
 			}
 
 			/**
@@ -1975,12 +1750,11 @@ module miniup {
 			 * stack, unless some other input has been consumed, in which case a new 'expression' is needed
 			 * @param parent
 			 * @return
-			 * @{
 			 */
-			private isRepeatingState : bool(Match parent) {}{
-				Match p = parent.getParentMatch();
+			private isRepeatingState (parent: Match):bool {
+				var p = parent.getParentMatch();
 				while (p != null && p.getMatchedBy() != null) {
-					AbstractMatcher matcher = p.getMatchedBy();
+					var matcher = p.getMatchedBy();
 
 					//something has been consumed?
 					if (!(matcher instanceof OperatorMatcher)
@@ -1997,36 +1771,35 @@ module miniup {
 				return false;
 			}
 
-			public getIsLeftAssociative : bool() {
-				return !((Boolean) this.getOption(RIGHT_OPTION, Boolean.FALSE));
+			public getIsLeftAssociative() : bool {
+				return !this.getOption(RIGHT_OPTION, false));
 			}
 
-			@Override
-			public Node toAST(Match match) {
-				List < Match > matches = match.getSubMatches();
+			public toAST(match: Match):Node {
+				var matches : Match[] = match.getSubMatches();
 				return toASTNodeHelper(matches);
 			}
 
-			private Node toASTNodeHelper(List < Match > matches) {
-				List < Node > children = new Vector < Node > ();
-				number size = matches.size();
+			private toASTNodeHelper(matches: Match[]):Node {
+				var children: Node[] = [];
+				var size = matches.size();
 				if (size == 3) {
-					children.add(matches.get(1).toAST());
-					children.add(matches.get(0).toAST());
-					children.add(matches.get(2).toAST());
+					children.push(matches.get(1).toAST());
+					children.push(matches.get(0).toAST());
+					children.push(matches.get(2).toAST());
 				}
 				else if (size == 1) {
 					return (matches.get(0).toAST());
 				}
-				else if (getIsLeftAssociative()) {
-					children.add(matches.get(size - 2).toAST());
-					children.add(toASTNodeHelper(matches.subList(0, size - 2)));
-					children.add(matches.get(size - 1).toAST());
+				else if (this.getIsLeftAssociative()) {
+					children.push(matches.get(size - 2).toAST());
+					children.push(this.toASTNodeHelper(matches.subList(0, size - 2)));
+					children.push(matches.get(size - 1).toAST());
 				}
 				else {
-					children.add(matches.get(1).toAST());
-					children.add(matches.get(0).toAST());
-					children.add(toASTNodeHelper(matches.subList(2, size)));
+					children.push(matches.get(1).toAST());
+					children.push(matches.get(0).toAST());
+					children.push(this.toASTNodeHelper(matches.subList(2, size)));
 				}
 				return new Node(this.name, children);
 			}
@@ -2035,43 +1808,30 @@ module miniup {
 
 
 
-
-		export class SequenceMatcher extends AbstractMatcher {
-		public static class SequenceItem {
+	class SequenceItem {
 		private item:string;
 		private required : bool;
 		private name:string;
 
-		public SequenceItem(string item) {
+		public constructor(item: string, required : bool = true, name:string = null) {
 			this.item = item;
-			this.required = true;
-			this.name = null;
+			this.required = required;
+			this.name = name;
 		}
+	}
 
-			public SequenceItem(string item, required : bool) {
-				this.item = item;
-				this.required = required;
-				this.name = null;
-			}
+	export class SequenceMatcher extends AbstractMatcher {
 
-			public SequenceItem(string item, required : bool, name:string) {
-				this.item = item;
-				this.required = required;
-				this.name = name;
-			}
-		}
-
-		public SequenceMatcher(Grammar language, name:string) {
+		public constructor(language: Grammar, name:string) {
 			super(language, name);
 		}
 
-			List < SequenceItem > toMatch = new Vector < SequenceItem > ();;
+		private toMatch : SequenceItem[] = [];
 
-			@Override
-		 performMatch : bool(Parser parser, Match parent) {}{
-				for (number i = 0; i < toMatch.size(); i++) {
+		public performMatch(parser: Parser, parent: Match): bool{
+				for (var i = 0; i < this.toMatch.size(); i++) {
 					parser.setStackIter(i);
-					SequenceItem item = toMatch.get(i);
+					var item = this.toMatch.get(i);
 					if (parser.consume(parent, item.item))
 						continue;
 					if (item.required)
@@ -2081,124 +1841,112 @@ module miniup {
 				return true;
 			}
 
-			public addItem(SequenceItem item) {
-				toMatch.add(item);
+			public addItem(item: SequenceItem) {
+				this.toMatch.add(item);
 			}
 
-			@Override
-			public Node toAST(Match match) {
-				List < Node > children = new Vector < Node > ();
-				Map < string, Node > childMap = new HashMap < string, Node > ();
+			public toAST(match: Match): Node {
+				var children : Node[] = [];
+				var childMap = {}; //string ->Node
 
-				for (number i = 0; i < match.subMatchCount(true); i++) {
-					if (toMatch.get(i).required == false ||
+				for (var i = 0; i < match.subMatchCount(true); i++) {
+					if (this.toMatch.get(i).required == false ||
 						!(match.getSubMatch(i, true).getMatchedBy() instanceof TokenMatcher) ||
-						!((TokenMatcher) match.getSubMatch(i, true).getMatchedBy()).isKeyword()) {
+						!(<TokenMatcher> match.getSubMatch(i, true).getMatchedBy()).isKeyword()) {
 
-							Node child = match.getSubMatch(i, true).toAST();
-							children.add(child);
-						 name:string = toMatch.get(i).name;
+							var child = match.getSubMatch(i, true).toAST();
+							children.push(child);
+							var name = toMatch.get(i).name;
 							if (name != null && !name.isEmpty())
 								childMap.put(name, child);
 						}
 				}
 				return new Node(this.name, children, childMap);
 			}
-
-
-
-
+		}
 
 		export class SetMatcher extends AbstractMatcher {
 
-		private seperator:string;
-		private List <string > items;
+		private seperator:string; //TODO: separator
+		private items : string[];
 		private pre:string;
 		private post:string;
 
-		public SetMatcher(Grammar language, name:string, seperatorOrNull:string, preOrNull:string, postOrNull:string, string...items) {
+		public constructor(language: Grammar, name:string, seperatorOrNull:string, preOrNull:string, postOrNull:string, ...items: string[]) {
 			super(language, name);
 			this.seperator = seperatorOrNull;
 			this.pre = preOrNull;
 			this.post = postOrNull;
-			this.items = Arrays.asList(items);
+			this.items = items;
 		}
 
-			@Override
-		 performMatch : bool(Parser parser, Match parent)
-					{}{
-						if (pre != null && !parser.consume(parent, pre))
-							return false;
+		public performMatch(parser: Parser, parent: Match) : bool {
+			if (this.pre != null && !parser.consume(parent, this.pre))
+				return false;
 
-						List < >:string available = new Vector < >:string (items);
-					 matched : bool = true;
-					 sepmatched : bool = false;
-						while (!available.isEmpty() && matched) {
-							matched = false;
-							for (string token: available) {
-								if (parser.consume(parent, token)) {
-									available.remove(token);
-									matched = true;
-									if (seperator == null)
-										break;
-									else
-										sepmatched = parser.consume(parent, seperator);
-								}
-							}
-						}
-						if (sepmatched) //there was a trailing seperator!
-							return false;
-
-						return post == null || parser.consume(parent, post);
+			var available  = Util.clone(this.items);
+			var matched : bool = true;
+			var sepmatched : bool = false;
+			while (available.length > 0 && matched) {
+				matched = false;
+				available.forEach(token => {
+					if (parser.consume(parent, token)) {
+						available.remove(token);
+						matched = true;
+						if (this.seperator == null)
+							break;
+						else
+							sepmatched = parser.consume(parent, this.seperator);
 					}
-
-			@Override
-			public Node toAST(Match match) {
-				List < Node > children = new Vector < Node > ();
-			 hasPre : bool = pre != null;
-			 hasSep : bool = seperator != null;
-			 hasPost : bool = post != null;
-				for (number i = 0; i < match.subMatchCount(true); i++) {
-					if (i == 0 && hasPre)
-						continue;
-					if (i == match.subMatchCount(true) - 1 && hasPost)
-						continue;
-					if (hasSep && i % 2 == (hasPre ? 0 : 1))
-						continue;
-					children.add(match.getSubMatch(i, true).toAST());
-				}
-				return new Node(this.name, children);
+				});
 			}
+			if (sepmatched) //there was a trailing seperator!
+				return false;
+
+			return this.post == null || parser.consume(parent, this.post);
+		}
+
+		public toAST(match: Match): Node {
+			var children : Node[] = [];
+			var hasPre : bool = this.pre != null;
+			var hasSep : bool = this.seperator != null;
+			var hasPost : bool = this.post != null;
+			for (var i = 0; i < match.subMatchCount(true); i++) {
+				if (i == 0 && hasPre)
+					continue;
+				if (i == match.subMatchCount(true) - 1 && hasPost)
+					continue;
+				if (hasSep && i % 2 == (hasPre ? 0 : 1))
+					continue;
+				children.add(match.getSubMatch(i, true).toAST());
+			}
+			return new Node(this.name, children);
+		}
+	}
+
+	export class BuiltinToken {
+		constructor(private name: string, private regexp: string, private whitespace : bool) {
+		}
+
+		public TokenMatcher registerTokenMatcher(language: Grammar) {
+			return <TokenMatcher> language.addTokenmatcher(this.name, this.regexp, this.whitespace);
 		}
 
 
+		public static IDENTIFIER = new BuiltinToken("IDENTIFIER","[a-zA-Z_][a-zA-Z_0-9]*", false);
+		public static WHITESPACE = new BuiltinToken("WHITESPACE","\\s+", true);
+		public static INTEGER = new BuiltinToken("INTEGER","-?\\d+", false);
+		public static FLOAT = new BuiltinToken("FLOAT","-?\\d+(\\.\\d+)?(e\\d+)?", false);
+		public static SINGLEQUOTEDSTRING = new BuiltinToken("SINGLEQUOTEDSTRING","'(?>[^\\\\']|(\\\\[btnfr\"'\\\\]))*'", false);
+		public static DOUBLEQUOTEDSTRING = new BuiltinToken("DOUBLEQUOTEDSTRING","\"(?>[^\\\\\"]|(\\\\[btnfr\"'\\\\]))*\"", false);
+		public static SINGLELINECOMMENT = new BuiltinToken("SINGLELINECOMMENT","//[^\\n]*(\\n|$)", true);
+		public static MULTILINECOMMENT = new BuiltinToken("MULTILINECOMMENT","/\\*(?:.|[\\n\\r])*?\\*/", true);
+		public static BOOLEAN = new BuiltinToken("BOOLEAN","true|false", false);
+		public static REGULAREXPRESSION = new BuiltinToken("REGULAREXPRESSION","/(?>[^\\\\/]|(\\\\.))*/", false);
+	}
 
+	export class TokenMatcher extends AbstractMatcher {
 
-		export class TokenMatcher extends AbstractMatcher {
-		public static enum BuiltinToken {
-		IDENTIFIER("[a-zA-Z_][a-zA-Z_0-9]*", false),
-		WHITESPACE("\\s+", true),
-		INTEGER("-?\\d+", false),
-		FLOAT("-?\\d+(\\.\\d+)?(e\\d+)?", false),
-		SINGLEQUOTEDSTRING("'(?>[^\\\\']|(\\\\[btnfr\"'\\\\]))*'", false),
-		DOUBLEQUOTEDSTRING("\"(?>[^\\\\\"]|(\\\\[btnfr\"'\\\\]))*\"", false),
-		SINGLELINECOMMENT("//[^\\n]*(\\n|$)", true),
-		MULTILINECOMMENT("/\\*(?:.|[\\n\\r])*?\\*/", true),
-		BOOLEAN("true|false", false),
-		REGULAREXPRESSION("/(?>[^\\\\/]|(\\\\.))*/", false);
-
-			private regexp:string;
-			private whitespace : bool;
-
-			BuiltinToken(string regexp, whitespace : bool) {
-				this.regexp = regexp;
-				this.whitespace = whitespace;
-			}
-
-			public TokenMatcher registerTokenMatcher(Grammar language) {}{
-				return (TokenMatcher) language.addTokenmatcher(this.toString(), regexp, this.whitespace);
-			}
-		};
 
 		/**
 		 * Takes a willed arsed quess to confert a tokens text to a native java primitive, tries
@@ -2209,7 +1957,7 @@ module miniup {
 		 * @param input
 		 * @return
 		 */
-		public static Object textToValue(string input) {
+		public static textToValue(input: string): any {
 			if (input == null)
 				return null;
 			if (input.matches("^" + BuiltinToken.BOOLEAN.regexp + "$"))
@@ -2226,12 +1974,12 @@ module miniup {
 		}
 
 
-			private Pattern regexp;
+		private regexp: Regex;
 			private isWhiteSpace : bool;
 			private isKeyword : bool;
 			private keyword:string;
 
-			public TokenMatcher(Grammar language, name:string, regexp:string, whiteSpace : bool) {
+			public constructor(language: Grammar, name:string, regexp:string, whiteSpace : bool) {
 				super(language, name);
 				this.regexp = Pattern.compile("\\A" + regexp, Pattern.MULTILINE &
 					(language.getCaseInSensitive() ? Pattern.CASE_INSENSITIVE : 0)
@@ -2239,26 +1987,25 @@ module miniup {
 				this.isWhiteSpace = whiteSpace;
 			}
 
-			public Token match(string input) {
+			public match(input: string): Token {
 				//System.out.println("About to match " + this.name + this.language.getName() + regexp.pattern());
-				Matcher m = regexp.matcher(input);
+				var m = regexp.matcher(input);
 				if (!m.find())
 					return null;
 
-			 text:string = input.substring(0, m.end());
+				var string = input.substring(0, m.end());
 
 				return new Token(this, text);
 			}
 
 			public isWhiteSpace : bool() {
-				return isWhiteSpace;
+				return this.isWhiteSpace;
 			}
 
-			@Override
-		 performMatch : bool(Parser parser, Match parent) {
-				number curpos = parent.getLastCharPos();
-			 rest:string = parser.getInputString().substring(curpos);
-				Token next = this.match(rest);
+		 performMatch (parser: Parser, parent: Match): bool {
+				var curpos = parent.getLastCharPos();
+				var rest = parser.getInputString().substring(curpos);
+				var next = this.match(rest);
 
 				if (next != null) {
 
@@ -2273,32 +2020,31 @@ module miniup {
 				return false;
 			}
 
-			public getName:string() {
-				return name;
+			public getName():string {
+				return this.name;
 			}
 
-			public toString:string() {
-				return string.format("[TokenMatcher '%s'->%s]", regexp.pattern(), this.name);
+			public toString():string {
+				return string.format("[TokenMatcher '%s'->%s]", this.regexp.pattern(), this.name);
 			}
 
-			public getRegexp:string() {
-				return regexp.pattern();
+			public getRegexp():string {
+				return this.regexp.pattern();
 			}
 
 			/** indicates that this is a generated token, which should not be included in output etc */
-			public setIsKeyword(string keyword) {
+			public setIsKeyword(keyword: string) {
 				this.keyword = keyword;
 				this.isKeyword = true;
 			}
 
-			public getKeyword:string() { return keyword; }
+			public getKeyword():string { return this.keyword; }
 
-			public isKeyword : bool() {
+			public isKeyword() : bool {
 				return this.isKeyword;
 			}
 
-			@Override
-			public Node toAST(Match match) {
+			public toAST(match: Match):Node {
 				return new Node(this.name, match.getTerminal());
 			}
 
@@ -2306,344 +2052,5 @@ module miniup {
 		}
 
 
-
-		export class CLI {
-
-
-		private static Queue <string > mainArguments = new LinkedList < >:string ();
-
-		/**
-		 * Processes command line arguments. Use the help command to find out which commands are available
-		 * @param args
-		 * @{
-		 */
-		public static main(string[]args) {}{
-			for (number i = 0; i < args.length; i++)
-				mainArguments.add(args[i]);
-
-		 showOutput : bool = false;
-		 input:string = null;
-		 language:string = null;
-		 startSymbol:string = null;
-			long start = System.currentTimeMillis();
-
-			while (!mainArguments.isEmpty()) {
-			 cmd:string = mainArguments.poll();
-				if ("-T".equals(cmd)) {
-					Miniup.bootstrap();
-					TestSuite.runTestsuite();
-				}
-				else if ("-v".equals(cmd))
-					Miniup.VERBOSE = true;
-				else if (("-h").equals(cmd))
-					printHelp();
-				else if ("-o".equals(cmd))
-					showOutput = true;
-				else if ("-i".equals(cmd))
-					input = Util.readFileAsString(mainArguments.poll());
-				else if ("-t".equals(cmd))
-					input = mainArguments.poll();
-				else if ("-g".equals(cmd))
-					language = mainArguments.poll();
-				else if ("-S".equals(cmd))
-					Miniup.SHOWSTATS = true;
-				else if ("-c".equals(cmd))
-					Miniup.USE_TOKEN_MEMOIZATION = true;
-				else if ("-s".equals(cmd))
-					startSymbol = mainArguments.poll();
-				else if ("-l".equals(cmd)) {
-				 lib:string = mainArguments.poll();
-					Miniup.loadLanguageFromFile(lib);
-					p("  Loaded grammar as library: " + lib);
-				}
-				else
-					throw new IllegalArgumentException("Unknown option: '" + cmd + "'");
-			}
-
-			if (input != null) {
-				System.out.println("Preparing parse");
-
-				if (language == null) {
-					Miniup.bootstrap();
-					language = "Miniup";
-				}
-				else
-					language = Miniup.loadLanguageFromFile(language);
-
-				System.out.println("Loaded language '" + language + "'");
-
-				Node node = Miniup.parse(language, input, startSymbol);
-
-				System.out.println("Parse succeeded :)");
-
-				if (showOutput)
-					System.out.println(node.toMultilineString());
-
-			}
-			if (Miniup.SHOWSTATS)
-				System.out.println("Total time: " + (System.currentTimeMillis() - start) + " ms.");
-
-			System.exit(0);
-		}
-
-			private static p(string s) {
-				System.out.println(s);
-			}
-
-			private static p(string flag, arg:string, help:string) {
-				System.out.print("\t-");
-				System.out.print(flag);
-				System.out.print("\t");
-				if (arg != null)
-					System.out.print("[" + arg + "]");
-				else
-					System.out.print("\t");
-				System.out.print("\t");
-				p(help);
-			}
-
-			private static printHelp() {
-				p("Miniup parsing library CLI version 1.0");
-				p("Written by Michel Weststrate, 2012, michel@mweststrate.nl");
-				p("Vist the project at http://[githuburl]"); //TODO:
-				p("");
-				p("Command line arguments:");
-				p("g", "filename", "Parse using the grammar definition defined in [filename]");
-				p("i", "filename", "Use the given file as input for the parser");
-				p("");
-				p("c", null, "Use token memoization, might increase the parse speed at the cost of memory consumption");
-				p("h", null, "Prints this help message");
-				p("l", "filename", "Loads an additional grammar definition, to be able to resolve 'import' rules");
-				p("o", null, "Prints the AST created by the parser to stdout");
-				p("s", "rulename", "Use the given rulename as start symbol while parsing");
-				p("S", null, "Print statistics after the parsing has finished");
-				p("t", "sometext", "Use the provided text as input for the parser");
-				p("T", null, "Run the internal test suite");
-				p("v", null, "Verbose mode. Prints all match attemps of the parser to stdout");
-			}
-		}
-
-		/**
-		 * A pair of things, useful in a language that doesn't contain tuples...
-		 *
-		 * Probably grabbed it from somewhere of the internetz..
-		 *
-		 * @author michel
-		 *
-		 * @param <A>
-		 * @param <B>
-		 */
-		export class Pair <A, B > {
-		private final A first;
-		private final B second;
-
-		public Pair(A first, B second) {
-			this.first = first;
-			this.second = second;
-		}
-
-			public static <C, D > Pair < C, D > pair(C first, D second) {
-				return new Pair < C, D > (first, second);
-			}
-
-			public number hashCode() {
-				number hashFirst = first != null ? first.hashCode() : 0;
-				number hashSecond = second != null ? second.hashCode() : 0;
-
-				return (hashFirst + hashSecond) * hashSecond + hashFirst;
-			}
-
-			@SuppressWarnings("unchecked")
-			public equals : bool(Object other) {
-				if (other instanceof Pair) {
-					Pair < A, B > otherPair = (Pair < A, B >) other;
-					return
-					((this.first == otherPair.first ||
-							(this.first != null && otherPair.first != null &&
-							  this.first.equals(otherPair.first))) &&
-					 (this.second == otherPair.second ||
-							(this.second != null && otherPair.second != null &&
-							  this.second.equals(otherPair.second))));
-				}
-
-				return false;
-			}
-
-			public toString:string()
-			{
-				return "(" + first + ", " + second + ")";
-			}
-
-			public A getFirst() {
-				return first;
-			}
-
-			public B getSecond() {
-				return second;
-			}
-
-			public Pair < A, B > clone() {
-				return Pair.pair(first, second);
-			}
-
-
-		/**
-		 * Some utility functions used by the parsers. You might find similar methods, probably faster, in apache commons.
-		 * Those are here just to make the parser dependency free.
-		 * @author michel
-		 *
-		 */
-		export class Util {
-
-		/**
-		 * Given a filename, returns it contents as 		 *:string @param filePath
-		 * @return
-		 * @{
-		 */
-		public static readFileAsString:string(string filePath) {}{
-			byte[]buffer = new byte[(number) new File(filePath).length()];
-			BufferedInputStream f = new BufferedInputStream(new FileInputStream(filePath));
-			f.read(buffer);
-			return new string(buffer);
-		}
-
-			/**
-			 * If idx is positive, returns the substring starting at the index, otherwise, return the substring ending at that index
-			 * @param base
-			 * @param idx
-			 * @return
-			 */
-			public static substring:string(string base, number idx) {
-				if (idx >= 0)
-					return substring(base, idx, 0);
-				return substring(base, 0, idx);
-			}
-
-			/**
-			 * Substring implementation that never {
-			 *
-			 * if input: "miniup"
-			 *
-			 * 0 (,0)  -> "miniup"
-			 * 2 (,0)  -> "niup"
-			 * 4, 2    -> "up"
-			 * (0,) -2 -> "mini"
-			 * 1, -2   -> "ini"
-			 * -1, -2  -> "i"
-			 * -1, 6   -> "p"
-			 * @param base basestring to get a substring from
-			 * @param fromleft if positive, start index; if negative, length:string
-			 * @param fromright if negative, amount of characters from the end, if positive, length:string
-			 * @return
-			 */
-			public static substring:string(string base, number fromidx, number toidx) {
-				number from = fromidx;
-				number len = base.length();
-				number to = toidx;
-
-				if (from == 0 && to == 0)
-					to = len;
-				else if (from >= 0 && to <= 0)
-					to = len + to;
-				else if (from >= 0 && to > 0)
-					to = from + to;
-				else if (from < 0 && to < 0) {
-					to = len + to;
-					from = to + from;
-				}
-				else if (from < 0 && to >= 0)
-					from = to + from;
-				else
-					throw new RuntimeException("Unimplemented substring case: " + fromidx + ", " + toidx);
-
-				from = Math.max(from, 0);
-				to = Math.max(from, Math.min(to, len));
-
-				return base.substring(from, to);
-			}
-
-			public static leftPad:string(string string, number col) {
-				number v = col;
-			 r:string = "";
-				while (v-- > 0)
-					r += " ";
-				return r + string;
-			}
-
-			public static join:string(Collection < >:string stuff, separator:string) {
-				StringBuilder b = new StringBuilder();
-				number i = 0;
-				for (string item: stuff) {
-					b.append(item);
-					if (i < stuff.size() - 1)
-						b.append(separator);
-					i++;
-				}
-				return b.toString();
-			}
-
-			public static number countMatches(string input, needle:string) {
-				number r = 0;
-				number p = 0;
-				number i = 0;
-				while ((i = input.indexOf(needle, p)) != -1) {
-					p = i + 1;
-					r++;
-				}
-				return r;
-			}
-
-			public static unescape:string(string text) {
-				//naive unescape function..
-				return text.replaceAll("\\\b", "\b")
-					.replaceAll("\\\t", "\t")
-					.replaceAll("\\\n", "\n")
-					.replaceAll("\\\f", "\f")
-					.replaceAll("\\\r", "\r")
-					.replaceAll("\\\\", "\\")
-					.replaceAll("\\'", "'")
-					.replaceAll("\\\"", "\"");
-			}
-
-
-			public static trimToLength:string(string string, number maxlength) {
-				if (string == null || string.length() < maxlength)
-					return string;
-				return string.substring(0, maxlength);
-			}
-
-			public static getInputLineByPos:string(string input, number position) {
-				number prev = input.lastIndexOf('\n', position);
-				number next = input.indexOf('\n', position);
-			 line:string = Util.substring(input, prev + 1, Math.min(position + 20, next - prev));
-				return line.replaceAll("\t", " ");
-			}
-
-			public static getInputLine:string(string input, number nr) {
-				number cur = -1;
-				for (number i = nr; i > 1; i--) {
-					cur = input.indexOf('\n', cur + 1);
-					if (cur == -1)
-						return null;
-				}
-
-				number next = input.indexOf('\n', cur + 1);
-			 line:string;
-				if (next == -1)
-					line = input.substring(cur + 1);
-				else
-					line = input.substring(cur + 1, next);
-
-				return line.replaceAll("\t", " "); //to fix highlighting for tabs. Better would be to insert a tabs before the cursor if needed
-			}
-
-			public static hightlightLine:string(string inputString, number linenr,
-					number colnr) {
-					 msg:string = "at line " + linenr + " column " + colnr + ":\n\n";
-						msg += getInputLine(inputString, linenr) + "\n";
-						msg += Util.leftPad("^", colnr - 1);
-						return msg;
-					}
-		}
 	}
 }
