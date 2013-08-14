@@ -72,7 +72,7 @@ module miniup {
 			 * @return The name of the language
 			 * @{
 			 */
-			public static loadLanguage:string(langDef: string) {}{
+			public static loadLanguage(langDef: string):string {
 				bootstrap();
 
 				var node:Node;
@@ -103,19 +103,7 @@ module miniup {
 			 * @return
 			 * @{
 			 */
-			public static parse(languageName: string, input:string): Node {
-				return parse(languageName, input, null);
-			}
-
-			/**
-			 * @see Miniup.parse, but uses a specified start symbol instead of the default configured start symbol of the grammar.
-			 * @param languageName
-			 * @param input
-			 * @param startSymbol
-			 * @return
-			 * @{
-			 */
-			public static parse(languageName: string, input:string, startSymbol:string): Node {
+			public static parse(languageName: string, input:string, startSymbol:string = null): Node {
 				return Grammar.get(languageName).parse(input, startSymbol).toAST();
 			};
 		}
@@ -131,14 +119,14 @@ module miniup {
 		 * @author michel
 		 *
 		 */
-		export class Node implements Iterable <Node >{
+		export class Node {
 
-		private children : Node[]= Node[];
+		private children : Node[]= [];
 	 	private terminal : bool = false;
 		private token: Token;
-		private name:string;
+		private _name:string;
 		private isempty : bool = false;
-		private childMap : Map <string, Node > ;
+		private childMap : {}; //Map <string, Node > ;
 		private source:string;
 
 		/**
@@ -148,21 +136,21 @@ module miniup {
 		 * @param name
 		 * @param children
 		 */
-		public constructor(name: string, child: Node);
-		public constructor(name: string, children: Node[], childMap?: Object);
-		public constructor(terminalType: string, token: Token) {
-		public constructor(name: string, children: any, childMap?: Object) {
+		constructor(name: string, child: Node);
+		constructor(name: string, children: Node[], childMap?: Object);
+		constructor(terminalType: string, token: Token);
+		constructor(name: string, children: any, childMap?: Object) {
 			if (children instanceof Token) {
 				this.terminal = true;
 				this.token = <Token>children;
-				this.name - name;
+				this._name = name;
 			}
 			else if (children === undefined) {
-				this.name = name;
-				this.isempty = true();
+				this._name = name;
+				this.isempty = true;
 			}
 			else {
-				this.name = name;
+				this._name = name;
 				this.children = children instanceof Node ? [children] : children;
 				this.childMap = childMap;
 			}
@@ -192,7 +180,7 @@ module miniup {
 		 * Returns true if this node was constructed by a lambda match, that is, nothing was matched and this node has no actual content
 		 * @return
 		 */
-		public isLambda : bool() {
+		public isLambda() : bool {
 			return this.isempty;
 		}
 
@@ -232,7 +220,7 @@ module miniup {
 		 * @return
 		 */
 		public name():string {
-			return this.name;
+			return this._name;
 		}
 
 		/**
@@ -287,8 +275,8 @@ module miniup {
 		 * returns all keys availble in this Node. Only applicable if this node was created by a sequence.
 		 * @return
 		 */
-		public getKeys():string {
-			var res = string[]
+		public getKeys():string[] {
+			var res = [];
 			for(var key in this.childMap)
 				res.push(key);
 			return res;
@@ -302,10 +290,10 @@ module miniup {
 			return this.first().terminal();
 		}
 
-		public Node find(final name:string) {
+		public find(name:string):Node {
 
 			var s : Node[] = [];
-			this.walk((Node node) => {
+			this.walk((node:Node) => {
 				if (node.has(name)) {
 					s.add(node.get(name));
 					return false;
@@ -323,29 +311,26 @@ module miniup {
 		 * Tries to generate a javascript (primitive) object from the text of this token
 		 * @return
 		 */
-		public value():anu {
-			return this.value(null);
-		}
-
-		public value(defaultValue:any):any {
+		public value(defaultValue:any = null):any {
 			var v = TokenMatcher.textToValue(this.text());
 			if (v == null)
 				return defaultValue;
 			return v;
 		}
 
-		public findText():string {
+
+		public findText(name): string {
+			if (name) {
 			var n = this.terminal();
 			if (n != null)
 				return n.text();
 			return null;
-		}
-
-		public findText(name):string {
+			}
+else {
 			//special case, if i == 0 allow to return ourselves
 			if (!isNaN(name)) {
 				if (name == 0 && isTerminal())
-					return text();
+					return this.text();
 
 				var n = this.get(name);
 				if (n != null)
@@ -357,7 +342,7 @@ module miniup {
 			if (n != null && !n.isLambda())
 				return n.terminal().text();
 			return null;
-		}
+		}}
 
 		/**
 		 * Returns the number of children matched for this node.
@@ -383,7 +368,7 @@ module miniup {
 		 * Pretty print version of the toString() method, returns the AST but formatted in a multiline with:string indenting
 		 * @return
 		 */
-		public toMultilineString:string() {
+		public toMultilineString():string {
 			var buf: String[] = [];
 			this.toMultilineString(buf, 0);
 			return buf.join();
@@ -398,27 +383,28 @@ module miniup {
 				buf.push(Util.leftPad("(" + this.name, indent));
 
 			var allChildsTerminal : bool = true;
+			var child;
 
-			this.children.forEach(child => {
+			for (var i = 0; i< this.children.length, child = this.children[i]; i++)
 				if (!child.isTerminal() && !child.isLambda()) {
 					allChildsTerminal = false;
 					break;
 				}
-			});
+			};
 
 			this.children.forEach(child => {
 				if (allChildsTerminal)
 					child.toMultilineString(buf, 2);
 				else {
 					buf.push("\n");
-						child.toMultilineString(buf, in + 2);
+						child.toMultilineString(buf, indent + 2);
 					}
-				}
+
 
 				if (allChildsTerminal)
 					buf.push(")");
 				else
-					buf.push("\n").push(Util.leftPad(")", in));
+					buf.push("\n").push(Util.leftPad(")", indent));
 			});
 		}
 
@@ -454,7 +440,7 @@ module miniup {
 		 * @param tokenMatcher
 		 * @param text
 		 */
-		public constructor( tokenMatcher:TokenMatcher, text:string) {
+		constructor( tokenMatcher:TokenMatcher, text:string) {
 			this.matcher = tokenMatcher;
 			this.text = text;
 		}
@@ -508,14 +494,14 @@ module miniup {
 				 name:string = option.terminal().text();
 				 value:string = option.isTerminal() ? "true" : option.findText(1);
 
-					if (name === "casesensitive"))
+					if (name === "casesensitive")
 						b.setCaseInsensitive("true" !== value);
-					else if (name === "disableautowhitespace"))
+					else if (name === "disableautowhitespace")
 						b.setDisableAutoWhitespace("true" === value);
-					else if (name === "startsymbol"))
+					else if (name === "startsymbol")
 						b.setStartSymbol(value);
-					else if (name === "usedefaulttokens")) {
-						if ("true" === value))
+					else if (name === "usedefaulttokens") {
+						if ("true" === value)
 							addDefaultTokens(b);
 					}
 					else
@@ -549,7 +535,7 @@ module miniup {
 				});
 				return b;
 			}
-			catch (Exception e) {
+			catch (e) {
 				throw new GrammarDefinitionException("Failed to construct language: " + e.getMessage(), e);
 			}
 		}
@@ -598,7 +584,7 @@ module miniup {
 
 				var items: string[] = def.get(2).map(choice => toTerminalName(b, choice));
 
-				var rule: SetMatcher = new SetMatcher(b, def.findText(0), seperatorOrNull, preOrNull, postOrNull, items.toArray(new string[items.size()]));
+				var rule: SetMatcher = new SetMatcher(b, def.findText(0), seperatorOrNull, preOrNull, postOrNull, Util.clone(items));
 				b.addRule(rule);
 				return rule;
 			}
@@ -621,11 +607,11 @@ module miniup {
 
 			//given a token 'xyz' or xyz, returns the token, or the generated name for the terminal
 			//TODO:has to change, tokens and ids are parsed in another way
-			private static toTerminalName(b :Grammar, astNode: Node): string s{
+			private static toTerminalName(b :Grammar, astNode: Node): string {
 				if (astNode.isTerminal()) {
 					var text:string = astNode.text();
 					if (text.startsWith("'") || text.startsWith("\""))
-						return b.keyword((string) astNode.value());
+						return b.keyword(<string> astNode.value());
 					return text;
 				}
 				else {
@@ -685,7 +671,7 @@ module miniup {
 					if (opt.isTerminal() && opt.text().equals(option)) //simple
 						return true;
 					else if (!opt.isTerminal() && opt.findText(0).equals(option))
-						return (Boolean) opt.get(1).terminal().value(Boolean.TRUE);
+						return !!opt.get(1).terminal().value(bool.TRUE);
 					return false;
 				});
 			}
@@ -874,11 +860,7 @@ module miniup {
 
 	export class GrammarDefinitionException extends Exception {
 
-		public constructor(message: string) {
-			super(message);
-		}
-
-		public constructor(message: string, cause: Exception) {
+		constructor(message: string, cause?: Exception) {
 			super(message, cause);
 		}
 
@@ -908,7 +890,7 @@ module miniup {
 			return languages.get(name);
 		}
 
-			public constructor(name: string) {
+			constructor(name: string) {
 				this.name = name;
 				languages.put(name, this);
 			}
@@ -939,11 +921,11 @@ module miniup {
 				this.startSymbol = startSymbol;
 			}
 
-			public setCaseInsensitive(b: boolean) {
+			public setCaseInsensitive(b: bool) {
 				this.caseInSensitive = b;
 			}
 
-			public setDisableAutoWhitespace(b: boolean) {
+			public setDisableAutoWhitespace(b: bool) {
 				this.disableautowhitespace = b;
 			}
 
@@ -964,7 +946,7 @@ module miniup {
 					this.addRule(tm);
 					return tm;
 				}
-				catch (java.util.regex.PatternSyntaxException e) {
+				catch (e) {
 					throw new GrammarDefinitionException("Invalid token definition, regular expression is invalid: " + e.getMessage(), e);
 				}
 			}
@@ -996,7 +978,7 @@ module miniup {
 				return this.addRule(newrule);
 			}
 
-			public addSequence(string name, ...items: SequenceItem[]) : SequenceMatcher {
+			public addSequence(name: string, ...items: SequenceItem[]) : SequenceMatcher {
 				var r: SequenceMatcher = new SequenceMatcher(this, name);
 				items.forEach(item => r.addItem(item));
 				this.addRule(r);
@@ -1011,7 +993,7 @@ module miniup {
 				return this.addRule(new OperatorMatcher(this, name, left, operator, operand));
 			}
 
-			public addSet(name: string, seperatorOrNull:string, preOrNull:string, postOrNull:string, ...items: string[]):string {}{
+			public addSet(name: string, seperatorOrNull:string, preOrNull:string, postOrNull:string, ...items: string[]):string {
 				return this.addRule(new SetMatcher(this, name, seperatorOrNull, preOrNull, postOrNull, items));
 			}
 
@@ -1063,7 +1045,7 @@ module miniup {
 		private nilMatch:string = null;
 		private parser: Parser;
 
-		public constructor(parser: Parser, parent?: Match, matchedBy?: AbstractMatcher) {
+		constructor(parser: Parser, parent?: Match, matchedBy?: AbstractMatcher) {
 			this.parser = parser;
 			if (parent) {
 				this.start = parent.getLastCharPos();
@@ -1094,7 +1076,7 @@ module miniup {
 
 			public  charsConsumed():number { return this.end - this.start; }
 
-			public subMatchCount(excludeWS: boolean):number {
+			public subMatchCount(excludeWS: bool):number {
 				if (excludeWS)
 					return this.nonWSchildren.size();
 				else
@@ -1159,7 +1141,7 @@ module miniup {
 			}
 
 			public lastChild(): Match {
-				return this.children.[this.children.length - 1];
+				return this.children[this.children.length - 1];
 			}
 
 			public getFirstCharPos():number {
@@ -1174,7 +1156,7 @@ module miniup {
 				this.nilMatch = token;
 			}
 
-			public getLastMatch(excludeWS: boolean): Match {
+			public getLastMatch(excludeWS: bool): Match {
 				if (this.subMatchCount(excludeWS) == 0)
 					throw new IllegalArgumentException("Empty matches do not have a last match");
 				return this.getSubMatch(0, excludeWS);
@@ -1239,9 +1221,9 @@ module miniup {
 				if (!this.matchCache[curpos]) {
 					this.matchCache[curpos] = {};
 					res = false; //appearantly, it is not in cache :)
+				}
 				else
 					res = !!this.matchCache[curpos][matcher.getName()];
-				}
 
 				if (res)
 					this.cachehits += 1;
@@ -1249,9 +1231,10 @@ module miniup {
 					this.cachemisses += 1;
 				return res;
 			}
+		}
 
 		 consumeFromCache (parent: Match, token:string, curpos: number):bool {
-				Match catched = this.matchCache[curpos][token];
+				var catched = this.matchCache[curpos][token];
 				if (catched != null) {
 					parent.register(catched);
 					return true;
@@ -1271,10 +1254,10 @@ module miniup {
 			}
 
 		}
+	}
 
 
-
-			export class ParseException extends Exception {
+	export class ParseException extends Exception {
 
 		private  msg: string[];
 		private  stack=[]; //Stack <Pair <string, Integer >>
@@ -1284,8 +1267,7 @@ module miniup {
 		 * @param p
 		 * @param usebestMatchStack, true: display the stack that gave us the best result, false: display the current stack
 		 * @param 		 */
-		@SuppressWarnings("unchecked")
-		public constructor(p: Parser, usebestMatchStack : bool, str:string) {
+		constructor(p: Parser, usebestMatchStack : bool, str:string) {
 			super();
 			this.msg = [];
 			this.msg.push("Parse exception: " + str);
@@ -1296,18 +1278,18 @@ module miniup {
 			if (usebestMatchStack && p.expected.size() > 0)
 				this.msg.push("\nExpected: " + Util.join(p.expected, " or ") + "\n");
 
-			this.stack = usebestMatchStack ? Util.clone(p.bestStack) : Util.clone(p.stack;
+			this.stack = usebestMatchStack ? Util.clone(p.bestStack) : Util.clone(p.stack);
 
 			if (Miniup.VERBOSE) {
 				this.msg.push("\nParse stack: \n");
 
-				this.stach.forEach(item =>
+				this.stach.forEach(item => {
 					this.msg.push("\t" + item.getFirst() + (item.getSecond() > 0 ? " no. " + (item.getSecond() + 1) : "") + "\n");
-				);
+				});
 			}
 		}
 
-			public getMessage:string() {
+			public getMessage():string {
 				return this.msg.join();
 			}
 
@@ -1320,16 +1302,16 @@ module miniup {
 
 
 	export class Parser {
-		var language: Grammar;
+		private language: Grammar;
 		private inputstring:string = null;
 
-		var stack = []; //new Stack < Pair < string, Integer >>();
-		var bestStack = [];//new Stack < Pair < string, Integer >>();
-		var expected = {}; //new HashSet <string >: ();
+		private stack = []; //new Stack < Pair < string, Integer >>();
+		private bestStack = [];//new Stack < Pair < string, Integer >>();
+		private expected = {}; //new HashSet <string >: ();
 
-		var bestPoint: number = -1;
+		private bestPoint: number = -1;
 
-		var memoizer: MatchMemoizer;
+		private memoizer: MatchMemoizer;
 
 		//Fields used for statistics
 		private start: number;
@@ -1339,7 +1321,7 @@ module miniup {
 		private notfound: number = 0;
 
 
-		public constructor(language: Grammar, input:string) {
+		constructor(language: Grammar, input:string) {
 			this.language = language;
 			this.inputstring = input;
 			this.memoizer = new MatchMemoizer();
@@ -1433,7 +1415,8 @@ module miniup {
 													Util.trimLength(this.getInputString().substring(parent.getLastCharPos()),20),
 													stack.size() -1));
 						*/
-				else
+}
+	else
 						this.notfound += 1;
 
 						return result;
@@ -1457,8 +1440,8 @@ module miniup {
 								res = this.memoizer.consumeFromCache(parent, wsMatcher.getName(), curpos);
 							else
 								res = wsMatcher.match(this, parent);
-							if (res)
-								break;
+							//TODO: restore: if (res)
+							//	break;
 						});
 					}
 				}
@@ -1471,7 +1454,7 @@ module miniup {
 						System.out.println(Util.leftPad("-", this.stack.size()));
 				}
 
-				public getInputString:string() {
+				public getInputString():string {
 					return this.inputstring;
 				}
 
@@ -1522,13 +1505,13 @@ module miniup {
 
 
 
-		public abstract class AbstractMatcher {
+		export class AbstractMatcher {
 
-			var name:string;
-			var language: Grammar;
+			private name:string;
+			private language: Grammar;
 		private options = {}; //new HashMap < string, Object >();
 
-		public constructor(language: Grammar, name:string) {
+		constructor(language: Grammar, name:string) {
 			this.name = name;
 			this.language = language;
 		}
@@ -1570,7 +1553,7 @@ module miniup {
 
 		private choices : string[] = [];
 
-		public constructor(language: Grammar, name:string, items:string[]) {
+		constructor(language: Grammar, name:string, items:string[]) {
 			super(language, name);
 			this.choices = Util.clone(items);
 		}
@@ -1586,8 +1569,8 @@ module miniup {
 			}
 
 			public toAST(match: Match):Node {
-				Node inner = match.getLastMatch(true).toAST();
-				if (Boolean.FALSE.equals(this.getOption("wrap", Boolean.FALSE))) //nowrap?
+				var inner = match.getLastMatch(true).toAST();
+				if (bool.FALSE.equals(this.getOption("wrap", bool.FALSE))) //nowrap?
 					return inner;
 
 				return new Node(this.getName(), inner);
@@ -1601,7 +1584,7 @@ module miniup {
 		private languagename:string;
 		private rulename:string;
 
-		public constructor(language: Grammar, name:string, languagename:string, rulename:string) {
+		constructor(language: Grammar, name:string, languagename:string, rulename:string) {
 			super(language, name);
 			this.languagename = languagename;
 			this.rulename = rulename;
@@ -1613,7 +1596,7 @@ module miniup {
 				try {
 					return Grammar.get(languagename).parsePartial(parser, parent, rulename);
 				}
-				catch (ParseException inner) {
+				catch (inner) {
 					//TODO: wrap exception? calculate real coordinates?
 					throw inner;
 				}
@@ -1621,7 +1604,7 @@ module miniup {
 
 			public  toAST(match: Match):Node {
 				var inner = match.getLastMatch(true).toAST();
-				if (!this.getOption("wrap", true)) //nowrap? //TODO: compare with string or with boolean value?
+				if (!this.getOption("wrap", true)) //nowrap? //TODO: compare with string or with bool value?
 					return inner;
 
 				return new Node(this.getName(), inner);
@@ -1631,15 +1614,15 @@ module miniup {
 
 		export class ListMatcher extends AbstractMatcher {
 
-		public static final NULLABLE_OPTION:string = "nullable";
-		public static final ALLOWTRAILING_OPTION:string = "allowtrailing";
+		public static NULLABLE_OPTION:string = "nullable";
+		public static ALLOWTRAILING_OPTION:string = "allowtrailing";
 
 		private token:string;
 		private pre:string = null;
 		private post:string = null;
 		private seperator:string;
 
-		public constructor(language: Grammar, name:string, token:string, seperator:string, pre:string, post:string) {
+		constructor(language: Grammar, name:string, token:string, seperator:string, pre:string, post:string) {
 			super(language, name);
 			this.token = token;
 			this.seperator = seperator;//TODO: separator
@@ -1689,7 +1672,7 @@ module miniup {
 				return this.getOption(ALLOWTRAILING_OPTION, false); //TODO: string compare
 			}
 
-			public isNullable() : bool() {
+			public isNullable() : bool {
 				return this.getOption(NULLABLE_OPTION, true);//TODO: string compare?
 			}
 
@@ -1720,9 +1703,9 @@ module miniup {
 		private operand:string;
 		private operator:string;
 
-		public static final RIGHT_OPTION:string = "right";//TODO: stupid name?
+		public static RIGHT_OPTION:string = "right";//TODO: stupid name?
 
-		public constructor(language: Grammar, name:string, leftassociative : bool, operator:string, operand:string) {
+		constructor(language: Grammar, name:string, leftassociative : bool, operator:string, operand:string) {
 			super(language, name);
 			this.operand = operand;
 			this.operator = operator;
@@ -1772,7 +1755,7 @@ module miniup {
 			}
 
 			public getIsLeftAssociative() : bool {
-				return !this.getOption(RIGHT_OPTION, false));
+				return !this.getOption(RIGHT_OPTION, false);
 			}
 
 			public toAST(match: Match):Node {
@@ -1813,7 +1796,7 @@ module miniup {
 		private required : bool;
 		private name:string;
 
-		public constructor(item: string, required : bool = true, name:string = null) {
+		constructor(item: string, required : bool = true, name:string = null) {
 			this.item = item;
 			this.required = required;
 			this.name = name;
@@ -1822,7 +1805,7 @@ module miniup {
 
 	export class SequenceMatcher extends AbstractMatcher {
 
-		public constructor(language: Grammar, name:string) {
+		constructor(language: Grammar, name:string) {
 			super(language, name);
 		}
 
@@ -1872,7 +1855,7 @@ module miniup {
 		private pre:string;
 		private post:string;
 
-		public constructor(language: Grammar, name:string, seperatorOrNull:string, preOrNull:string, postOrNull:string, ...items: string[]) {
+		constructor(language: Grammar, name:string, seperatorOrNull:string, preOrNull:string, postOrNull:string, ...items: string[]) {
 			super(language, name);
 			this.seperator = seperatorOrNull;
 			this.pre = preOrNull;
@@ -1893,8 +1876,9 @@ module miniup {
 					if (parser.consume(parent, token)) {
 						available.remove(token);
 						matched = true;
-						if (this.seperator == null)
-							break;
+						if (this.seperator == null){
+						//TODO: restore	break;
+}
 						else
 							sepmatched = parser.consume(parent, this.seperator);
 					}
@@ -1928,7 +1912,7 @@ module miniup {
 		constructor(private name: string, private regexp: string, private whitespace : bool) {
 		}
 
-		public TokenMatcher registerTokenMatcher(language: Grammar) {
+		public registerTokenMatcher(language: Grammar):TokenMatcher {
 			return <TokenMatcher> language.addTokenmatcher(this.name, this.regexp, this.whitespace);
 		}
 
@@ -1941,7 +1925,7 @@ module miniup {
 		public static DOUBLEQUOTEDSTRING = new BuiltinToken("DOUBLEQUOTEDSTRING","\"(?>[^\\\\\"]|(\\\\[btnfr\"'\\\\]))*\"", false);
 		public static SINGLELINECOMMENT = new BuiltinToken("SINGLELINECOMMENT","//[^\\n]*(\\n|$)", true);
 		public static MULTILINECOMMENT = new BuiltinToken("MULTILINECOMMENT","/\\*(?:.|[\\n\\r])*?\\*/", true);
-		public static BOOLEAN = new BuiltinToken("BOOLEAN","true|false", false);
+		public static bool = new BuiltinToken("bool","true|false", false);
 		public static REGULAREXPRESSION = new BuiltinToken("REGULAREXPRESSION","/(?>[^\\\\/]|(\\\\.))*/", false);
 	}
 
@@ -1960,8 +1944,8 @@ module miniup {
 		public static textToValue(input: string): any {
 			if (input == null)
 				return null;
-			if (input.matches("^" + BuiltinToken.BOOLEAN.regexp + "$"))
-				return Boolean.parseBoolean(input);
+			if (input.matches("^" + BuiltinToken.bool.regexp + "$"))
+				return bool.parsebool(input);
 			if (input.matches("^" + BuiltinToken.INTEGER.regexp + "$"))
 				return Long.parseLong(input);
 			if (input.matches("^" + BuiltinToken.FLOAT.regexp + "$"))
@@ -1974,17 +1958,17 @@ module miniup {
 		}
 
 
-		private regexp: Regex;
-			private isWhiteSpace : bool;
-			private isKeyword : bool;
+		private regexp: RegExp;
+			private _isWhiteSpace : bool;
+			private _isKeyword : bool;
 			private keyword:string;
 
-			public constructor(language: Grammar, name:string, regexp:string, whiteSpace : bool) {
+			constructor(language: Grammar, name:string, regexp:string, whiteSpace : bool) {
 				super(language, name);
 				this.regexp = Pattern.compile("\\A" + regexp, Pattern.MULTILINE &
 					(language.getCaseInSensitive() ? Pattern.CASE_INSENSITIVE : 0)
 				);
-				this.isWhiteSpace = whiteSpace;
+				this._isWhiteSpace = whiteSpace;
 			}
 
 			public match(input: string): Token {
@@ -1998,8 +1982,8 @@ module miniup {
 				return new Token(this, text);
 			}
 
-			public isWhiteSpace : bool() {
-				return this.isWhiteSpace;
+			public isWhiteSpace() : bool {
+				return this._isWhiteSpace;
 			}
 
 		 performMatch (parser: Parser, parent: Match): bool {
@@ -2041,7 +2025,7 @@ module miniup {
 			public getKeyword():string { return this.keyword; }
 
 			public isKeyword() : bool {
-				return this.isKeyword;
+				return this._isKeyword;
 			}
 
 			public toAST(match: Match):Node {
