@@ -39,7 +39,7 @@ module miniup {
 		public static SHOWSTATS : bool = true;
 
 		/**
-		 * Given a filename, the grammar in the file is parsed and a new grammar is build or an exception is trown.
+		 * Given a filename, the grammar in the file is parsed and a new grammar is build or an Error is trown.
 		 *
 		 * @param filename, the file to load
 		 * @return the name of the grammar. Use this name for subsequent parse calls.
@@ -62,7 +62,7 @@ module miniup {
 					bootstrapper.register();
 
 				} catch (e) {
-					throw new GrammarDefinitionException("Severe exception: failed to bootstrap the Miniup language!", e);
+					throw new GrammarDefinitionException("Severe Error: failed to bootstrap the Miniup language!", e);
 				}
 			}
 
@@ -122,7 +122,7 @@ module miniup {
 		export class Node {
 
 		private children : Node[]= [];
-	 	private terminal : bool = false;
+	 	private _isterminal : bool = false;
 		private token: Token;
 		private _name:string;
 		private isempty : bool = false;
@@ -141,7 +141,7 @@ module miniup {
 		constructor(terminalType: string, token: Token);
 		constructor(name: string, children: any, childMap?: Object) {
 			if (children instanceof Token) {
-				this.terminal = true;
+				this._isterminal = true;
 				this.token = <Token>children;
 				this._name = name;
 			}
@@ -190,7 +190,7 @@ module miniup {
 		 * @return
 		 */
 		public isTerminal() : bool {
-			return this.terminal;
+			return this._isterminal;
 		}
 
 		/**
@@ -199,7 +199,7 @@ module miniup {
 		 */
 		public getToken():Token {
 			if (!this.isTerminal())
-				throw new IllegalArgumentException("Node.text() can only be invoked on terminal nodes");
+				throw new Error("Node.text() can only be invoked on terminal nodes");
 			return this.token;
 		}
 
@@ -210,7 +210,7 @@ module miniup {
 		 */
 		public text():string {
 			if (!this.isTerminal())
-				throw new IllegalArgumentException("Node.text() can only be invoked on terminal nodes");
+				throw new Error("Node.text() can only be invoked on terminal nodes");
 			return this.token.getText();
 		}
 
@@ -243,11 +243,21 @@ module miniup {
 		 * @param index
 		 * @return
 		 */
-		public get(index: number):Node {
-			if (index >= this.size())
-				return null;
-			return this.children[index];
+		public get (name: string): Node;
+		public get (index: number): Node;
+		public get (pos: any): Node {
+			if (!isNaN(pos)) {
+				if (pos >= this.size())
+					return null;
+				return this.children[pos];
+			}
+			else {
+				if (!this.has(name))
+					throw new Error("Unknown child: '" + pos + "'");
+				return this.childMap[pos];
+			}
 		}
+
 
 		/**
 		 * Same as @see get (0);
@@ -258,18 +268,6 @@ module miniup {
 				return null;
 			return this.get(0);
 		}
-
-		/**
-		 * Returns the child with the given accessor name. Only applicable for ATNodes constructed by a sequence.
-		 * @param name
-		 * @return
-		 */
-		public get(name:string): Node {
-			if (!this.has(name))
-				throw new IllegalArgumentException("Unknown child: '" + name + "'");
-			return this.childMap[name];
-		}
-
 
 		/**
 		 * returns all keys availble in this Node. Only applicable if this node was created by a sequence.
@@ -505,7 +503,7 @@ else {
 							addDefaultTokens(b);
 					}
 					else
-						throw new IllegalArgumentException("Error while creating language: Option '" + option.findText(0) + "' is unknown.");
+						throw new Error("Error while creating language: Option '" + option.findText(0) + "' is unknown.");
 				})
 				t.get(2).forEach(def => {
 					var m: AbstractMatcher = null;
@@ -858,10 +856,15 @@ else {
 			}
 		}
 
+		export class Exception {
+			constructor(private name: string, private message?: string, private cause?: Exception) {
+}
+}
+
 	export class GrammarDefinitionException extends Exception {
 
-		constructor(message: string, cause?: Exception) {
-			super(message, cause);
+			constructor(message: string, cause?: Exception) {
+			super("GrammarDefinitionException", message, cause);
 		}
 
 	}
@@ -886,7 +889,7 @@ else {
 
 		public static get (name: string): Grammar {
 			if (!languages[name])
-				throw new IllegalArgumentException("Unknown language: '" + name + "'");
+				throw new Error("Unknown language: '" + name + "'");
 			return languages.get(name);
 		}
 
@@ -905,7 +908,7 @@ else {
 
 			public  getMatcher(token: string): AbstractMatcher {
 				if (!this.rules.containsKey(token))
-					throw new IllegalArgumentException("Undefined rule / token: '" + token + "'");
+					throw new Error("Undefined rule / token: '" + token + "'");
 				return this.rules.get(token);
 			}
 
@@ -931,7 +934,7 @@ else {
 
 			public addRule(rule: AbstractMatcher): string {
 				if (this.rules.containsKey(rule.getName()))
-					throw new IllegalArgumentException("A rule for '" + rule.getName() + "' has already been registered");
+					throw new Error("A rule for '" + rule.getName() + "' has already been registered");
 				this.rules.put(rule.getName(), rule);
 				return rule.getName();
 			}
@@ -1158,7 +1161,7 @@ else {
 
 			public getLastMatch(excludeWS: bool): Match {
 				if (this.subMatchCount(excludeWS) == 0)
-					throw new IllegalArgumentException("Empty matches do not have a last match");
+					throw new Error("Empty matches do not have a last match");
 				return this.getSubMatch(0, excludeWS);
 			}
 
@@ -1171,7 +1174,7 @@ else {
 					if (i < this.nonWSchildren.length)
 						return this.nonWSchildren[i];
 				}
-				throw new IllegalArgumentException();
+				throw new Error();
 			}
 
 
@@ -1268,9 +1271,9 @@ else {
 		 * @param usebestMatchStack, true: display the stack that gave us the best result, false: display the current stack
 		 * @param 		 */
 		constructor(p: Parser, usebestMatchStack : bool, str:string) {
-			super();
+			super("ParseException");
 			this.msg = [];
-			this.msg.push("Parse exception: " + str);
+			this.msg.push("Parse Error: " + str);
 
 			if (p.bestPoint > -1)
 				this.msg.push(Util.hightlightLine(p.getInputString(), p.getCurrentLineNr(p.bestPoint), p.getCurrentColNr(p.bestPoint)));
@@ -1597,7 +1600,7 @@ else {
 					return Grammar.get(languagename).parsePartial(parser, parent, rulename);
 				}
 				catch (inner) {
-					//TODO: wrap exception? calculate real coordinates?
+					//TODO: wrap Error? calculate real coordinates?
 					throw inner;
 				}
 			}
@@ -1791,7 +1794,7 @@ else {
 
 
 
-	class SequenceItem {
+	export class SequenceItem {
 		private item:string;
 		private required : bool;
 		private name:string;
