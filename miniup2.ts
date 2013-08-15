@@ -1,25 +1,105 @@
 module miniup {
 	
-	export interface ParseFunction {
-		memoizationId: number;
-		ruleName: string;
-		astName: string;
+	export interface NamedRule {
+		ruleName?: string;
+		friendlyName?: string;
+		astName?: string;
+	}
+
+	export interface ParseFunction extends NamedRule {
+		memoizationId?: number;
+		isKeywordMatcher?: bool;
 
 		(parser: Parser): any;
 	}
 
 	export class RuleFactory {
 
-		createSequenceMatcher(items: ParseFunction[], ruleName? : string): ParseFunction {
-			return <any> (parser: Parser): any => {
+		public static createCharacterMatcher(regex: string, ignoreCase: bool = false): ParseFunction {
+			var r = new RegExp("\\A" + regex, ignoreCase ? "i" : "");
+
+			return (parser: Parser): any => {
+				var remainingInput = parser.getRemainingInput();
+				var match = remainingInput.match(r);
+				if (match) {
+					parser.currentPos += match[0].length;
+					return match[0];
+				}
+				return undefined;
+			}
+		}
+
+		public static createKeywordMatcher(keyword: string, ignoreCase: bool = false): ParseFunction {
+			var r = new RegExp("\\A" + Util.quoteRegExp(keyword), ignoreCase ? "i" : "");
+
+			return Util.extend((parser: Parser): any => {
+				//TODO: parser.autoConsumeWhiteSpace();
+
+				var remainingInput = parser.getRemainingInput();
+				var match = remainingInput.match(r);
+				if (match) {
+					parser.currentPos += match[0].length;
+					return match[0];
+
+					//TODO: parser.autoConsumeWhiteSpace();
+				}
+				return undefined;
+			}, {
+				isKeywordMatcher: true
+			});
+		}
+
+		public static createRuleMatcher(ruleName: string): ParseFunction {
+			return (parser: Parser): any => {
+				return Util.extend(parser.parse(parser.grammar.rule(ruleName)), { ruleName: ruleName });
+				//TODO: automatically set rulename property?
+			}
+		}
+
+		public static createZeroOrMoreMatcher(matcher: ParseFunction): ParseFunction {
+			return (parser: Parser): any => {
+				var res = [];
+				var item;
+				do {
+					item = parser.parse(matcher);
+					if (item !== undefined)
+						res.push(item);
+				} while (item !== undefined);
+
+				return res;
+			}
+		}
+
+		public static createOneOrMoreMatcher(matcher: ParseFunction): ParseFunction {
+			var zmm = createZeroOrMoreMatcher(matcher);
+
+			return (parser: Parser): any => {
+				var res = parser.parse(zmm);
+				return res.length > 0 ? res : undefined;
+			}
+		}
+
+		public static createZeroOrOneMatcher(matcher: ParseFunction): ParseFunction {
+			return (parser: Parser): any => {
+				var res = parser.parse(matcher);
+				return res === undefined ? null : res;
+			}
+		}
+
+		public static createSequenceMatcher(items: ParseFunction[]): ParseFunction {
+			if (items.length == 1) //Not a real sequence
+				return items[0];
+
+			return (parser: Parser): any => {
 				var result = [];
-				if (ruleName)
-					result['type'] = ruleName;
 
 				var success = items.every(item => {
 					var itemres = parser.parse(item);
 					if (itemres === undefined)
 						return false;
+
+					if (item.isKeywordMatcher && !item.friendlyName && items.length > 1)
+						return true; //ignore result if it is just a stringmathcer without astname. Keywords are not interesting in an AST
 
 					result.push(itemres);
 					if (item.astName)
@@ -28,9 +108,41 @@ module miniup {
 					return true;
 				});
 
-				return success ? result : undefined;
+				return success ? result.length == 1 ? result[0] : result : undefined;
 			}
 		}
+
+		public static createChoiceMatcher(choices: ParseFunction[]): ParseFunction {
+			return (parser: Parser): any => {
+				var res;
+
+				if (choices.some(choice => undefined !== (res = parser.parse(choice))))
+					return res;
+				return undefined;
+			}
+		}
+
+		public static createPositivePredicateMatcherMatcher(predicate: ParseFunction): ParseFunction {
+			return (parser: Parser): any => {
+				var prepos = parser.currentPos;
+				//TODO: do *not* update best match while parsing predicates!
+				var matches = undefined !== parser.parse(predicate);
+				parser.currentPos = prepos;//rewind
+				return matches ? null : undefined;
+			}
+		}
+
+		public static createNegativePredicateMatcherMatcher(predicate: ParseFunction): ParseFunction {
+			var ppm = createPositivePredicateMatcherMatcher(predicate);
+			return (parser: Parser): any => {
+				return parser.parse(ppm) === undefined ? null : undefined; //undefined == no match. null == match, so invert. 
+			}
+		}
+
+		public static createNamedRule(matcher: ParseFunction, names: NamedRule) {
+			return Util.extend(matcher, names);
+		}
+
 	}
 
 	export class Grammar {
@@ -83,13 +195,17 @@ module miniup {
 
 		private static nextMemoizationId = 1;
 
-		currentPos: number = -1;
+		currentPos: number = 0;
 		maxPos: number = -1;
 		memoizedParseFunctions = {};
 		private stack: StackItem[] = [];
 
 		constructor(public grammar: Grammar, public input: String) {
 
+		}
+
+		public getRemainingInput(): string {
+			return this.input.substring(this.currentPos);
 		}
 
 		public parse(func: ParseFunction): any {
@@ -143,5 +259,17 @@ module miniup {
 
 	export class ParseException {
 
+	}
+
+	export class Util {
+		public static quoteRegExp(str: string): string {
+			return (str + '').replace(/([.?*+^$[\]\\(){}|-])/g, "\\$1");
+		}
+
+		public static extend(thing: any, extendWith: Object): any {
+			for (var key in extendWith)
+				thing[key] = extendWith[key];
+			return thing;
+		}
 	}
 }
