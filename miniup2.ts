@@ -1,46 +1,35 @@
 module miniup {
 	
-	export class ParseFunction {
-		private static pfCounter = 0;
+	export interface ParseFunction {
+		memoizationId: number;
+		ruleName: string;
+		astName: string;
 
-		public id = ++ParseFunction.pfCounter;
-		public ruleName: string;
-		public astName: string;
-
-		parse(parser: Parser): any {
-			throw "ParseFunction.parse is an abstract method";
-		}
+		(parser: Parser): any;
 	}
 
-	export class SequenceMatcher extends ParseFunction {
-		constructor(public items: SequenceMatcher[]) {
-			super();
+	export class RuleFactory {
 
-		}
+		createSequenceMatcher(items: ParseFunction[], ruleName? : string): ParseFunction {
+			return <any> (parser: Parser): any => {
+				var result = [];
+				if (ruleName)
+					result['type'] = ruleName;
 
-		parse(parser: Parser): any {
-			var success = true;
+				var success = items.every(item => {
+					var itemres = parser.parse(item);
+					if (itemres === undefined)
+						return false;
 
-			var result = {};
-			if (this.ruleName)
-				result['type'] = this.ruleName;
+					result.push(itemres);
+					if (item.astName)
+						result[item.astName] = itemres;
 
-			this.items.forEach(item => {
-				var res = parser.parse(item);
-				if (!item)
-					success = false;
-				else if (item.astName)
-					result[item.astName] = res;
-			});
+					return true;
+				});
 
-		}
-	}
-
-	export class Rule extends SequenceMatcher {
-
-		constructor(ruleName: string, items: SequenceMatcher[]) {
-			super(items);
-			this.ruleName = ruleName;
+				return success ? result : undefined;
+			}
 		}
 	}
 
@@ -55,16 +44,18 @@ module miniup {
 			return null;
 		}
 
-		registerParseRule(ruleName: string, func: Rule) {
-			if (this.rules[ruleName])
-				throw new Error("Rule '" + ruleName + "' is already defined");
-			this.rules[ruleName] = func;
+		registerParseRule(rule: ParseFunction) {
+			if (!rule.ruleName)
+				throw new Error("Anonymous rules cannot be registered in a grammar. ");
+			if (this.rules[rule.ruleName])
+				throw new Error("Rule '" + rule.ruleName + "' is already defined");
+			this.rules[rule.ruleName] = rule;
 		}
 
-		public rule(ruleName: string): Rule {
+		public rule(ruleName: string): ParseFunction {
 			if (!this.rules[ruleName])
 				throw new Error("Rule '" + ruleName + "' is not defined");
-			return this.rules[ruleName]
+			return this.rules[ruleName];
 		}
 
 		public parse(input: string, startSymbol?: string): any {
@@ -78,48 +69,75 @@ module miniup {
 
 	}
 
+	export interface StackItem {
+		func: ParseFunction;
+		startPos: number;
+	}
+
+	interface MemoizeResult {
+		result: any;
+		endPos: number;
+	}
+
 	export class Parser {
+
+		private static nextMemoizationId = 1;
 
 		currentPos: number = -1;
 		maxPos: number = -1;
 		memoizedParseFunctions = {};
+		private stack: StackItem[] = [];
 
 		constructor(public grammar: Grammar, public input: String) {
 
 		}
 
 		public parse(func: ParseFunction): any {
-			if (this.isMemoized(func))
-				return this.consumeMemoized(func);
+			try {
+				this.stack.push({
+					func: func,
+					startPos: this.currentPos
+				});
 
-			var startpos = this.currentPos;
-			var result = func.parse(this);
+				if (this.isMemoized(func))
+					return this.consumeMemoized(func);
 
-			//TODO: result max end pos and such
+				var startpos = this.currentPos;
+				var result = func(this);
 
-			if (!result)
-				this.currentPos = startpos; //reset
+				//TODO: result max end pos and such
+
+				if (!result)
+					this.currentPos = startpos; //reset
 
 
-			this.memoizedParseFunctions[func.id][startpos] = {
-				result: result,
-				endpos : this.currentPos
+				this.memoizedParseFunctions[func.memoizationId][startpos] = <MemoizeResult> {
+					result: result,
+					endPos: this.currentPos
+				};
+
+				return result;
 			}
-			return result;
+			finally {
+				this.stack.pop(); //todo: process empty stack and such
+			}
 		}
 
 		isMemoized(func: ParseFunction): bool {
-			if (!this.memoizedParseFunctions[func.id]) {
-				this.memoizedParseFunctions[func.id] = {};
+			if (!func.memoizationId)
+				func.memoizationId = Parser.nextMemoizationId++;
+
+			if (!this.memoizedParseFunctions[func.memoizationId]) {
+				this.memoizedParseFunctions[func.memoizationId] = {};
 				return false;
 			}
-			return this.memoizedParseFunctions[func.id][this.currentPos] !== undefined;
+			return this.memoizedParseFunctions[func.memoizationId][this.currentPos] !== undefined;
 		}
 
 		consumeMemoized(func: ParseFunction): any {
-			var currentPos = this.currentPos;
-			this.currentPos = this.memoizedParseFunctions[func.id][currentPos].endpos;
-			return this.memoizedParseFunctions[func.id][currentPos].result;
+			var m: MemoizeResult = this.memoizedParseFunctions[func.memoizationId][this.currentPos];
+			this.currentPos = m.endPos;
+			return m.result;
 		}
 	}
 
