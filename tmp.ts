@@ -256,9 +256,9 @@ module miniup {
 				return base.substring(from, to);
 			}
 
-			public static leftPad:string(string string, number col) {
-				number v = col;
-			 r:string = "";
+			public static leftPad(str: string, col: number):string {
+				var v = col;
+				var r = "";
 				while (v-- > 0)
 					r += " ";
 				return r + string;
