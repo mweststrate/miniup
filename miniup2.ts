@@ -15,7 +15,9 @@ module miniup {
 
 	export class RuleFactory {
 
-		public static createCharacterMatcher(regex: string, ignoreCase: bool = false): ParseFunction {
+		//TODO: any (.) matcher
+		//TODO: $ matcher (what does it mean?)
+		public static createRegexMatcher(regex: string, ignoreCase: bool = false): ParseFunction {
 			var r = new RegExp("\\A" + regex, ignoreCase ? "i" : "");
 
 			return (parser: Parser): any => {
@@ -29,21 +31,17 @@ module miniup {
 			}
 		}
 
+		public static createCharacterMatcher(regex: string, ignoreCase: bool = false): ParseFunction {
+			return createRegexMatcher(regex, ignoreCase);
+		}
+
 		public static createKeywordMatcher(keyword: string, ignoreCase: bool = false): ParseFunction {
-			var r = new RegExp("\\A" + Util.quoteRegExp(keyword), ignoreCase ? "i" : "");
-
+			var rem = createRegexMatcher("\\A" + Util.quoteRegExp(keyword), ignoreCase);
 			return Util.extend((parser: Parser): any => {
-				//TODO: parser.autoConsumeWhiteSpace();
-
-				var remainingInput = parser.getRemainingInput();
-				var match = remainingInput.match(r);
-				if (match) {
-					parser.currentPos += match[0].length;
-					return match[0];
-
-					//TODO: parser.autoConsumeWhiteSpace();
-				}
-				return undefined;
+				parser.consumeWhitespace();
+				var res = parser.parse(rem);
+				parser.consumeWhitespace();
+				return res;
 			}, {
 				isKeywordMatcher: true
 			});
@@ -148,6 +146,7 @@ module miniup {
 	export class Grammar {
 
 		private rules = {};
+		whitespaceMatcher: ParseFunction;
 		public startSymbol: string;
 
 		public static load(grammarSource: string): Grammar {
@@ -161,6 +160,9 @@ module miniup {
 				throw new Error("Anonymous rules cannot be registered in a grammar. ");
 			if (this.rules[rule.ruleName])
 				throw new Error("Rule '" + rule.ruleName + "' is already defined");
+			if ("whitespace" == rule.ruleName)
+				this.whitespaceMatcher = rule;
+
 			this.rules[rule.ruleName] = rule;
 		}
 
@@ -219,9 +221,10 @@ module miniup {
 					return this.consumeMemoized(func);
 
 				var startpos = this.currentPos;
-				var result = func(this);
 
-				//TODO: result max end pos and such
+				//TODO: if (startpos > bestPos && (func.isKeywordMatcher || func.friendlyName)) storeExpected;
+
+				var result = func(this);
 
 				if (!result)
 					this.currentPos = startpos; //reset
@@ -254,6 +257,12 @@ module miniup {
 			var m: MemoizeResult = this.memoizedParseFunctions[func.memoizationId][this.currentPos];
 			this.currentPos = m.endPos;
 			return m.result;
+		}
+
+		consumeWhitespace(): bool {
+			if (this.grammar.whitespaceMatcher)
+				return undefined !== this.parse(this.grammar.whitespaceMatcher);
+			return false;
 		}
 	}
 
