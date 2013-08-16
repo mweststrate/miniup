@@ -1,5 +1,5 @@
 module miniup {
-	
+
 	export interface NamedRule {
 		ruleName?: string;
 		friendlyName?: string;
@@ -13,11 +13,14 @@ module miniup {
 		(parser: Parser): any;
 	}
 
-	export class RuleFactory {
+	export class MatcherFactory {
 
 		//TODO: any (.) matcher
-		//TODO: $ matcher (what does it mean?)
-		public static createRegexMatcher(regex: string, ignoreCase: bool = false): ParseFunction {
+		//TODO: $ matcher (what does it mean?) ->Try to match the expression. If the match succeeds, return the matched string instead of the match result.
+		//TODO: import matcher (requires global registry)
+		//TODO: operator matcher / recursion matcher
+
+		public static regexMatcher(regex: string, ignoreCase: bool = false): ParseFunction {
 			var r = new RegExp("\\A" + regex, ignoreCase ? "i" : "");
 
 			return (parser: Parser): any => {
@@ -31,12 +34,12 @@ module miniup {
 			}
 		}
 
-		public static createCharacterMatcher(regex: string, ignoreCase: bool = false): ParseFunction {
-			return createRegexMatcher(regex, ignoreCase);
+		public static characterMatcher(regex: string, ignoreCase: bool = false): ParseFunction {
+			return regexMatcher(regex, ignoreCase);
 		}
 
-		public static createKeywordMatcher(keyword: string, ignoreCase: bool = false): ParseFunction {
-			var rem = createRegexMatcher("\\A" + Util.quoteRegExp(keyword), ignoreCase);
+		public static keywordMatcher(keyword: string, ignoreCase: bool = false): ParseFunction {
+			var rem = regexMatcher("\\A" + Util.quoteRegExp(keyword), ignoreCase);
 			return Util.extend((parser: Parser): any => {
 				parser.consumeWhitespace();
 				var res = parser.parse(rem);
@@ -47,14 +50,14 @@ module miniup {
 			});
 		}
 
-		public static createRuleMatcher(ruleName: string): ParseFunction {
+		public static ruleMatcher(ruleName: string): ParseFunction {
 			return (parser: Parser): any => {
 				return Util.extend(parser.parse(parser.grammar.rule(ruleName)), { ruleName: ruleName });
 				//TODO: automatically set rulename property?
 			}
 		}
 
-		public static createZeroOrMoreMatcher(matcher: ParseFunction): ParseFunction {
+		public static zeroOrMoreMatcher(matcher: ParseFunction): ParseFunction {
 			return (parser: Parser): any => {
 				var res = [];
 				var item;
@@ -68,8 +71,8 @@ module miniup {
 			}
 		}
 
-		public static createOneOrMoreMatcher(matcher: ParseFunction): ParseFunction {
-			var zmm = createZeroOrMoreMatcher(matcher);
+		public static oneOrMoreMatcher(matcher: ParseFunction): ParseFunction {
+			var zmm = zeroOrMoreMatcher(matcher);
 
 			return (parser: Parser): any => {
 				var res = parser.parse(zmm);
@@ -77,14 +80,14 @@ module miniup {
 			}
 		}
 
-		public static createZeroOrOneMatcher(matcher: ParseFunction): ParseFunction {
+		public static zeroOrOneMatcher(matcher: ParseFunction): ParseFunction {
 			return (parser: Parser): any => {
 				var res = parser.parse(matcher);
 				return res === undefined ? null : res;
 			}
 		}
 
-		public static createSequenceMatcher(items: ParseFunction[]): ParseFunction {
+		public static sequenceMatcher(items: ParseFunction[]): ParseFunction {
 			if (items.length == 1) //Not a real sequence
 				return items[0];
 
@@ -110,7 +113,7 @@ module miniup {
 			}
 		}
 
-		public static createChoiceMatcher(choices: ParseFunction[]): ParseFunction {
+		public static choiceMatcher(choices: ParseFunction[]): ParseFunction {
 			return (parser: Parser): any => {
 				var res;
 
@@ -120,7 +123,7 @@ module miniup {
 			}
 		}
 
-		public static createPositivePredicateMatcherMatcher(predicate: ParseFunction): ParseFunction {
+		public static positivePredicateMatcherMatcher(predicate: ParseFunction): ParseFunction {
 			return (parser: Parser): any => {
 				var prepos = parser.currentPos;
 				//TODO: do *not* update best match while parsing predicates!
@@ -130,14 +133,14 @@ module miniup {
 			}
 		}
 
-		public static createNegativePredicateMatcherMatcher(predicate: ParseFunction): ParseFunction {
-			var ppm = createPositivePredicateMatcherMatcher(predicate);
+		public static negativePredicateMatcherMatcher(predicate: ParseFunction): ParseFunction {
+			var ppm = positivePredicateMatcherMatcher(predicate);
 			return (parser: Parser): any => {
-				return parser.parse(ppm) === undefined ? null : undefined; //undefined == no match. null == match, so invert. 
+				return parser.parse(ppm) === undefined ? null : undefined; //undefined == no match. null == match, so invert.
 			}
 		}
 
-		public static createNamedRule(matcher: ParseFunction, names: NamedRule) {
+		public static namedRule(matcher: ParseFunction, names: NamedRule) {
 			return Util.extend(matcher, names);
 		}
 
@@ -151,8 +154,8 @@ module miniup {
 
 		public static load(grammarSource: string): Grammar {
 			//TODO:
-
-			return null;
+			var ast = GrammarReader.bootstrap().parse(grammarSource);
+			return GrammarReader.buildGrammar(ast);
 		}
 
 		registerParseRule(rule: ParseFunction) {
@@ -162,6 +165,8 @@ module miniup {
 				throw new Error("Rule '" + rule.ruleName + "' is already defined");
 			if ("whitespace" == rule.ruleName)
 				this.whitespaceMatcher = rule;
+			if (this.startSymbol == null)
+				this.startSymbol = rule.ruleName;
 
 			this.rules[rule.ruleName] = rule;
 		}
@@ -217,6 +222,15 @@ module miniup {
 					startPos: this.currentPos
 				});
 
+				//TODO: get memoize record. If state is 'running', bail out: left recursion
+
+				//TODO: left recursion support = do not if the rule is running, but has alternatives left!
+				//rules that have alternatives on recursion should catch recursion exception and move on
+				//to the next state?
+
+				//if state is 'known' return memoized result
+				//if state is 'new' continue, set state to 'running'
+
 				if (this.isMemoized(func))
 					return this.consumeMemoized(func);
 
@@ -268,6 +282,30 @@ module miniup {
 
 	export class ParseException {
 
+	}
+
+	export class GrammarReader {
+		private static miniupGrammar: Grammar = null;
+
+		public static getMiniupGrammar(): Grammar {
+			if (miniupGrammar == null)
+				miniupGrammar = bootstrap();
+			return miniupGrammar;
+		}
+
+		private static bootstrap(): Grammar {
+			var g = new Grammar(), f = MatcherFactory;
+
+
+			//TODO:
+
+			g.startSymbol = "grammar";
+			return g;
+		}
+
+		public static buildGrammar(ast: any): Grammar {
+			return null; //TODO:
+		}
 	}
 
 	export class Util {
