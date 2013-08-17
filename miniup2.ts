@@ -162,6 +162,7 @@ module miniup {
 		public static load(grammarSource: string): Grammar {
 			//TODO:
 			var ast = GrammarReader.bootstrap().parse(grammarSource);
+			//TODO: auto load built in tokens?
 			return GrammarReader.buildGrammar(ast);
 		}
 
@@ -387,14 +388,29 @@ module miniup {
 	}
 
 	export class RegExpUtil {
-		public static identifier = /[a-zA-Z_][a-zA-Z_0-9]/;
-		public static whitespace = /\s*/;
-		public static regex = /todo/;
-		public static singleQuoteString = /todo/;
-		public static doubleQuoteString = /todo/;
-		public static singleLineComment = /todo/;
-		public static multiLineComment = /todo/;
-		public static characterClass = /todo/;
+	/*	from miniup java:
+		public static IDENTIFIER = new BuiltinToken("IDENTIFIER", "[a-zA-Z_][a-zA-Z_0-9]*", false);
+		public static WHITESPACE = new BuiltinToken("WHITESPACE", "\\s+", true);
+		public static INTEGER = new BuiltinToken("INTEGER", "-?\\d+", false);
+		public static FLOAT = new BuiltinToken("FLOAT", "-?\\d+(\\.\\d+)?(e\\d+)?", false);
+		public static SINGLEQUOTEDSTRING = new BuiltinToken("SINGLEQUOTEDSTRING", "'(?>[^\\\\']|(\\\\[btnfr\"'\\\\]))*'", false);
+		public static DOUBLEQUOTEDSTRING = new BuiltinToken("DOUBLEQUOTEDSTRING", "\"(?>[^\\\\\"]|(\\\\[btnfr\"'\\\\]))*\"", false);
+		public static SINGLELINECOMMENT = new BuiltinToken("SINGLELINECOMMENT", "//[^\\n]*(\\n|$)", true);
+	*///	public static MULTILINECOMMENT = new BuiltinToken("MULTILINECOMMENT", "/\\*(?:.|[\\n\\r])*?\\*/", true);
+	//	public static bool = new BuiltinToken("bool", "true|false", false);
+	//	public static REGULAREXPRESSION = new BuiltinToken("REGULAREXPRESSION", "/(?>[^\\\\/]|(\\\\.))*/", false);
+
+		public static identifier = /[a-zA-Z_][a-zA-Z_0-9]*/;
+		public static whitespace = /\s+/;
+		public static regex = /\/([^\\\/]|(\\.))*\//;
+		public static singleQuoteString = /'([^'\\]|(\\[btnfr"'\\]))*'/;
+		public static doubleQuoteString = /"([^"\\]|(\\[btnfr"'\\]))*"/;
+		public static singleLineComment = /\/\/[^\\n]*(\\n|$)/;
+		public static multiLineComment = /\/\*(?:.|[\\n\\r])*?\*\//;
+		public static characterClass = /\[([^\\\/]|(\\.))*\]/;
+		public static integer = /-?\d+/;
+		public static float = /-?\d+(\.\d+)?(e\d+)?/;
+		public static boolRegexp = /(true|false)/;
 
 		public static quoteRegExp(str: string): string {
 			return (str + '').replace(/([.?*+^$[\]\\(){}|-])/g, "\\$1");
