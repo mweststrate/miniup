@@ -21,8 +21,11 @@ public static choiceMatcher(choices: ParseFunction[]): ParseFunction {
 
 				if (!match && !isLeftRecursive)
 					return undefined;
-				else if (!match && isLeftRecursive)
-					throw recursion;
+				else if (!match && isLeftRecursive) {
+					if (recursion.cause == arguments.callee)
+						return undefined;  //we're done, no match.
+					throw recursion; //rethrow for indirect left recursion support
+				}
 				if (match && !isLeftRecursive)
 					return seed;
 

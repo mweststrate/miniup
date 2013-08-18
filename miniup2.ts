@@ -18,7 +18,7 @@ module miniup {
 		//TODO: any (.) matcher
 		//TODO: $ matcher (what does it mean?) ->Try to match the expression. If the match succeeds, return the matched string instead of the match result.
 		//TODO: import matcher (requires global registry)
-		//TODO: operator matcher / recursion matcher
+		//TODO: operator matcher (operand operator)<   (or >)
 		//TODO: non lazy or matcher?
 
 		public static regex(regex: RegExp, ignoreCase: bool = false, autoWhitespace: bool = true): ParseFunction {
@@ -37,6 +37,7 @@ module miniup {
 
 					parser.currentPos += match[0].length;
 					return match[0];
+					//TODO: return complex object with raw and unquoted values?
 				}
 				return undefined;
 			}
@@ -95,7 +96,7 @@ module miniup {
 				return items[0];
 
 			return (parser: Parser): any => {
-				var result = [];
+				var result = []; //TODO: should be object
 
 				var success = items.every(item => {
 					var itemres = parser.parse(item);
@@ -159,11 +160,27 @@ module miniup {
 		whitespaceMatcher: ParseFunction;
 		public startSymbol: string;
 
+		//TODO: add Grammar registery for import statements
+
 		public static load(grammarSource: string): Grammar {
 			//TODO:
 			var ast = GrammarReader.bootstrap().parse(grammarSource);
 			//TODO: auto load built in tokens?
 			return GrammarReader.buildGrammar(ast);
+		}
+
+		public static loadFromFile(filename: string): Grammar {
+			//TODO:
+			return null;
+		}
+
+		public static loadFromXHR(filename: string, jQuery: any, callback:(grammar:Grammar) => void) {
+			//TODO:
+		}
+
+		public test(input: string, expected: any) : Grammar {
+			//TODO:
+			return this;
 		}
 
 		addRule(rule: ParseFunction): ParseFunction;
@@ -189,13 +206,10 @@ module miniup {
 			return this.rules[ruleName];
 		}
 
-		public parse(input: string, startSymbol?: string): any {
-			var result = new Parser(this, input).parse(this.rule(startSymbol || this.startSymbol));
-			if (!result) {
-				//TODO: error handling in the case of null result
-				throw new ParseException();
-			}
-			return result;
+		public parse(input: string, opts: { startSymbol?: string; inputName?: string; debug?: bool; } = {}): any {
+			//TODO: store inputName and show in exceptions
+			//TODO: use 'debug' for logging
+			return new Parser(this, input).parseInput(this.rule(opts.startSymbol || this.startSymbol));
 		}
 
 	}
@@ -227,7 +241,20 @@ module miniup {
 			return this.input.substring(this.currentPos);
 		}
 
-		public parse(func: ParseFunction): any {
+		parseInput(func: ParseFunction) : any {
+			var res = this.parse(func);
+			if (res === undefined)
+				throw new ParseException();
+			else {
+				this.consumeWhitespace();
+				if (this.currentPos < this.maxPos) //we parsed something valid, but not the whole input
+					throw new ParseException();
+				else if (this.currentPos < this.input.length)
+					throw new ParseException();
+			}
+		}
+
+		parse(func: ParseFunction): any {
 			try {
 				this.stack.push({
 					func: func,
@@ -266,6 +293,11 @@ module miniup {
 			finally {
 				this.stack.pop(); //todo: process empty stack and such
 			}
+		}
+
+		getCoords(idx: number): { line: number; col: number; linetext: string; linetrimmed: string; linehighlight: string;} {
+			//TODO
+			return null;
 		}
 
 		isMemoized(func: ParseFunction): bool {
@@ -383,7 +415,14 @@ module miniup {
 		}
 
 		public static buildGrammar(ast: any): Grammar {
-			return null; //TODO:
+			var g = new Grammar();
+			(<any[]>ast.rules).map(this.astToMatcher, this).forEach(g.addRule, g);
+			return g;
+		}
+
+		static astToMatcher(ast: any) : ParseFunction {
+			//TODO:
+			return null;
 		}
 	}
 
@@ -419,6 +458,9 @@ module miniup {
 
 	export class Util {
 
+		public static format(str: string, ...args: any[]) {
+			return str.replace(/{(\d+)}/g, (match, nr) => args[nr]);
+		}
 
 		public static extend(thing: any, extendWith: Object): any {
 			for (var key in extendWith)
