@@ -15,7 +15,7 @@ module miniup {
 
 	export class MatcherFactory {
 
-		//TODO: any (.) matcher
+		//TODO: any char (.) matcher
 		//TODO: $ matcher (what does it mean?) ->Try to match the expression. If the match succeeds, return the matched string instead of the match result.
 		//TODO: import matcher (requires global registry)
 		//TODO: operator matcher (operand operator)<   (or >)
@@ -231,6 +231,7 @@ module miniup {
 		currentPos: number = 0;
 		maxPos: number = -1;
 		memoizedParseFunctions = {};
+		public debug = false;
 		private stack: StackItem[] = []; //TODO: is stack required anywhere?
 
 		constructor(public grammar: Grammar, public input: String) {
@@ -242,11 +243,14 @@ module miniup {
 		}
 
 		parseInput(func: ParseFunction) : any {
+			this.consumeWhitespace();
 			var res = this.parse(func);
-			if (res === undefined)
+			if (res === undefined) {
+				if (this.maxPos >= this.input.length)
+					throw new ParseException("Unexpected end of input. ");
 				throw new ParseException();
+			}
 			else {
-				this.consumeWhitespace();
 				if (this.currentPos < this.maxPos) //we parsed something valid, but not the whole input
 					throw new ParseException();
 				else if (this.currentPos < this.input.length)
@@ -255,49 +259,57 @@ module miniup {
 		}
 
 		parse(func: ParseFunction): any {
+			var startpos = this.currentPos,
+				isMatch = false,
+				result = undefined;
+
 			try {
-				this.stack.push({
-					func: func,
-					startPos: this.currentPos
-				});
+				if (!func.isCharacterClass || this.previousIsCharacterClass)
+					this.consumeWhitespace(); //whitespace was not consumed yet, do it now
 
-				//TODO: get memoize record. If state is 'running', bail out: left recursion
+				this.stack.push({ func: func, startPos : this.currentPos}); //Note, not startpos.
 
-				//TODO: left recursion support = do not if the rule is running, but has alternatives left!
-				//rules that have alternatives on recursion should catch recursion exception and move on
-				//to the next state? (n.b. make sure that this parse method handles stack unwind properly in a finally block)
+				if (this.isMemoized(func)) {
+					if (this.debug)
+						Util.debug(Util.leftPad(" /" + func.toString() + " ? (memo)", this.stack.depth, " |"));
 
-				//if state is 'known' return memoized result
-				//if state is 'new' continue, set state to 'running'
+					result = this.consumeMemoized(func);
+				}
 
-				if (this.isMemoized(func))
-					return this.consumeMemoized(func);
+				else {
+					if (this.debug)
+						Util.debug(Util.leftPad(" /" + func.toString() + " ?", this.stack.depth, " |"));
 
-				var startpos = this.currentPos;
+					result = func(this);
 
-				//TODO: if (startpos > bestPos && (func.isKeywordMatcher || func.friendlyName)) storeExpected;
+					Util.extend(result, { parsePos : startpos, ruleName : func.ruleName }); //TODO; only if object?
 
-				var result = func(this);
-
-				if (!result)
-					this.currentPos = startpos; //reset
-
-
-				this.memoizedParseFunctions[func.memoizationId][startpos] = <MemoizeResult> {
-					result: result,
-					endPos: this.currentPos
-				};
+					this.memoizedParseFunctions[func.memoizationId][startpos] = <MemoizeResult> {
+						result: result,
+						endPos: this.currentPos
+					};
+				}
 
 				return result;
 			}
 			finally {
-				this.stack.pop(); //todo: process empty stack and such
-			}
-		}
+				isMatch = result !== undefined;
 
-		getCoords(idx: number): { line: number; col: number; linetext: string; linetrimmed: string; linehighlight: string;} {
-			//TODO
-			return null;
+				if (isMatch) {
+					if (!func.isCharacterClass)
+						parser.consumeWhitespace();
+					this.previousIsCharacterClass = func.isCharacterClass;
+				}
+
+				else {
+					this.currentPos = startpos; //reset
+				}
+
+				if (this.debug)
+					Util.debug(Util.leftPad(" \\" + func.toString() + (isMatch ? " X" : " V"), this.stack.depth, " |"));
+
+				this.stack.pop();
+			}
 		}
 
 		isMemoized(func: ParseFunction): bool {
@@ -459,7 +471,7 @@ module miniup {
 	export class Util {
 
 		public static format(str: string, ...args: any[]) {
-			return str.replace(/{(\d+)}/g, (match, nr) => args[nr]);
+			return str.replace(/{(\d+)}/g, (match, nr) => "" + args[nr]);
 		}
 
 		public static extend(thing: any, extendWith: Object): any {
@@ -467,6 +479,13 @@ module miniup {
 				thing[key] = extendWith[key];
 			return thing;
 		}
+
+		public static getCoords(input: string, pos: number): { line: number; col: number; linetext: string; linetrimmed: string; linehighlight: string;} {
+			//TODO
+			return null;
+		}
+
+
 	}
 
 

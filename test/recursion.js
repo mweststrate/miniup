@@ -1,3 +1,15 @@
+in parser.parse:
+
+				//TODO: get memoize record. If state is 'running', bail out: left recursion
+
+				//TODO: left recursion support = do not if the rule is running, but has alternatives left!
+				//rules that have alternatives on recursion should catch recursion exception and move on
+				//to the next state? (n.b. make sure that this parse method handles stack unwind properly in a finally block)
+
+				//if state is 'known' return memoized result
+				//if state is 'new' continue, set state to 'running'
+
+
 public static choiceMatcher(choices: ParseFunction[]): ParseFunction {
 			return (parser: Parser): any => {
 				var start = parser.currentPos;
