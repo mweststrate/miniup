@@ -1,16 +1,22 @@
 module miniup {
 
-	export interface NamedRule {
-		ruleName?: string;
-		friendlyName?: string;
-		astName?: string;
-	}
+	export class ParseFunction {
+		ruleName : string;
+		label : string;
+		friendlyName : string;
+		memoizationId: number;
+		isKeyword = false;
+		isCharacterClass = false;
+		isTerminal = false;
 
-	export interface ParseFunction extends NamedRule {
-		memoizationId?: number;
-		isKeywordMatcher?: bool;
+		constructor(private asString: string, public parse : (parser: Parser) => any, opts? : Object) {
+			if (opts)
+				Util.extend(this, opts);
+		}
 
-		(parser: Parser): any;
+		public toString(): string {
+			return (this.ruleName ? this.ruleName + " = " : this.label ? this.label + ":" : "") + this.asString;
+		}
 	}
 
 	export class MatcherFactory {
@@ -21,48 +27,42 @@ module miniup {
 		//TODO: operator matcher (operand operator)<   (or >)
 		//TODO: non lazy or matcher?
 
-		public static regex(regex: RegExp, ignoreCase: bool = false, autoWhitespace: bool = true): ParseFunction {
+		public static regex(regex: RegExp, ignoreCase: bool = false): ParseFunction {
 			//TODO: avoid whitespace matcher to auto match whitespace!
 			var r = new RegExp("\\A" + regex.source, ignoreCase ? "i" : "");
 
-			return (parser: Parser): any => {
-				var remainingInput = parser.getRemainingInput();
-				if (autoWhitespace)
-					parser.consumeWhitespace();
-
-				var match = remainingInput.match(r);
+			return new ParseFunction("/" + regex.source + "/" /*TODO: quote? */, (parser: Parser): any => {
+				var match = parser.getRemainingInput().match(r);
 				if (match) {
-					if (autoWhitespace) //TODO: nowhere post whitespace matching?
-						parser.consumeWhitespace();
-
 					parser.currentPos += match[0].length;
 					return match[0];
 					//TODO: return complex object with raw and unquoted values?
 				}
 				return undefined;
-			}
+			}, { isTerminal: true })
 		}
 
 		public static characterClass(regexstr: string, ignoreCase: bool = false): ParseFunction {
-			return regex(new RegExp(regexstr), ignoreCase, false);
+			var re = regex(new RegExp(regexstr), ignoreCase);
+			return new ParseFunction(regexstr /*TODO: quote?*/, (p) => p.parse(re), { isCharacterClass: true, isTerminal: true });
 		}
 
 		public static literal(keyword: string, ignoreCase: bool = false): ParseFunction {
-			return Util.extend(
-				regex(new RegExp("\\A" + RegExpUtil.quoteRegExp(keyword)), ignoreCase, true),
-				{ isKeywordMatcher: true }
-			);
+			var re = regex(new RegExp("\\A" + RegExpUtil.quoteRegExp(keyword)), ignoreCase);
+			return new ParseFunction(keyword, (p) => p.parse(re), { isKeyword: true, isTerminal: true });
+		}
+
+		public static dot(): ParseFunction {
+			var re = regex(/\A./, false);
+			return new ParseFunction(".", (p) => p.parse(re), { isCharacterClass: true, isTerminal: true });
 		}
 
 		public static rule(ruleName: string): ParseFunction {
-			return (parser: Parser): any => {
-				return Util.extend(parser.parse(parser.grammar.rule(ruleName)), { ruleName: ruleName });
-				//TODO: automatically set rulename property?
-			}
+			return new ParseFunction(ruleName, p => p.parse(p.grammar.rule(ruleName)));
 		}
 
 		public static zeroOrMore(matcher: ParseFunction): ParseFunction {
-			return (parser: Parser): any => {
+			return new ParseFunction(matcher.toString() + "*", (parser: Parser): any => {
 				var res = [];
 				var item;
 				do {
@@ -72,85 +72,91 @@ module miniup {
 				} while (item !== undefined);
 
 				return res;
-			}
+			});
 		}
 
 		public static oneOrMore(matcher: ParseFunction): ParseFunction {
 			var zmm = zeroOrMore(matcher);
 
-			return (parser: Parser): any => {
+			return new ParseFunction(matcher.toString() + "+", (parser: Parser): any => {
 				var res = parser.parse(zmm);
 				return res.length > 0 ? res : undefined;
-			}
+			});
 		}
 
 		public static optional(matcher: ParseFunction): ParseFunction {
-			return (parser: Parser): any => {
+			return new ParseFunction(matcher.toString() + "?", (parser: Parser): any => {
 				var res = parser.parse(matcher);
 				return res === undefined ? null : res;
-			}
+			});
 		}
 
 		public static sequence(...items: ParseFunction[]): ParseFunction {
 			if (items.length == 1 && !items[0].ruleName) //Not top level, and not a real sequence
 				return items[0];
 
-			return (parser: Parser): any => {
-				var result = []; //TODO: should be object
+			return new ParseFunction(
+				"(" + items.map(i => i.toString()).join(" ") + ")",
+				(parser: Parser): any => {
+					var result = []; //TODO: should be object
 
-				var success = items.every(item => {
-					var itemres = parser.parse(item);
-					if (itemres === undefined)
-						return false;
+					var success = items.every(item => {
+						var itemres = parser.parse(item);
+						if (itemres === undefined)
+							return false;
 
-					if (item.isKeywordMatcher && !item.friendlyName && items.length > 1)
-						return true; //ignore result if it is just a stringmathcer without astname. Keywords are not interesting in an AST
-					//TODO: ignore result if its a lookAhead
+						if (item.isKeyword && !item.friendlyName && items.length > 1)
+							return true; //ignore result if it is just a stringmathcer without label. Keywords are not interesting in an AST
+						//TODO: ignore result if its a lookAhead
 
-					result.push(itemres);
-					if (item.astName)
-						result[item.astName] = itemres;
+						result.push(itemres);
+						if (item.label)
+							result[item.label] = itemres;
 
-					return true;
+						return true;
+					});
+
+					return success ? result.length == 1 ? result[0] : result : undefined;
 				});
-
-				return success ? result.length == 1 ? result[0] : result : undefined;
-			}
 		}
 
 		public static choice(choices: ParseFunction[]): ParseFunction {
-			return (parser: Parser): any => {
-				var res;
+			return new ParseFunction(
+				"(" + choices.map(x => x.toString()).join(" | ") + ")",
+				(parser: Parser): any => {
+					var res;
 
-				if (choices.some(choice => undefined !== (res = parser.parse(choice))))
-					return res;
-				return undefined;
-			}
+					if (choices.some(choice => undefined !== (res = parser.parse(choice))))
+						return res;
+					return undefined;
+				});
 		}
 
 		public static positiveLookAhead(predicate: ParseFunction): ParseFunction {
-			return (parser: Parser): any => {
+			return new ParseFunction("&" + predicate.toString(), (parser: Parser): any => {
 				var prepos = parser.currentPos;
 				//TODO: do *not* update best match while parsing predicates!
 				var matches = undefined !== parser.parse(predicate);
 				parser.currentPos = prepos;//rewind
 				return matches ? null : undefined;
-			}
+			});
 		}
 
 		public static negativeLookAhead(predicate: ParseFunction): ParseFunction {
 			var ppm = positiveLookAhead(predicate);
-			return (parser: Parser): any => {
+			return new ParseFunction("!" + predicate.toString(), (parser: Parser): any => {
 				return parser.parse(ppm) === undefined ? null : undefined; //undefined == no match. null == match, so invert.
-			}
+			});
 		}
 
 		public static named(name: string, matcher: ParseFunction) {
-			return Util.extend(matcher, <NamedRule> { ruleName: name });
+			matcher.ruleName = name;
+			return matcher;
 		}
 
 		public static labeled(label: string, matcher: ParseFunction) {
-			return Util.extend(matcher, <NamedRule> { astName: name });
+			matcher.label = label;
+			return matcher;
 		}
 	}
 
@@ -231,11 +237,14 @@ module miniup {
 		currentPos: number = 0;
 		maxPos: number = -1;
 		memoizedParseFunctions = {};
+		inputName: string; //TODO: filename and such
 		public debug = false;
+		private previousIsCharacterClass = false;
 		private stack: StackItem[] = []; //TODO: is stack required anywhere?
+		expected = [];
 
-		constructor(public grammar: Grammar, public input: String) {
-
+		constructor(public grammar: Grammar, public input: string) {
+			//empty
 		}
 
 		public getRemainingInput(): string {
@@ -247,14 +256,14 @@ module miniup {
 			var res = this.parse(func);
 			if (res === undefined) {
 				if (this.maxPos >= this.input.length)
-					throw new ParseException("Unexpected end of input. ");
-				throw new ParseException();
+					throw new ParseException(this, "Unexpected end of input. ");
+				throw new ParseException(this, "Failed to parse");
 			}
 			else {
 				if (this.currentPos < this.maxPos) //we parsed something valid, but not the whole input
-					throw new ParseException();
+					throw new ParseException(this, "Found superflous input after parsing");
 				else if (this.currentPos < this.input.length)
-					throw new ParseException();
+					throw new ParseException(this, "Failed to parse");
 			}
 		}
 
@@ -271,16 +280,20 @@ module miniup {
 
 				if (this.isMemoized(func)) {
 					if (this.debug)
-						Util.debug(Util.leftPad(" /" + func.toString() + " ? (memo)", this.stack.depth, " |"));
+						Util.debug(Util.leftPad(" /" + func.toString() + " ? (memo)", this.stack.length, " |"));
 
 					result = this.consumeMemoized(func);
 				}
 
 				else {
 					if (this.debug)
-						Util.debug(Util.leftPad(" /" + func.toString() + " ?", this.stack.depth, " |"));
-
-					result = func(this);
+						Util.debug(Util.leftPad(" /" + func.toString() + " ?", this.stack.length, " |"));
+					if (func.isTerminal){
+						if (!this.expected[this.currentPos])
+							this.expected[this.currentPos] = [];
+						this.expected.push(func.friendlyName || func.ruleName || func.toString());
+					}
+					result = func.parse(this);
 
 					Util.extend(result, { parsePos : startpos, ruleName : func.ruleName }); //TODO; only if object?
 
@@ -297,7 +310,7 @@ module miniup {
 
 				if (isMatch) {
 					if (!func.isCharacterClass)
-						parser.consumeWhitespace();
+						this.consumeWhitespace();
 					this.previousIsCharacterClass = func.isCharacterClass;
 				}
 
@@ -306,7 +319,7 @@ module miniup {
 				}
 
 				if (this.debug)
-					Util.debug(Util.leftPad(" \\" + func.toString() + (isMatch ? " X" : " V"), this.stack.depth, " |"));
+					Util.debug(Util.leftPad(" \\" + func.toString() + (isMatch ? " X" : " V"), this.stack.length, " |"));
 
 				this.stack.pop();
 			}
@@ -337,7 +350,21 @@ module miniup {
 	}
 
 	export class ParseException {
-		//TODO: exception can contain detail results by looking into the last entry of the memoization cache and find all keywords / 'friendly names' / regexes
+		public name = "Miniup.ParseException";
+		public message : string;
+		public coords: TextCoords;
+
+		constructor(parser: Parser, message: string, highlightBestMatch : bool = true) {
+			var pos = highlightBestMatch ? parser.expected.length -1 : parser.currentPos;
+			this.coords = Util.getCoords(parser.input, pos);
+
+			this.message = Util.format("{0} at {1} line {2}:{3}\n\n {4}\n{5}\nExpected: {6}",
+				message, parser.inputName, this.coords.line, this.coords.col,
+				this.coords.linetrimmed,
+				this.coords.linehighlight,
+				parser.expected[pos].join(" or ")
+			);
+		}
 	}
 
 	export class GrammarReader {
@@ -462,10 +489,19 @@ module miniup {
 		public static integer = /-?\d+/;
 		public static float = /-?\d+(\.\d+)?(e\d+)?/;
 		public static boolRegexp = /(true|false)/;
+		public static lineend = /(\r\n)|\r|\n/;
 
 		public static quoteRegExp(str: string): string {
 			return (str + '').replace(/([.?*+^$[\]\\(){}|-])/g, "\\$1");
 		}
+	}
+
+	export interface TextCoords {
+		line: number;
+		col: number;
+		linetext: string;
+		linetrimmed: string;
+		linehighlight: string;
 	}
 
 	export class Util {
@@ -480,11 +516,29 @@ module miniup {
 			return thing;
 		}
 
-		public static getCoords(input: string, pos: number): { line: number; col: number; linetext: string; linetrimmed: string; linehighlight: string;} {
-			//TODO
-			return null;
+		public static getCoords(input: string, pos: number): TextCoords {
+			var lines = input.substring(0, pos).split(RegExpUtil.lineend);
+			var curline = input.split(RegExpUtil.lineend)[lines.length -1];
+			lines.pop(); //remove curline
+			var col = pos - lines.join().length;
+
+			return {
+				line : lines.length,
+				col : col,
+				linetext : curline,
+				linetrimmed: curline.replace(/(^\s+|\s+$)/,"").replace(/\t/," "), //trim and replace tabs
+				linehighlight : Util.leftPad("^", col - (curline.length - curline.replace(/^\s+/,"").length) , "-") //correct padding for trimmed whitespacse
+			}
 		}
 
+		public static leftPad(str: string, amount: number, padString: string = " ") {
+			for (var i = 0, r = ""; i < amount; i++, r += padString);
+			return r + str;
+		}
+
+		public static debug(msg: string, ...args: string[]) {
+			console && console.log(format.apply(null, [msg].concat(args)));
+		}
 
 	}
 
