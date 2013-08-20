@@ -46,7 +46,7 @@ var miniup;
         MatcherFactory.literal = function literal(keyword, ignoreCase) {
             if (typeof ignoreCase === "undefined") { ignoreCase = false; }
             var re = MatcherFactory.regex(new RegExp(RegExpUtil.quoteRegExp(keyword)), ignoreCase);
-            return new ParseFunction(keyword, function (p) {
+            return new ParseFunction("'" + keyword + "'", function (p) {
                 return p.parse(re);
             }, {
                 isKeyword: true,
@@ -238,10 +238,8 @@ var miniup;
                 }
                 throw new ParseException(this, "Failed to parse");
             } else {
-                if(this.currentPos < this.expected.length) {
+                if(this.currentPos < this.expected.length - 1) {
                     throw new ParseException(this, "Found superflous input after parsing");
-                } else if(this.currentPos < this.input.length) {
-                    throw new ParseException(this, "Failed to parse");
                 }
                 return res;
             }
@@ -257,12 +255,12 @@ var miniup;
                     startPos: this.currentPos
                 });
                 if(this.isMemoized(func)) {
-                    if(this.debug) {
+                    if(this.debug && !this.parsingWhitespace) {
                         Util.debug(Util.leftPad(" /" + func.toString() + " ? (memo)", this.stack.length, " |"));
                     }
                     result = this.consumeMemoized(func);
                 } else {
-                    if(this.debug) {
+                    if(this.debug && !this.parsingWhitespace) {
                         Util.debug(Util.leftPad(" /" + func.toString() + " ?", this.stack.length, " |"));
                     }
                     if(func.isTerminal && !this.parsingWhitespace) {
@@ -294,8 +292,8 @@ var miniup;
                 } else {
                     this.currentPos = startpos;
                 }
-                if(this.debug) {
-                    Util.debug(Util.leftPad(" \\" + func.toString() + (isMatch ? " V" : " X"), this.stack.length, " |"));
+                if(this.debug && !this.parsingWhitespace) {
+                    Util.debug(Util.leftPad(" \\" + func.toString() + (isMatch ? " V" : " X"), this.stack.length, " |") + " Remaining: " + this.getRemainingInput());
                 }
                 this.stack.pop();
             }
@@ -357,7 +355,7 @@ var miniup;
             var str = g.addRule('string', choice(singleQuoteString, doubleQuoteString));
             var literal = g.addRule('literal', seq(str, opt(f.literal("i"))));
             g.addRule('whitespace', choice(whitespacechar, multilinecomment, singlelinecomment));
-            var primary = g.addRule('primary', choice(seq(label('name', identifier), f.negativeLookAhead(seq(opt(str), equals)), literal, characterClass, dot, regexp, seq(lparen, label('expression', f.rule('expression')), rparen))));
+            var primary = g.addRule('primary', choice(seq(label('name', identifier), f.negativeLookAhead(seq(opt(str), equals))), literal, characterClass, dot, regexp, seq(lparen, label('expression', f.rule('expression')), rparen)));
             var suffixed = g.addRule('suffixed', choice(seq(label('expression', primary), question), seq(label('expression', primary), star), seq(label('expression', primary), plus), primary));
             var prefixed = g.addRule('prefixed', choice(seq(dollar, label('expression', suffixed)), seq(and, label('expression', suffixed)), seq(not, label('expression', suffixed)), suffixed));
             var labeled = g.addRule('labeled', choice(seq(label('label', identifier), colon, label('expression', prefixed)), prefixed));
@@ -421,13 +419,13 @@ var miniup;
             var lines = input.substring(0, pos).split(RegExpUtil.lineend);
             var curline = input.split(RegExpUtil.lineend)[lines.length - 1];
             lines.pop();
-            var col = pos - lines.join().length;
+            var col = pos - lines.join().length + 1;
             return {
                 line: lines.length,
                 col: col,
                 linetext: curline,
                 linetrimmed: curline.replace(/(^\s+|\s+$)/, "").replace(/\t/, " "),
-                linehighlight: Util.leftPad("^", col - (curline.length - curline.replace(/^\s+/, "").length), "-")
+                linehighlight: Util.leftPad("^", col - (curline.length - curline.replace(/^\s+/, "").length) - 2, "-")
             };
         };
         Util.leftPad = function leftPad(str, amount, padString) {
