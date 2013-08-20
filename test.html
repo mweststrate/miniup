@@ -1,0 +1,21 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+	<script src="miniup2.js"></script>
+	<script src="lib/jquery-1.7.1.min.js"></script>
+</head>
+<body>
+	<input type="button" value="Parse!" id="parse" />
+	<table width="100%">
+		<tr>
+			<td width="50%"><textarea id="grammar" rows="20"></textarea></td>
+			<td><textarea id="ïnput" rows="20"></textarea></td>
+		</tr>
+	</table>
+	<script type="text/javascript">
+		$('#parse').on('click', function() {
+			var g = miniup.Grammar.load($('#grammar').val());
+			console.dir(g.parse($('#parse').val()));
+		})
+	</script>
+</body>

@@ -15,7 +15,7 @@ module miniup {
 		}
 
 		public toString(): string {
-			return (this.ruleName ? this.ruleName + " = " : this.label ? this.label + ":" : "") + this.asString;
+			return this.ruleName ? this.ruleName : (this.label ? this.label + ":" : "") + this.asString;
 		}
 	}
 
@@ -27,9 +27,8 @@ module miniup {
 		//TODO: operator matcher (operand operator)<   (or >)
 		//TODO: non lazy or matcher?
 
-		public static regex(regex: RegExp, ignoreCase: bool = false): ParseFunction {
-			//TODO: avoid whitespace matcher to auto match whitespace!
-			var r = new RegExp("\\A" + regex.source, ignoreCase ? "i" : "");
+		public static regex(regex: RegExp, ignoreCase: bool = false): ParseFunction { //TODO: probably first arg should be regex
+			var r = new RegExp("^" + regex.source, ignoreCase ? "i" : "");
 
 			return new ParseFunction("/" + regex.source + "/" /*TODO: quote? */, (parser: Parser): any => {
 				var match = parser.getRemainingInput().match(r);
@@ -48,12 +47,12 @@ module miniup {
 		}
 
 		public static literal(keyword: string, ignoreCase: bool = false): ParseFunction {
-			var re = regex(new RegExp("\\A" + RegExpUtil.quoteRegExp(keyword)), ignoreCase);
+			var re = regex(new RegExp(RegExpUtil.quoteRegExp(keyword)), ignoreCase);
 			return new ParseFunction(keyword, (p) => p.parse(re), { isKeyword: true, isTerminal: true });
 		}
 
 		public static dot(): ParseFunction {
-			var re = regex(/\A./, false);
+			var re = regex(/^./, false);
 			return new ParseFunction(".", (p) => p.parse(re), { isCharacterClass: true, isTerminal: true });
 		}
 
@@ -120,7 +119,7 @@ module miniup {
 				});
 		}
 
-		public static choice(choices: ParseFunction[]): ParseFunction {
+		public static choice(...choices: ParseFunction[]): ParseFunction {
 			return new ParseFunction(
 				"(" + choices.map(x => x.toString()).join(" | ") + ")",
 				(parser: Parser): any => {
@@ -235,11 +234,11 @@ module miniup {
 		private static nextMemoizationId = 1;
 
 		currentPos: number = 0;
-		maxPos: number = -1;
 		memoizedParseFunctions = {};
 		inputName: string; //TODO: filename and such
-		public debug = false;
+		public debug = true; //TODO: false
 		private previousIsCharacterClass = false;
+		private parsingWhitespace = false;
 		private stack: StackItem[] = []; //TODO: is stack required anywhere?
 		expected = [];
 
@@ -252,18 +251,18 @@ module miniup {
 		}
 
 		parseInput(func: ParseFunction) : any {
-			this.consumeWhitespace();
 			var res = this.parse(func);
 			if (res === undefined) {
-				if (this.maxPos >= this.input.length)
+				if (this.expected.length >= this.input.length)
 					throw new ParseException(this, "Unexpected end of input. ");
 				throw new ParseException(this, "Failed to parse");
 			}
 			else {
-				if (this.currentPos < this.maxPos) //we parsed something valid, but not the whole input
+				if (this.currentPos < this.expected.length) //we parsed something valid, but not the whole input
 					throw new ParseException(this, "Found superflous input after parsing");
 				else if (this.currentPos < this.input.length)
 					throw new ParseException(this, "Failed to parse");
+				return res;
 			}
 		}
 
@@ -273,11 +272,13 @@ module miniup {
 				result = undefined;
 
 			try {
-				if (!func.isCharacterClass || this.previousIsCharacterClass)
+				//consume whitespace
+				if (!this.parsingWhitespace && (!func.isCharacterClass || this.previousIsCharacterClass))
 					this.consumeWhitespace(); //whitespace was not consumed yet, do it now
 
 				this.stack.push({ func: func, startPos : this.currentPos}); //Note, not startpos.
 
+				//check memoization cache
 				if (this.isMemoized(func)) {
 					if (this.debug)
 						Util.debug(Util.leftPad(" /" + func.toString() + " ? (memo)", this.stack.length, " |"));
@@ -288,15 +289,22 @@ module miniup {
 				else {
 					if (this.debug)
 						Util.debug(Util.leftPad(" /" + func.toString() + " ?", this.stack.length, " |"));
-					if (func.isTerminal){
+
+					//store expected
+					if (func.isTerminal && !this.parsingWhitespace) {
 						if (!this.expected[this.currentPos])
 							this.expected[this.currentPos] = [];
-						this.expected.push(func.friendlyName || func.ruleName || func.toString());
+						this.expected[this.currentPos].push(func.friendlyName || func.ruleName || func.toString());
 					}
+
+					//finally... parse!
 					result = func.parse(this);
 
-					Util.extend(result, { parsePos : startpos, ruleName : func.ruleName }); //TODO; only if object?
+					//enrich result with match information
+					if (result !== null && result !== undefined)
+						Util.extend(result, { parsePos : startpos, ruleName : func.ruleName }); //TODO; only if object?
 
+					//store memoization result
 					this.memoizedParseFunctions[func.memoizationId][startpos] = <MemoizeResult> {
 						result: result,
 						endPos: this.currentPos
@@ -309,17 +317,16 @@ module miniup {
 				isMatch = result !== undefined;
 
 				if (isMatch) {
-					if (!func.isCharacterClass)
+					if (!this.parsingWhitespace && !func.isCharacterClass)
 						this.consumeWhitespace();
 					this.previousIsCharacterClass = func.isCharacterClass;
 				}
 
-				else {
-					this.currentPos = startpos; //reset
-				}
+				else 
+					this.currentPos = startpos; //rewind
 
 				if (this.debug)
-					Util.debug(Util.leftPad(" \\" + func.toString() + (isMatch ? " X" : " V"), this.stack.length, " |"));
+					Util.debug(Util.leftPad(" \\" + func.toString() + (isMatch ? " V" : " X"), this.stack.length, " |"));
 
 				this.stack.pop();
 			}
@@ -342,10 +349,12 @@ module miniup {
 			return m.result;
 		}
 
-		consumeWhitespace(): bool {
-			if (this.grammar.whitespaceMatcher)
-				return undefined !== this.parse(this.grammar.whitespaceMatcher);
-			return false;
+		consumeWhitespace() {
+			if (this.grammar.whitespaceMatcher) {
+				this.parsingWhitespace = true;
+				this.parse(this.grammar.whitespaceMatcher);
+				this.parsingWhitespace = false;
+			}
 		}
 	}
 
@@ -358,13 +367,15 @@ module miniup {
 			var pos = highlightBestMatch ? parser.expected.length -1 : parser.currentPos;
 			this.coords = Util.getCoords(parser.input, pos);
 
-			this.message = Util.format("{0} at {1} line {2}:{3}\n\n {4}\n{5}\nExpected: {6}",
+			this.message = Util.format("{0} at {1} line {2}:{3}\n\n{4}\n{5}\nExpected: {6}",
 				message, parser.inputName, this.coords.line, this.coords.col,
 				this.coords.linetrimmed,
 				this.coords.linehighlight,
 				parser.expected[pos].join(" or ")
 			);
 		}
+
+		public toString():string { return this.name + ": " + this.message }
 	}
 
 	export class GrammarReader {
@@ -398,48 +409,21 @@ module miniup {
 			  dot = f.literal(".");
 
 			var
-			  identifier = f.regex(RegExpUtil.identifier),
-			  singleQuoteString = f.regex(RegExpUtil.singleQuoteString),
-			  doubleQuoteString = f.regex(RegExpUtil.doubleQuoteString),
-			  singlelinecomment = f.regex(RegExpUtil.singleLineComment),
-			  multilinecomment = f.regex(RegExpUtil.multiLineComment),
-			  whitespacechar = f.regex(RegExpUtil.whitespace),
-			  regexp = f.regex(RegExpUtil.regex),
-			  characterClass = f.regex(RegExpUtil.characterClass);
+			  identifier = f.named('Identifier', f.regex(RegExpUtil.identifier)), //TODO: automated construct these rules
+			  singleQuoteString = f.named('SingleQuoteString', f.regex(RegExpUtil.singleQuoteString)),
+			  doubleQuoteString = f.named('DoubleQuoteString', f.regex(RegExpUtil.doubleQuoteString)),
+			  singlelinecomment = f.named('Comment', f.regex(RegExpUtil.singleLineComment)),
+			  multilinecomment = f.named('MultiLineComment', f.regex(RegExpUtil.multiLineComment)),
+			  whitespacechar = f.named('WhiteSpace', f.regex(RegExpUtil.whitespace)),
+			  regexp = f.named('Regex', f.regex(RegExpUtil.regex)),
+			  characterClass = f.named('CharacterClass', f.regex(RegExpUtil.characterClass));
 
 			//rules
-			var seq = f.sequence, label = label, opt = f.optional;
-
-			g.addRule('grammar', label('rules', f.oneOrMore(rule)));
+			var seq = f.sequence, label = f.labeled, opt = f.optional, choice = f.choice;
 
 			var str = g.addRule('string', choice(singleQuoteString, doubleQuoteString));
 			var literal = g.addRule('literal', seq(str, opt(f.literal("i"))));
 			g.addRule('whitespace', choice(whitespacechar, multilinecomment, singlelinecomment));
-
-			var rule = g.addRule('rule', seq(label('name', identifier), label('displayName', opt(str)), equals, label('expression', expression), opt(semicolon)));
-
-			var expression = g.addRule('expression', choice);
-
-			var choice = g.addRule('choice', seq(
-				label('head', sequence), label('tail', f.zeroOrMore(seq(slash, sequence)))));
-
-			var sequence = g.addRule('sequence',
-				label('elements', f.zeroOrMore(labeled)));
-
-			var labeled = g.addRule('labeled',
-			  choice(seq(label('label', identifier), colon, label('expression', prefixed)), prefixed));
-
-			var prefixed = g.addRule('prefixed', choice(
-			  seq(dollar, label('expression', suffixed)),
-			  seq(and, label('expression', suffixed)),
-			  seq(not, label('expression', suffixed)),
-			  suffixed));
-
-			var suffixed = g.addRule('suffixed', choice(
-			  seq(label('expression', primary), question),
-			  seq(label('expression', primary), star),
-			  seq(label('expression', primary), plus),
-			  primary));
 
 			var primary = g.addRule('primary', choice(
 			  seq(label('name', identifier), f.negativeLookAhead(seq(opt(str), equals)),
@@ -447,7 +431,33 @@ module miniup {
 		      characterClass,
 		      dot,
 		      regexp,
-		      seq(lparen, label('expression', expression), rparen))));
+		      seq(lparen, label('expression', f.rule('expression')), rparen))));
+
+			var suffixed = g.addRule('suffixed', choice(
+			  seq(label('expression', primary), question),
+			  seq(label('expression', primary), star),
+			  seq(label('expression', primary), plus),
+			  primary));
+
+			var prefixed = g.addRule('prefixed', choice(
+			  seq(dollar, label('expression', suffixed)),
+			  seq(and, label('expression', suffixed)),
+			  seq(not, label('expression', suffixed)),
+			  suffixed));
+
+			var labeled = g.addRule('labeled',
+			  choice(seq(label('label', identifier), colon, label('expression', prefixed)), prefixed));
+
+			var sequence = g.addRule('sequence',
+				label('elements', f.zeroOrMore(labeled)));
+
+			var choicerule = g.addRule('choice', seq(
+				label('head', sequence), label('tail', f.zeroOrMore(seq(slash, sequence)))));
+
+			var expression = g.addRule('expression', choicerule);
+
+			var rule = g.addRule('rule', seq(label('name', identifier), label('displayName', opt(str)), equals, label('expression', expression), opt(semicolon)));
+			g.addRule('grammar', label('rules', f.oneOrMore(rule)));
 
 			g.startSymbol = "grammar";
 			return g;
