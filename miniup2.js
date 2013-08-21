@@ -19,45 +19,40 @@ var miniup;
     miniup.ParseFunction = ParseFunction;    
     var MatcherFactory = (function () {
         function MatcherFactory() { }
-        MatcherFactory.regex = function regex(regex, ignoreCase) {
+        MatcherFactory.regexMatcher = function regexMatcher(regex, ignoreCase) {
             if (typeof ignoreCase === "undefined") { ignoreCase = false; }
-            var r = new RegExp("^" + regex.source, ignoreCase ? "i" : "");
-            return new ParseFunction("/" + regex.source + "/", function (parser) {
+            var r = new RegExp("^" + (regex.source || regex), regex.flags || (ignoreCase ? "i" : ""));
+            return function (parser) {
                 var match = parser.getRemainingInput().match(r);
                 if(match) {
                     parser.currentPos += match[0].length;
                     return match[0];
                 }
                 return undefined;
-            }, {
+            };
+        };
+        MatcherFactory.regex = function regex(regex, ignoreCase) {
+            if (typeof ignoreCase === "undefined") { ignoreCase = false; }
+            return new ParseFunction("/" + regex.source + "/", MatcherFactory.regexMatcher(regex), {
                 isTerminal: true
             });
         };
         MatcherFactory.characterClass = function characterClass(regexstr, ignoreCase) {
             if (typeof ignoreCase === "undefined") { ignoreCase = false; }
-            var re = MatcherFactory.regex(new RegExp(regexstr), ignoreCase);
-            return new ParseFunction(regexstr, function (p) {
-                return p.parse(re);
-            }, {
+            return new ParseFunction(regexstr, MatcherFactory.regexMatcher(regexstr, ignoreCase), {
                 isCharacterClass: true,
                 isTerminal: true
             });
         };
         MatcherFactory.literal = function literal(keyword, ignoreCase) {
             if (typeof ignoreCase === "undefined") { ignoreCase = false; }
-            var re = MatcherFactory.regex(new RegExp(RegExpUtil.quoteRegExp(keyword)), ignoreCase);
-            return new ParseFunction("'" + keyword + "'", function (p) {
-                return p.parse(re);
-            }, {
+            return new ParseFunction("'" + keyword + "'", MatcherFactory.regexMatcher(RegExpUtil.quoteRegExp(keyword), ignoreCase), {
                 isKeyword: true,
                 isTerminal: true
             });
         };
         MatcherFactory.dot = function dot() {
-            var re = MatcherFactory.regex(/^./, false);
-            return new ParseFunction(".", function (p) {
-                return p.parse(re);
-            }, {
+            return new ParseFunction(".", MatcherFactory.regexMatcher(/./), {
                 isCharacterClass: true,
                 isTerminal: true
             });
@@ -421,7 +416,7 @@ var miniup;
             lines.pop();
             var col = pos - lines.join().length + 1;
             return {
-                line: lines.length,
+                line: lines.length + 1,
                 col: col,
                 linetext: curline,
                 linetrimmed: curline.replace(/(^\s+|\s+$)/, "").replace(/\t/, " "),

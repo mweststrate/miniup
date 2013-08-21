@@ -27,10 +27,11 @@ module miniup {
 		//TODO: operator matcher (operand operator)<   (or >)
 		//TODO: non lazy or matcher?
 
-		public static regex(regex: RegExp, ignoreCase: bool = false): ParseFunction { //TODO: probably first arg should be regex
-			var r = new RegExp("^" + regex.source, ignoreCase ? "i" : "");
-
-			return new ParseFunction("/" + regex.source + "/" /*TODO: quote? */, (parser: Parser): any => {
+		private static regexMatcher(regex: RegExp);
+		private static regexMatcher(regex: string, ignoreCase: bool = false);
+		private static regexMatcher(regex: any, ignoreCase: bool = false): (p:Parser) => any {
+			var r = new RegExp("^" + (regex.source || regex), regex.flags || (ignoreCase ? "i" : ""));
+			return (parser: Parser) : any => {
 				var match = parser.getRemainingInput().match(r);
 				if (match) {
 					parser.currentPos += match[0].length;
@@ -38,22 +39,32 @@ module miniup {
 					//TODO: return complex object with raw and unquoted values?
 				}
 				return undefined;
-			}, { isTerminal: true })
+			}
+		}
+
+		public static regex(regex: RegExp, ignoreCase: bool = false): ParseFunction {
+			return new ParseFunction(
+				"/" + regex.source + "/" /*TODO: quote? */,
+				regexMatcher(regex),
+				{ isTerminal: true });
 		}
 
 		public static characterClass(regexstr: string, ignoreCase: bool = false): ParseFunction {
-			var re = regex(new RegExp(regexstr), ignoreCase);
-			return new ParseFunction(regexstr /*TODO: quote?*/, (p) => p.parse(re), { isCharacterClass: true, isTerminal: true });
+			return new ParseFunction(
+				regexstr /*TODO: quote?*/,
+				regexMatcher(regexstr, ignoreCase),
+				{ isCharacterClass: true, isTerminal: true });
 		}
 
 		public static literal(keyword: string, ignoreCase: bool = false): ParseFunction {
-			var re = regex(new RegExp(RegExpUtil.quoteRegExp(keyword)), ignoreCase);
-			return new ParseFunction("'" + keyword + "'", (p) => p.parse(re), { isKeyword: true, isTerminal: true });
+			return new ParseFunction(
+				"'" + keyword + "'",
+				regexMatcher(RegExpUtil.quoteRegExp(keyword), ignoreCase),
+				{ isKeyword: true, isTerminal: true });
 		}
 
 		public static dot(): ParseFunction {
-			var re = regex(/^./, false);
-			return new ParseFunction(".", (p) => p.parse(re), { isCharacterClass: true, isTerminal: true });
+			return new ParseFunction(".", regexMatcher(/./), { isCharacterClass: true, isTerminal: true });
 		}
 
 		public static rule(ruleName: string): ParseFunction {
@@ -320,7 +331,7 @@ module miniup {
 					this.previousIsCharacterClass = func.isCharacterClass;
 				}
 
-				else 
+				else
 					this.currentPos = startpos; //rewind
 
 				if (this.debug && !this.parsingWhitespace)
@@ -531,7 +542,7 @@ module miniup {
 			var col = pos - lines.join().length + 1;
 
 			return {
-				line : lines.length,
+				line : lines.length + 1,
 				col : col,
 				linetext : curline,
 				linetrimmed: curline.replace(/(^\s+|\s+$)/,"").replace(/\t/," "), //trim and replace tabs
