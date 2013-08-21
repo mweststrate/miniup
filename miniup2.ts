@@ -335,7 +335,7 @@ module miniup {
 					this.currentPos = startpos; //rewind
 
 				if (this.debug && !this.parsingWhitespace)
-					Util.debug(Util.leftPad(" \\" + func.toString() + (isMatch ? " V" : " X"), this.stack.length, " |") + " Remaining: " + this.getRemainingInput());
+					Util.debug(Util.leftPad(" \\" + func.toString() + (isMatch ? " V" : " X"), this.stack.length, " |") + " @" + this.currentPos);
 
 				this.stack.pop();
 			}
@@ -502,8 +502,8 @@ module miniup {
 		public static regex = /\/([^\\\/]|(\\.))*\//;
 		public static singleQuoteString = /'([^'\\]|(\\[btnfr"'\\]))*'/;
 		public static doubleQuoteString = /"([^"\\]|(\\[btnfr"'\\]))*"/;
-		public static singleLineComment = /\/\/[^\\n]*(\\n|$)/;
-		public static multiLineComment = /\/\*(?:.|[\\n\\r])*?\*\//;
+		public static singleLineComment = /\/\/[^\n]*(\n|$)/;
+		public static multiLineComment = /\/\*(?:.|[\n\r])*?\*\//;
 		public static characterClass = /\[([^\\\/]|(\\.))*\]/;
 		public static integer = /-?\d+/;
 		public static float = /-?\d+(\.\d+)?(e\d+)?/;

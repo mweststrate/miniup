@@ -288,7 +288,7 @@ var miniup;
                     this.currentPos = startpos;
                 }
                 if(this.debug && !this.parsingWhitespace) {
-                    Util.debug(Util.leftPad(" \\" + func.toString() + (isMatch ? " V" : " X"), this.stack.length, " |") + " Remaining: " + this.getRemainingInput());
+                    Util.debug(Util.leftPad(" \\" + func.toString() + (isMatch ? " V" : " X"), this.stack.length, " |") + " @" + this.currentPos);
                 }
                 this.stack.pop();
             }
@@ -380,8 +380,8 @@ var miniup;
         RegExpUtil.regex = /\/([^\\\/]|(\\.))*\//;
         RegExpUtil.singleQuoteString = /'([^'\\]|(\\[btnfr"'\\]))*'/;
         RegExpUtil.doubleQuoteString = /"([^"\\]|(\\[btnfr"'\\]))*"/;
-        RegExpUtil.singleLineComment = /\/\/[^\\n]*(\\n|$)/;
-        RegExpUtil.multiLineComment = /\/\*(?:.|[\\n\\r])*?\*\//;
+        RegExpUtil.singleLineComment = /\/\/[^\n]*(\n|$)/;
+        RegExpUtil.multiLineComment = /\/\*(?:.|[\n\r])*?\*\//;
         RegExpUtil.characterClass = /\[([^\\\/]|(\\.))*\]/;
         RegExpUtil.integer = /-?\d+/;
         RegExpUtil.float = /-?\d+(\.\d+)?(e\d+)?/;
