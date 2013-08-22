@@ -9,13 +9,17 @@
 	<table width="100%">
 		<tr>
 			<td width="50%"><textarea id="grammar" rows="20"></textarea></td>
-			<td><textarea id="ïnput" rows="20"></textarea></td>
+			<td><textarea id="input" rows="20"></textarea></td>
 		</tr>
 	</table>
 	<script type="text/javascript">
 		$('#parse').on('click', function() {
-			var g = miniup.Grammar.load($('#grammar').val());
-			console.dir(g.parse($('#parse').val()));
+			var g = miniup.GrammarReader.getMiniupGrammar();
+			var r = g.parse($('#grammar').val());
+			$('#input').val(JSON.stringify(r));
+			console.dir(r);
+			//var g = miniup.Grammar.load($('#grammar').val());
+			//console.dir(g.parse($('#parse').val()));
 		})
 	</script>
 </body>

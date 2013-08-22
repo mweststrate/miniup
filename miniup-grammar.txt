@@ -38,19 +38,19 @@ primary
 /* "Lexical" elements */
 
 
-equals    = "=" __ { return "="; }
-colon     = ":" __ { return ":"; }
-semicolon = ";" __ { return ";"; }
-slash     = "/" __ { return "/"; }
-and       = "&" __ { return "&"; }
-not       = "!" __ { return "!"; }
-dollar    = "$" __ { return "$"; }
-question  = "?" __ { return "?"; }
-star      = "*" __ { return "*"; }
-plus      = "+" __ { return "+"; }
-lparen    = "(" __ { return "("; }
-rparen    = ")" __ { return ")"; }
-dot       = "." __ { return "."; }
+equals    = "="
+colon     = ":"
+semicolon = ";"
+slash     = "/"
+and       = "&"
+not       = "!"
+dollar    = "$"
+question  = "?"
+star      = "*"
+plus      = "+"
+lparen    = "("
+rparen    = ")"
+dot       = "."
 
 /*
  * Modeled after ECMA-262, 5th ed., 7.6, but much simplified:
