@@ -46,7 +46,7 @@ var miniup;
         };
         MatcherFactory.literal = function literal(keyword, ignoreCase) {
             if (typeof ignoreCase === "undefined") { ignoreCase = false; }
-            return new ParseFunction("'" + keyword + "'", MatcherFactory.regexMatcher(RegExpUtil.quoteRegExp(keyword), ignoreCase), {
+            return new ParseFunction("'" + keyword + "'", MatcherFactory.regexMatcher(RegExpUtil.quoteRegExp(keyword) + (keyword.match(/\w$/) ? "\\b" : ""), ignoreCase), {
                 isKeyword: true,
                 isTerminal: true
             });
@@ -93,28 +93,26 @@ var miniup;
             for (var _i = 0; _i < (arguments.length - 0); _i++) {
                 items[_i] = arguments[_i + 0];
             }
-            if(items.length == 1 && !items[0].ruleName) {
-                return items[0];
-            }
+            var wrapAst = items.filter(function (x) {
+                return x.label;
+            }).length > 1;
             return new ParseFunction("(" + items.map(function (i) {
                 return i.toString();
             }).join(" ") + ")", function (parser) {
-                var result = [];
+                var result = {
+                };
                 var success = items.every(function (item) {
                     var itemres = parser.parse(item);
-                    if(itemres === undefined) {
-                        return false;
-                    }
-                    if(item.isKeyword && !item.friendlyName && items.length > 1) {
-                        return true;
-                    }
-                    result.push(itemres);
                     if(item.label) {
-                        result[item.label] = itemres;
+                        if(wrapAst) {
+                            result[item.label] = itemres;
+                        } else {
+                            result = itemres;
+                        }
                     }
-                    return true;
+                    return itemres !== undefined;
                 });
-                return success ? result.length == 1 ? result[0] : result : undefined;
+                return success ? result : undefined;
             });
         };
         MatcherFactory.choice = function choice() {
@@ -215,7 +213,7 @@ var miniup;
             this.currentPos = 0;
             this.memoizedParseFunctions = {
             };
-            this.debug = true;
+            this.debug = false;
             this.previousIsCharacterClass = false;
             this.parsingWhitespace = false;
             this.stack = [];
@@ -233,8 +231,11 @@ var miniup;
                 }
                 throw new ParseException(this, "Failed to parse");
             } else {
-                if(this.currentPos < this.expected.length - 1) {
-                    throw new ParseException(this, "Found superflous input after parsing");
+                if(this.currentPos < this.input.length) {
+                    if(this.currentPos == this.expected.length - 1) {
+                        throw new ParseException(this, "Found superflous input after parsing");
+                    }
+                    throw new ParseException(this, "Failed to parse");
                 }
                 return res;
             }
@@ -265,10 +266,11 @@ var miniup;
                         this.expected[this.currentPos].push(func.friendlyName || func.ruleName || func.toString());
                     }
                     result = func.parse(this);
-                    if(result !== null && result !== undefined) {
+                    if(result !== null && result !== undefined && !result.$rule) {
                         Util.extend(result, {
-                            parsePos: startpos,
-                            ruleName: func.ruleName
+                            $start: startpos,
+                            $end: this.currentPos,
+                            $rule: func.ruleName
                         });
                     }
                     this.memoizedParseFunctions[func.memoizationId][startpos] = {
@@ -350,11 +352,13 @@ var miniup;
             var str = g.addRule('string', choice(singleQuoteString, doubleQuoteString));
             var literal = g.addRule('literal', seq(str, opt(f.literal("i"))));
             g.addRule('whitespace', choice(whitespacechar, multilinecomment, singlelinecomment));
-            var primary = g.addRule('primary', choice(seq(label('name', identifier), f.negativeLookAhead(seq(opt(str), equals))), literal, characterClass, dot, regexp, seq(lparen, label('expression', f.rule('expression')), rparen)));
+            var paren = g.addRule('paren', seq(lparen, label('expression', f.rule('expression')), rparen));
+            var call = g.addRule('call', seq(label('name', identifier), f.negativeLookAhead(seq(opt(str), equals))));
+            var primary = g.addRule('primary', choice(call, literal, characterClass, dot, paren));
             var suffixed = g.addRule('suffixed', choice(seq(label('expression', primary), question), seq(label('expression', primary), star), seq(label('expression', primary), plus), primary));
-            var prefixed = g.addRule('prefixed', choice(seq(dollar, label('expression', suffixed)), seq(and, label('expression', suffixed)), seq(not, label('expression', suffixed)), suffixed));
+            var prefixed = g.addRule('prefixed', choice(seq(label('prefix', dollar), label('expression', suffixed)), seq(label('prefix', and), label('expression', suffixed)), seq(label('prefix', not), label('expression', suffixed)), suffixed));
             var labeled = g.addRule('labeled', choice(seq(label('label', identifier), colon, label('expression', prefixed)), prefixed));
-            var sequence = g.addRule('sequence', label('elements', f.zeroOrMore(labeled)));
+            var sequence = g.addRule('sequence', f.zeroOrMore(labeled));
             var choicerule = g.addRule('choice', seq(label('head', sequence), label('tail', f.zeroOrMore(seq(slash, sequence)))));
             var expression = g.addRule('expression', choicerule);
             var rule = g.addRule('rule', seq(label('name', identifier), label('displayName', opt(str)), equals, label('expression', expression), opt(semicolon)));
@@ -364,11 +368,63 @@ var miniup;
         };
         GrammarReader.buildGrammar = function buildGrammar(ast) {
             var g = new Grammar();
-            (ast.rules).map(this.astToMatcher, this).forEach(g.addRule, g);
+            (ast).forEach(function (ast) {
+                var r = GrammarReader.astToMatcher(ast.expression);
+                if(ast.displayName) {
+                    r.friendlyName = ast.displayName;
+                }
+                g.addRule(ast.name, r);
+            });
             return g;
         };
         GrammarReader.astToMatcher = function astToMatcher(ast) {
-            return null;
+            var f = MatcherFactory;
+            if(ast === null) {
+                return null;
+            }
+            switch(ast.$rule) {
+                case "Identifier":
+                    return ast;
+                case "SingleQuoteString":
+                case "DoubleQuoteString":
+                    return f.literal(RegExpUtil.unescape(ast));
+                case "Regex":
+                    return f.regex(new RegExp(RegExpUtil.unescape(ast)));
+                case "CharacterClass":
+                    return f.characterClass(RegExpUtil.unescape(ast));
+                case "call":
+                    return f.rule(ast.name);
+                case "suffixed":
+                    switch(ast.postfix) {
+                        case "?":
+                            return f.optional(GrammarReader.astToMatcher(ast.expression));
+                        case "*":
+                            return f.zeroOrMore(GrammarReader.astToMatcher(ast.expression));
+                        case "+":
+                            return f.oneOrMore(GrammarReader.astToMatcher(ast.expression));
+                        default:
+                            throw new Error("Unimplemented postfix: " + ast.postfix);
+                    }
+                case "prefixed":
+                    switch(ast.prefix) {
+                        case "&":
+                            return f.positiveLookAhead(GrammarReader.astToMatcher(ast.expression));
+                        case "!":
+                            return f.negativeLookAhead(GrammarReader.astToMatcher(ast.expression));
+                        default:
+                            throw new Error("Unimplemented prefix: " + ast.prefix);
+                    }
+                case "labeled":
+                    return f.labeled(ast.label, GrammarReader.astToMatcher(ast.expression));
+                case "sequence":
+                    return f.sequence.apply(f, ast.map(GrammarReader.astToMatcher));
+                case "choice":
+                    return f.choice.apply(f, [
+                        ast.head
+                    ].concat(ast.tail ? ast.tail : []).map(GrammarReader.astToMatcher));
+                default:
+                    throw new Error("Unimplemented ruletype: " + ast.$rule);
+            }
         };
         return GrammarReader;
     })();
@@ -378,17 +434,20 @@ var miniup;
         RegExpUtil.identifier = /[a-zA-Z_][a-zA-Z_0-9]*/;
         RegExpUtil.whitespace = /\s+/;
         RegExpUtil.regex = /\/([^\\\/]|(\\.))*\//;
-        RegExpUtil.singleQuoteString = /'([^'\\]|(\\[btnfr"'\\]))*'/;
-        RegExpUtil.doubleQuoteString = /"([^"\\]|(\\[btnfr"'\\]))*"/;
-        RegExpUtil.singleLineComment = /\/\/[^\n]*(\n|$)/;
-        RegExpUtil.multiLineComment = /\/\*(?:.|[\n\r])*?\*\//;
+        RegExpUtil.singleQuoteString = /'([^'\\]|(\\.))*'/;
+        RegExpUtil.doubleQuoteString = /"([^"\\]|(\\.))*"/;
+        RegExpUtil.singleLineComment = /\/\/.*(\n|$)/;
+        RegExpUtil.multiLineComment = /\/\*(?:[^*]|\*(?!\/))*?\*\//;
         RegExpUtil.characterClass = /\[([^\\\/]|(\\.))*\]/;
         RegExpUtil.integer = /-?\d+/;
         RegExpUtil.float = /-?\d+(\.\d+)?(e\d+)?/;
         RegExpUtil.boolRegexp = /(true|false)/;
-        RegExpUtil.lineend = /(\r\n)|\r|\n/;
+        RegExpUtil.lineend = /\r?\n/;
         RegExpUtil.quoteRegExp = function quoteRegExp(str) {
             return (str + '').replace(/([.?*+^$[\]\\(){}|-])/g, "\\$1");
+        };
+        RegExpUtil.unescape = function unescape(str) {
+            return str.substring(1, str.length - 2).replace(/\\n/g, "\n").replace(/\\r/g, "\r").replace(/\\t/g, "\t").replace(/\\f/g, "\f").replace(/\\b/g, "\b").replace(/\\'/g, "'").replace(/\\"/g, "\"").replace(/\\\\/g, "\]");
         };
         return RegExpUtil;
     })();
@@ -414,13 +473,13 @@ var miniup;
             var lines = input.substring(0, pos).split(RegExpUtil.lineend);
             var curline = input.split(RegExpUtil.lineend)[lines.length - 1];
             lines.pop();
-            var col = pos - lines.join().length + 1;
+            var col = pos - lines.join().length;
             return {
                 line: lines.length + 1,
                 col: col,
                 linetext: curline,
-                linetrimmed: curline.replace(/(^\s+|\s+$)/, "").replace(/\t/, " "),
-                linehighlight: Util.leftPad("^", col - (curline.length - curline.replace(/^\s+/, "").length) - 2, "-")
+                linetrimmed: curline.replace(/(^\s+)|(\s+$)/g, "").replace(/\t/, " "),
+                linehighlight: Util.leftPad("^", col - (curline.length - curline.replace(/^\s+/, "").length) - 1, "-")
             };
         };
         Util.leftPad = function leftPad(str, amount, padString) {

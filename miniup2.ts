@@ -60,7 +60,7 @@ module miniup {
 		public static literal(keyword: string, ignoreCase: bool = false): ParseFunction {
 			return new ParseFunction(
 				"'" + keyword + "'",
-				regexMatcher(RegExpUtil.quoteRegExp(keyword), ignoreCase),
+				regexMatcher(RegExpUtil.quoteRegExp(keyword) + (keyword.match(/\w$/) ? "\\b" : ""), ignoreCase),
 				{ isKeyword: true, isTerminal: true });
 		}
 
@@ -106,26 +106,24 @@ module miniup {
 			//if (items.length == 1 && !items[0].ruleName) //Not top level, and not a real sequence
 			//	return items[0];
 
+			var wrapAst = items.filter(x => x.label).length > 1;
+
 			return new ParseFunction(
 				"(" + items.map(i => i.toString()).join(" ") + ")",
 				(parser: Parser): any => {
 					var result = {};
-					var resArr = [];
-
 					var success = items.every(item => {
 						var itemres = parser.parse(item);
-						if (itemres === undefined)
-							return false;
-
-						if (!item.isKeyword || item.label) { //we are interested in the result
-							result[item.label || resArr.length] = itemres; //TODO: probably index based matched should NOT be stored like in PegJS. That will make the AST cleaner
-							resArr.push(itemres);
+						if (item.label) {//we are interested in the result
+							if (wrapAst)
+								result[item.label] = itemres; //TODO: probably index based matched should NOT be stored like in PegJS. That will make the AST cleaner
+							else
+								result = itemres;
 						}
-
-						return true;
+						return itemres !== undefined;
 					});
 
-					return success ? resArr.length === 1 ? resArr[0] : result : undefined;
+					return success ? result : undefined;
 				});
 		}
 
@@ -268,10 +266,11 @@ module miniup {
 				throw new ParseException(this, "Failed to parse");
 			}
 			else {
-				if (this.currentPos < this.expected.length -1) //we parsed something valid, but not the whole input
-					throw new ParseException(this, "Found superflous input after parsing");
-				else if (this.currentPos < this.input.length)
+				if (this.currentPos < this.input.length) {
+					if (this.currentPos == this.expected.length -1) //we parsed something valid, but we expected more..
+						throw new ParseException(this, "Found superflous input after parsing");
 					throw new ParseException(this, "Failed to parse");
+				}
 				return res;
 			}
 		}
@@ -443,7 +442,7 @@ module miniup {
 			  literal,
 		      characterClass,
 		      dot,
-		      regexp,
+		    //  regexp,
 		      paren));
 
 			var suffixed = g.addRule('suffixed', choice(
@@ -536,8 +535,8 @@ module miniup {
 		public static identifier = /[a-zA-Z_][a-zA-Z_0-9]*/;
 		public static whitespace = /\s+/;
 		public static regex = /\/([^\\\/]|(\\.))*\//;
-		public static singleQuoteString = /'([^'\\]|(\\[btnfr"'\\]))*'/; //TODO: or /(["'])(?:\\\1|[^\1])*?\1/g, faster?
-		public static doubleQuoteString = /"([^"\\]|(\\[btnfr"'\\]))*"/;
+		public static singleQuoteString = /'([^'\\]|(\\.))*'/; //TODO: or /(["'])(?:\\\1|[^\1])*?\1/g, faster?
+		public static doubleQuoteString = /"([^"\\]|(\\.))*"/;
 		public static singleLineComment = /\/\/.*(\n|$)/;
 		public static multiLineComment = /\/\*(?:[^*]|\*(?!\/))*?\*\//;
 		public static characterClass = /\[([^\\\/]|(\\.))*\]/;
@@ -560,6 +559,7 @@ module miniup {
 				.replace(/\\'/g, "'")
 				.replace(/\\"/g, "\"")
 				.replace(/\\\\/g, "\]");
+				//TODO: \u \x unicode chars
 		}
 	}
 
@@ -587,7 +587,7 @@ module miniup {
 			var lines = input.substring(0, pos).split(RegExpUtil.lineend);
 			var curline = input.split(RegExpUtil.lineend)[lines.length -1];
 			lines.pop(); //remove curline
-			var col = pos - lines.join().length + 1;
+			var col = pos - lines.join().length;
 
 			return {
 				line : lines.length + 1,

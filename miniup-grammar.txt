@@ -71,7 +71,7 @@ dot       = "."
  * purpose in the grammar.
  */
 identifier "identifier"
-  = chars:$((letter / "_") (letter / digit / "_")*) __ { return chars; }
+  = chars:$((letter / "_") (letter / digit / "_")*)
 
 /*
  * Modeled after ECMA-262, 5th ed., 7.8.4. (syntax & semantics, rules only
