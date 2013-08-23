@@ -1,2053 +1,613 @@
 module miniup {
 
-	/**
-	 * This interface can be passed to @see Node.walk,
-	 * which traverses the Node tree in depth first order, calling @see hit for each Node it encounters.
-	 * @author michel
-	 *
-	 */
-	export interface INodeWalker {
-		/**
-		 * Event which is called when the walker encounters a node. Should return true if the walker is allowed to continue, or false if it should break
-		 * @param node
-		 * @return
-		 */
-		(node: Node): bool;
-	}
+	export class ParseFunction {
+		ruleName : string;
+		label : string;
+		friendlyName : string;
+		memoizationId: number;
+		isKeyword = false; //TODO: isliteral
+		isCharacterClass = false;
+		isTerminal = false;
 
-
-
-
-	export class Miniup {
-
-		/**
-		 * Public flag, if enabled, token memoization is enabled. This increases the member consumption of the parser,
-		 * but might reduce the parse speed for grammars that are diffucult to parse.
-		 */
-		public static USE_TOKEN_MEMOIZATION: bool = false;
-
-		/**
-		 * Public flag, if enabled, the full parse flow will be printed to stdout.
-		 */
-		public static VERBOSE: bool = false;
-
-		/**
-		 * Public flag, if enabled, after each successful parse Miniup will show some statistics about the parse process,
-		 * for example the parse time, the number of items matched and the number of items tried but not matched.
-		 * For each number holds: Lower is better.
-		 */
-		public static SHOWSTATS: bool = true;
-
-		/**
-		 * Given a filename, the grammar in the file is parsed and a new grammar is build or an Error is trown.
-		 *
-		 * @param filename, the file to load
-		 * @return the name of the grammar. Use this name for subsequent parse calls.
-		 * @{
-		 * @{
-		 */
-		public static loadLanguageFromFile(filename: string): string {
-			return loadLanguage(Util.readFileAsString(filename));
+		constructor(private asString: string, public parse : (parser: Parser) => any, opts? : Object) {
+			if (opts)
+				Util.extend(this, opts);
 		}
-
-		/**
-		 * Makes sure that there is a grammar that can read grammars, to enable Miniup to read other grammars. Internally used when a new language needs to be parsed.
-		 * @{
-		 */
-		public static bootstrap() {
-			if (Grammar.languages.containsKey("Miniup"))
-				return;
-			try {
-				var bootstrapper: Grammar = GrammarBuilder.createBootstrapper();
-				bootstrapper.register();
-
-			} catch (e) {
-				throw new GrammarDefinitionException("Severe Error: failed to bootstrap the Miniup language!", e);
-			}
-		}
-
-		/**
-		 * Parses a grammar from a string.
-		 * @param langDef
-		 * @return The name of the language
-		 * @{
-		 */
-		public static loadLanguage(langDef: string): string {
-			bootstrap();
-
-			var node: Node;
-			try {
-				node = parse("Miniup", langDef);
-			} catch (e) {
-				throw new GrammarDefinitionException("Failed to parse language definition: " + e.getMessage(), e);
-			}
-			var l: Grammar = GrammarBuilder.languageFromAST(node);
-			l.register();
-			return l.getName();
-		}
-
-		/**
-		 * Finds a grammar definition given a grammar name.
-		 * @param name
-		 * @return
-		 */
-		public static getLanguage(name: string): Grammar {
-			return Grammar.get(name);
-		}
-
-		/**
-		 * The real thing, transforms input to an Abstract Syntax Tree ( @see Node ) using a specific grammar.
-		 * Pre-condition: the grammar should already have been loaded.
-		 * @param languageName
-		 * @param input
-		 * @return
-		 * @{
-		 */
-		public static parse(languageName: string, input: string, startSymbol: string = null): Node {
-			return Grammar.get(languageName).parse(input, startSymbol).toAST();
-		};
-	}
-
-
-
-
-	/**
-	 * This class represents a node in the AbstractSyntaxTree which will be build when Miniup succeeds to parse input.
-	 *
-	 * Child nodes can be found by iterating on this object or by using requesting child nodes by name. Named child knows are only
-	 * available for nodes parsed by a sequence matcher.
-	 * @author michel
-	 *
-	 */
-	export class Node {
-
-		private children: Node[] = [];
-		private _isterminal: bool = false;
-		private token: Token;
-		private _name: string;
-		private isempty: bool = false;
-		private childMap: {}; //Map <string, Node > ;
-		private source: string;
-
-		/**
-		 * Constructs a new Node, name refers to the parse rule that resulted in this node.
-		 * This constructor is used to create Node for non-terminals
-		 * This node is not a leaf.
-		 * @param name
-		 * @param children
-		 */
-		constructor(name: string, child: Node);
-		constructor(name: string, children: Node[], childMap?: Object);
-		constructor(terminalType: string, token: Token);
-		constructor(name: string, children: any, childMap?: Object) {
-			if (children instanceof Token) {
-				this._isterminal = true;
-				this.token = <Token>children;
-				this._name = name;
-			}
-			else if (children === undefined) {
-				this._name = name;
-				this.isempty = true;
-			}
-			else {
-				this._name = name;
-				this.children = children instanceof Node ? [children] : children;
-				this.childMap = childMap;
-			}
-		}
-
-		/**
-		 * Returns true if this Node was constructed by the provided syntax rule name
-		 * @param rulename
-		 * @return
-		 */
-		public is(rulename): bool {
-			return this.name === rulename;
-		}
-
-		/**
-		 * Returns true if this Node has a child which was matched by the provided sequenceName.
-		 * @param sequenceName
-		 * @return
-		 */
-		public has(sequenceName: string): bool {
-			if (!this.childMap)
-				return false;
-			return !!this.childMap[sequenceName];
-		}
-
-		/**
-		 * Returns true if this node was constructed by a lambda match, that is, nothing was matched and this node has no actual content
-		 * @return
-		 */
-		public isLambda(): bool {
-			return this.isempty;
-		}
-
-		/**
-		 * Returns true if this node matched a terminal, in other words, concrete input.
-		 * @see text()
-		 * @return
-		 */
-		public isTerminal(): bool {
-			return this._isterminal;
-		}
-
-		/**
-		 * returns the token that was used to match this terminal
-		 * @return
-		 */
-		public getToken(): Token {
-			if (!this.isTerminal())
-				throw new Error("Node.text() can only be invoked on terminal nodes");
-			return this.token;
-		}
-
-		/**
-		 * Returns the text matched by this terminal.
-		 * Precondition: isTerminal() returns true.
-		 * @return
-		 */
-		public text(): string {
-			if (!this.isTerminal())
-				throw new Error("Node.text() can only be invoked on terminal nodes");
-			return this.token.getText();
-		}
-
-		/**
-		 * Returns the name of the syntaxrule that constructed this Node.
-		 * (Not to be confused with sequence name. Sequence names are only known by the parent node)
-		 * @return
-		 */
-		public name(): string {
-			return this._name;
-		}
-
-		/**
-		 * Given a walker, walks in recursively in depth first order through this item and all its children, invoking @see walker.hit for each Node encountered.
-		 * @param walker
-		 */
-		public walk(walker: INodeWalker): bool {
-			if (!walker.hit(this))
-				return false;
-
-			for (var i = 0; i < this.children.length; i++)
-				if (!(<Node>this.children[i]).walk(walker))
-					return false;
-
-			return true;
-		}
-
-		/**
-		 * Returns the child matched for the given index. Index is zero based
-		 * @param index
-		 * @return
-		 */
-		public get (name: string): Node;
-		public get (index: number): Node;
-		public get (pos: any): Node {
-			if (!isNaN(pos)) {
-				if (pos >= this.length)
-					return null;
-				return this.children[pos];
-			}
-			else {
-				if (!this.has(name))
-					throw new Error("Unknown child: '" + pos + "'");
-				return this.childMap[pos];
-			}
-		}
-
-
-		/**
-		 * Same as @see get (0);
-		 * @return
-		 */
-		public first(): Node {
-			if (this.length == 0)
-				return null;
-			return this.get(0);
-		}
-
-		/**
-		 * returns all keys availble in this Node. Only applicable if this node was created by a sequence.
-		 * @return
-		 */
-		public getKeys(): string[] {
-			var res = [];
-			for (var key in this.childMap)
-				res.push(key);
-			return res;
-		}
-
-		public terminal(): Node {
-			if (this.isTerminal())
-				return this;
-			if (this.isLambda())
-				return null;
-			return this.first().terminal();
-		}
-
-		public find(name: string): Node {
-
-			var s: Node[] = [];
-			this.walk((node: Node) => {
-				if (node.has(name)) {
-					s.push(node.get(name));
-					return false;
-				}
-				return true;
-			});
-
-			if (s.length > 0 && s[0])
-				return s[0];
-			return null;
-		}
-
-
-		/**
-		 * Tries to generate a javascript (primitive) object from the text of this token
-		 * @return
-		 */
-		public value(defaultValue: any = null): any {
-			var v = TokenMatcher.textToValue(this.text());
-			if (v == null)
-				return defaultValue;
-			return v;
-		}
-
-
-		public findText(name): string {
-			if (name) {
-				var n = this.terminal();
-				if (n != null)
-					return n.text();
-				return null;
-			}
-			else {
-				//special case, if i == 0 allow to return ourselves
-				if (!isNaN(name)) {
-					if (name == 0 && this.isTerminal())
-						return this.text();
-
-					var n = this.get(name);
-					if (n != null)
-						return n.terminal().text();
-					return null;
-				}
-
-				var n = this.find(name);
-				if (n != null && !n.isLambda())
-					return n.terminal().text();
-				return null;
-			}
-		}
-
-		/**
-		 * Returns the number of children matched for this node.
-		 * @return
-		 */
-		public size(): number {
-			return this.children.length;
-		}
-
-
-		/**
-		 * Constructs a recursive representation:string of this Node
-		 */
-		public toString(): string {
-			if (this.isTerminal())
-				return "'" + this.text() + "'";
-			if (this.isempty)
-				return "-";
-			return "(" + [name].concat(this.children.map(x => x.toString).join(" ")) + ")";
-		}
-
-		/**
-		 * Pretty print version of the toString() method, returns the AST but formatted in a multiline with:string indenting
-		 * @return
-		 */
-		public toMultilineString(): string {
-			var buf: string[] = [];
-			this.toMultilineStringHelper(buf, 0);
-			return buf.join();
-		}
-
-		private toMultilineStringHelper(buf: string[], indent: number) {
-			if (this.isTerminal())
-				buf.push(Util.leftPad("'" + this.text() + "'", indent));
-			else if (this.isempty)
-				buf.push(Util.leftPad("-", indent));
-			else {
-				buf.push(Util.leftPad("(" + this.name, indent));
-
-				var allChildsTerminal: bool = true;
-				var child;
-
-				for (var i = 0; i < this.children.length, child = this.children[i]; i++)
-					if (!child.isTerminal() && !child.isLambda()) {
-						allChildsTerminal = false;
-						break;
-					}
-			};
-
-			this.children.forEach(child => {
-				if (allChildsTerminal)
-					child.toMultilineStringHelper(buf, 2);
-				else {
-					buf.push("\n");
-					child.toMultilineStringHelper(buf, indent + 2);
-				}
-
-
-				if (allChildsTerminal)
-					buf.push(")");
-				else
-					buf.push("\n").push(Util.leftPad(")", indent));
-			});
-		}
-
-		public setSource(source: string) {
-			this.source = source;
-		}
-
-		public getSource(): string {
-			return this.source;
-		}
-
-		public allTexts(): string[] {
-			var res: string[] = [];
-			this.walk((node: Node): bool => {
-				if (node.isTerminal())
-					res.push(node.text());
-				return true;
-			});
-			return res;
-		}
-	}
-
-
-	export class Token {
-
-		private line = 0;
-		private col = 0;
-		private matcher: TokenMatcher;
-		private text: string;
-
-		/**
-		 * Constructor used by the parser to create new tokens
-		 * @param tokenMatcher
-		 * @param text
-		 */
-		constructor(tokenMatcher: TokenMatcher, text: string) {
-			this.matcher = tokenMatcher;
-			this.text = text;
-		}
-
-		/**
-		 * Used by the parser to set the coords of this token in the original input file
-		 * @param line
-		 * @param col
-		 */
-		public setCoords(line: number, col: number) {
-			this.line = line;
-			this.col = col;
-		}
-
-		/**
-		 * Returns the text matched by this token
-		 * @return
-		 */
-		public getText(): string { return this.text; }
-
-		/**
-		 * Returns the line number at which this token was matched
-		 * @return
-		 */
-		public getLineNr(): number { return this.line; }
-
-		/**
-		 * returns the column number at which this token was matched
-		 * @return
-		 */
-		public getColNr(): number { return this.col; }
-
-		/**
-		 * returns whether this token was just matching whitespace. Whitespace matching tokens are not added to the Abstract Syntax Tree generated by the parser
-		 * @return
-		 */
-		public isWhiteSpace(): bool { return this.matcher.isWhiteSpace(); }
 
 		public toString(): string {
-			return string.format("<%s @ %d:%d = %s>", this.matcher.getName(), this.line, this.col, this.text.replaceAll("\n", "\\\\n").replaceAll("\r", ""));
+			return this.ruleName ? this.ruleName : (this.label ? this.label + ":" : "") + this.asString;
 		}
 	}
 
-	export class GrammarBuilder {
+	export class MatcherFactory {
 
-		public static languageFromAST(langNode: Node): Grammar {
-			try {
-				var t: Node = langNode;//.get(0);
-				var b: Grammar = new Grammar(t.get(0).text());
-				t.get(1).forEach((option: Node) => { //TODO: introduce foreach on node
-					name: string = option.terminal().text();
-					value: string = option.isTerminal() ? "true" : option.findText(1);
+		//TODO: any char (.) matcher
+		//TODO: $ matcher (what does it mean?) ->Try to match the expression. If the match succeeds, return the matched string instead of the match result.
+		//TODO: import matcher (requires global registry)
+		//TODO: operator matcher (operand operator)<   (or >)
+		//TODO: list matcher with separator A{separate: B}*
+		//TODO: non lazy or matcher?
 
-					if (name === "casesensitive")
-						b.setCaseInsensitive("true" !== value);
-					else if (name === "disableautowhitespace")
-						b.setDisableAutoWhitespace("true" === value);
-					else if (name === "startsymbol")
-						b.setStartSymbol(value);
-					else if (name === "usedefaulttokens") {
-						if ("true" === value)
-							addDefaultTokens(b);
-					}
-					else
-						throw new Error("Error while creating language: Option '" + option.findText(0) + "' is unknown.");
-				})
-				t.get(2).forEach(def => {
-					var m: AbstractMatcher = null;
-					if (def.is("tokenDef"))
-						m = parseTokenDef(b, def);
-					else if (def.is("sequenceDef"))
-						m = parsesequenceDef(b, def.findText(0), def.get(2));
-					else if (def.is("listDef"))
-						m = parseListDef(b, def);
-					else if (def.is("setDef"))
-						m = parseSetDef(b, def);
-					else if (def.is("opDef"))
-						m = parseOpDef(b, def);
-					else if (def.is("choiceDef"))
-						m = parseChoiceDef(b, def.findText(0), def.get(2));
-					else if (def.is("importDef"))
-						m = parseImportDef(b, def.findText(0), def.findText(2), def.findText(3));
-					else
-						throw new GrammarDefinitionException("Unimplemented defintion type:" + def.name());
+		private static regexMatcher(regex: RegExp);
+		private static regexMatcher(regex: string, ignoreCase: bool = false);
+		private static regexMatcher(regex: any, ignoreCase: bool = false): (p:Parser) => any {
+			var r = new RegExp("^" + (regex.source || regex), regex.flags || (ignoreCase ? "i" : ""));
+			return (parser: Parser) : any => {
+				var match = parser.getRemainingInput().match(r);
+				if (match) {
+					parser.currentPos += match[0].length;
+					return match[0];
+					//TODO: return complex object with raw and unquoted values?
+				}
+				return undefined;
+			}
+		}
 
-					def.get(1).forEach(option => {
-						if (option.isTerminal())
-							m.setOption(option.text(), true);
-						else
-							m.setOption(option.findText(0), option.get(1).terminal().value());
+		public static regex(regex: RegExp, ignoreCase: bool = false): ParseFunction {
+			return new ParseFunction(
+				"/" + regex.source + "/" /*TODO: quote? */,
+				regexMatcher(regex),
+				{ isTerminal: true });
+		}
+
+		public static characterClass(regexstr: string, ignoreCase: bool = false): ParseFunction {
+			return new ParseFunction(
+				regexstr /*TODO: quote?*/,
+				regexMatcher(regexstr, ignoreCase),
+				{ isCharacterClass: true, isTerminal: true });
+		}
+
+		public static literal(keyword: string, ignoreCase: bool = false): ParseFunction {
+			return new ParseFunction(
+				"'" + keyword + "'",
+				regexMatcher(RegExpUtil.quoteRegExp(keyword) + (keyword.match(/\w$/) ? "\\b" : ""), ignoreCase),
+				{ isKeyword: true, isTerminal: true });
+		}
+
+		public static dot(): ParseFunction {
+			return new ParseFunction(".", regexMatcher(/./), { isCharacterClass: true, isTerminal: true });
+		}
+
+		public static rule(ruleName: string): ParseFunction { //TODO: rename to call
+			return new ParseFunction(ruleName, p => p.parse(p.grammar.rule(ruleName)));
+		}
+
+		public static zeroOrMore(matcher: ParseFunction): ParseFunction {
+			return new ParseFunction(matcher.toString() + "*", (parser: Parser): any => {
+				var res = [];
+				var item;
+				do {
+					item = parser.parse(matcher);
+					if (item !== undefined)
+						res.push(item);
+				} while (item !== undefined);
+
+				return res;
+			});
+		}
+
+		public static oneOrMore(matcher: ParseFunction): ParseFunction {
+			var zmm = zeroOrMore(matcher);
+
+			return new ParseFunction(matcher.toString() + "+", (parser: Parser): any => {
+				var res = parser.parse(zmm);
+				return res.length > 0 ? res : undefined;
+			});
+		}
+
+		public static optional(matcher: ParseFunction): ParseFunction {
+			return new ParseFunction(matcher.toString() + "?", (parser: Parser): any => {
+				var res = parser.parse(matcher);
+				return res === undefined ? null : res;
+			});
+		}
+
+		public static sequence(...items: ParseFunction[]): ParseFunction {
+			//if (items.length == 1 && !items[0].ruleName) //Not top level, and not a real sequence
+			//	return items[0];
+
+			var wrapAst = items.filter(x => x.label).length > 1;
+
+			return new ParseFunction(
+				"(" + items.map(i => i.toString()).join(" ") + ")",
+				(parser: Parser): any => {
+					var result = {};
+					var success = items.every(item => {
+						var itemres = parser.parse(item);
+						if (item.label) {//we are interested in the result
+							if (wrapAst)
+								result[item.label] = itemres; //TODO: probably index based matched should NOT be stored like in PegJS. That will make the AST cleaner
+							else
+								result = itemres;
+						}
+						return itemres !== undefined;
 					});
+
+					return success ? result : undefined;
 				});
-				return b;
-			}
-			catch (e) {
-				throw new GrammarDefinitionException("Failed to construct language: " + e.getMessage(), e);
-			}
 		}
 
-		private static parseChoiceDef(b: Grammar, name: string, choices: Node): AbstractMatcher {
-			var items: string[] = [];
-			choices.forEach(child => items.add(toTerminalName(b, child)));
+		public static choice(...choices: ParseFunction[]): ParseFunction {
+			return new ParseFunction(
+				"(" + choices.map(x => x.toString()).join(" | ") + ")",
+				(parser: Parser): any => {
+					var res;
 
-			var rule: ChoiceMatcher = new ChoiceMatcher(b, name, items);
-			b.addRule(rule);
-			return rule;
+					if (choices.some(choice => undefined !== (res = parser.parse(choice))))
+						return res;
+					return undefined;
+				});
 		}
 
-		private static parseImportDef(b: Grammar, name: string, languagename: string, rulename: string): AbstractMatcher {
-			var rule: ImportMatcher = new ImportMatcher(b, name, languagename, rulename);
-			b.addRule(rule);
-			return rule;
-		}
-
-		private static parseOpDef(b: Grammar, def: Node): AbstractMatcher {
-			var rule: OperatorMatcher = new OperatorMatcher(b, def.findText(0), true,
-					toTerminalName(b, def.get(2)),
-					toTerminalName(b, def.get(3)));
-			b.addRule(rule);
-			return rule;
-		}
-
-		private static parseSetDef(b: Grammar, def: Node): AbstractMatcher {
-			var seperatorOrNull: string = null;
-			var preOrNull: string = null;
-			var postOrNull: string = null;
-
-			if (!def.get(3).isLambda()) { //matched 'using'?
-				var items: Node = def.get(4);
-				switch (items.length) {
-					case 1: seperatorOrNull = toTerminalName(b, items.get(0));
-						break;
-					case 3:
-						preOrNull = toTerminalName(b, items.get(0));
-						postOrNull = toTerminalName(b, items.get(2));
-						seperatorOrNull = toTerminalName(b, items.get(1));
-						break;
-					default: throw new Error("Error in rule '" + def.findText(0) + "' of type set definition should contain 1 or 3 'using' elements. ");
-				}
-			}
-
-			var items: string[] = def.get(2).map(choice => toTerminalName(b, choice));
-
-			var rule: SetMatcher = new SetMatcher(b, def.findText(0), seperatorOrNull, preOrNull, postOrNull, Util.clone(items));
-			b.addRule(rule);
-			return rule;
-		}
-
-		private static parseListDef(b: Grammar, def: Node): AbstractMatcher {
-			var items: Node = def.get(2);
-
-			return constructList(b, def.findText(0), items);
-		}
-
-		private static parsesequenceDef(b: Grammar, name: string, items: Node): AbstractMatcher {
-			var rule: SequenceMatcher = new SequenceMatcher(b, name);
-			b.addRule(rule);
-			items.forEach(item => {
-				//0 = value, 1 = '?' -> required, 2 = options
-				rule.addItem(new SequenceItem(toTerminalName(b, item.get(1)), item.get(2).isLambda(), item.get(0).isLambda() ? null : item.findText(0)));
-			});
-			return rule;
-		}
-
-		//given a token 'xyz' or xyz, returns the token, or the generated name for the terminal
-		//TODO:has to change, tokens and ids are parsed in another way
-		private static toTerminalName(b: Grammar, astNode: Node): string {
-			if (astNode.isTerminal()) {
-				var text: string = astNode.text();
-				if (text.startsWith("'") || text.startsWith("\""))
-					return b.keyword(<string> astNode.value());
-				return text;
-			}
-			else {
-				var name: string = "subrule_" + (b.subruleCount++);
-				if (astNode.is("listSubrule")) { //List
-					constructList(b, name, astNode.get(0));
-				}
-				else if (astNode.is("choiceSubrule")) {
-					parseChoiceDef(b, name, astNode);
-				}
-				else if (astNode.is("sequenceSubrule")) {
-					parsesequenceDef(b, name, astNode);
-				}
-				else
-					throw new GrammarDefinitionException("Not implemented def: " + astNode.name());
-
-				return name;
-			}
-		}
-
-		private static constructList(b: Grammar, name: string, items: Node): ListMatcher {
-			//1 item = value, 2 items = value, seperator, 4 items =
-			var token: string = null;
-			var separator: string = null;
-			var pre: string = null;
-			var post: string = null;
-
-			switch (items.length) {
-				case 1:
-					token = toTerminalName(b, items.get(0));
-					break;
-				case 2:
-					token = toTerminalName(b, items.get(0));
-					separator = toTerminalName(b, items.get(1));
-					break;
-				case 3:
-					pre = toTerminalName(b, items.get(0));
-					token = toTerminalName(b, items.get(1));
-					post = toTerminalName(b, items.get(2));
-					break;
-				case 4:
-					pre = toTerminalName(b, items.get(0));
-					token = toTerminalName(b, items.get(1));
-					separator = toTerminalName(b, items.get(2));
-					post = toTerminalName(b, items.get(3));
-					break;
-				default: throw new Error("Error in rule '" + name + "' of type list definition should contain 1 to 4 elements. ");
-			}
-
-			var rule: ListMatcher = new ListMatcher(b, name, token, separator, pre, post);
-			b.addRule(rule);
-			return rule;
-		}
-
-		private static hasOption(def: Node, option: string): bool {
-			return !!def.get(1).find(opt => {
-				if (opt.isTerminal() && opt.text().equals(option)) //simple
-					return true;
-				else if (!opt.isTerminal() && opt.findText(0).equals(option))
-					return !!opt.get(1).terminal().value(true);
-				return false;
+		public static positiveLookAhead(predicate: ParseFunction): ParseFunction {
+			return new ParseFunction("&" + predicate.toString(), (parser: Parser): any => {
+				var prepos = parser.currentPos;
+				//TODO: do *not* update best match while parsing predicates!
+				var matches = undefined !== parser.parse(predicate);
+				parser.currentPos = prepos;//rewind
+				return matches ? null : undefined;
 			});
 		}
 
-		private static parseTokenDef(b: Grammar, def: Node): AbstractMatcher {
-			var regexp: string = (def.get(2).text());
-			regexp = regexp.substring(1, regexp.length - 1).replaceAll("\\\\([\\/])", "$1");
-			return b.addTokenmatcher(def.findText(0), regexp, hasOption(def, "whitespace"));
+		public static negativeLookAhead(predicate: ParseFunction): ParseFunction {
+			var ppm = positiveLookAhead(predicate);
+			return new ParseFunction("!" + predicate.toString(), (parser: Parser): any => {
+				return parser.parse(ppm) === undefined ? null : undefined; //undefined == no match. null == match, so invert.
+			});
 		}
 
-		public static createBootstrapper(): Grammar {
-			//    	language nl.mweststrate.miniup
-			//   	[
-			//    	casesensitive = true,
-			//    	startsymbol = langdef
-			//    	]
-			//    	token Comments1 [whitespace,style='color:green;font-style:italic'] 	: '//[^\\n]*\\n';
-			//    	token Comments2 [whitespace] 	: '/\\*(?:.|[\\n\\r])*?\\*/';
-			//    	token Whitespace [whitespace] 	: '\\s+';
-			//    	token ID 						: '[a-zA-Z_][a-zA-Z_0-9]*';
-			//    	token StringSingle 				: '\'([^\\\\]|(\\\\.))*?\'';
-			//  	token StringDouble 				: '"([^\\\\]|(\\\\.))*?"';
-			//        token RegExp : '/([^/]|(\\/))*?/'
-			var b: Grammar = new Grammar("Miniup");
-			b.setCaseInsensitive(true);
-
-			addDefaultTokens(b);
-			//TokenMatcher.BuiltinToken.SINGLELINECOMMENT.
-			//        b.addTokenmatcher("Comments1", "//[^\\n]*\\n", true);
-			//based on http://ostermiller.org/findcomment.html:
-			//      b.addTokenmatcher("Comments2", "/\\*(?:.|[\\n\\r])*?\\*/", true);
-			//    b.addTokenmatcher("whitespace","\\s+", true);
-			//  b.addTokenmatcher("ID","[a-zA-Z_][a-zA-Z_0-9]*", false);
-			//b.addTokenmatcher("StringSingle","'([^\\\\]|(\\\\.))*?'", false);
-			// b.addTokenmatcher("StringSingle","'([^\\\\]|(\\\\.))*?'", false);
-			//b.addTokenmatcher("RegExp", "/([^\\\\/]|(\\\\.))*/", false);
-			//b.addTokenmatcher("StringSingle","'([\\\\\\n\\r\\t]|[^\\\\'])*'", false);
-
-			/*
-					sequence langdef 	: 'language' ID options definitions;
-					list options 			: '[' option ',' ']';
-					choice option[nonode] 	: valueoption | simpleoption;
-					simpleoption 			: ID;
-					valueoption 			: ID '=' value;
-			*/
-			b.addSequence("langdef",
-					new SequenceItem(b.keyword("language")),
-					new SequenceItem("IDENTIFIER"),
-					new SequenceItem("options"),
-					new SequenceItem("definitions"));
-
-			b.addList("options", true, "option", b.keyword(","), b.keyword("["), b.keyword("]"), false);
-			b.addChoice("option", "valueoption", "IDENTIFIER");
-
-			b.addSequence("valueoption",
-					new SequenceItem("IDENTIFIER"),
-					new SequenceItem(b.keyword(":")),
-					new SequenceItem("value"));
-
-			/*
-					list definitions 		: definition ';';
-					choice definition 		: tokenDef | choiceDef | sequenceDef | listDef | setDef;
-
-					sequence tokenDef 	: 'token' ID options? ':' StringSingle;
-
-					sequence choiceDef 	: 'choice' ID options? ':' choices;
-					list choices 			: value '|';
-			*/
-			b.addList("definitions", false, "definition", b.keyword(";"), null, null, true);
-			b.addChoice("definition", "tokenDef", "choiceDef", "sequenceDef", "listDef", "setDef", "opDef", "importDef");
-
-			b.addSequence("tokenDef",
-					new SequenceItem(b.keyword("token")),
-					new SequenceItem("IDENTIFIER"),
-					new SequenceItem("options", false),
-					new SequenceItem(b.keyword("=")),
-					new SequenceItem("REGULAREXPRESSION"));
-
-			b.addSequence("choiceDef",
-					new SequenceItem(b.keyword("choice")),
-					new SequenceItem("IDENTIFIER"),
-					new SequenceItem("options", false),
-					new SequenceItem(b.keyword("=")),
-					new SequenceItem("choices"));
-
-			b.addList("choices", false, "value", b.keyword("|"), null, null, false);
-
-			/*
-					sequence sequenceDef 	: 'sequenceosition' ID options? ':' sequenceItems;
-					list sequenceItems 			: sequenceItem;
-					sequence sequenceItem 	: value '?'? sequenceItemOptions?;
-					set sequenceItemsOptions 	: 'newline' | 'indent' | 'outdent' | 'merge' using '[' ',' ']';
-
-			*/
-			b.addSequence("sequenceDef",
-					new SequenceItem(b.keyword("sequence")),
-					new SequenceItem("IDENTIFIER"),
-					new SequenceItem("options", false),
-					new SequenceItem(b.keyword("=")),
-					new SequenceItem("sequenceItems"));
-
-			b.addList("sequenceItems", false, "sequenceItem", null, null, null, false);
-
-			b.addSequence("sequenceItemName",
-					new SequenceItem("IDENTIFIER"),
-					new SequenceItem(b.keyword(":")));
-
-			b.addSequence("sequenceItem",
-					new SequenceItem("sequenceItemName", false),
-					new SequenceItem("value"),
-					new SequenceItem(b.keyword("?"), false));
-			//r = b.addSequence("sequenceItem", "value", b.keyword("?"), "sequenceItemOptions");
-
-			b.addSet("sequenceItemOptions", b.keyword(","), b.keyword("["), b.keyword("]"), b.keyword("newline"), b.keyword("indent"), b.keyword("outdent"), b.keyword("merge"));
-			/*
-					sequence listDef		: 'list' ID options? ':' values;
-					sequence setDef		: 'set'  ID options? ':' choices 'using'? values?;
-
-					list values 			: value;
-					choice value 			: |:string ID;
-					choice 			::string StringSingle; // StringDouble ;
-			*/
-			b.addSequence("listDef",
-					new SequenceItem(b.keyword("list")),
-					new SequenceItem("IDENTIFIER"),
-					new SequenceItem("options", false),
-					new SequenceItem(b.keyword("=")),
-					new SequenceItem("values"));
-
-			b.addSequence("setDef",
-					new SequenceItem(b.keyword("set")),
-					new SequenceItem("IDENTIFIER"),
-					new SequenceItem("options", false),
-					new SequenceItem(b.keyword("=")),
-					new SequenceItem("choices"),
-					new SequenceItem(b.keyword("using"), false),
-					new SequenceItem("values", false));
-			/* sequence opDef = 'operator' IDENTIFIER options? '=' value value; */
-			b.addSequence("opDef",
-					new SequenceItem(b.keyword("operator")),
-					new SequenceItem("IDENTIFIER"),
-					new SequenceItem("options", false),
-					new SequenceItem(b.keyword("=")),
-					new SequenceItem("value"),
-					new SequenceItem("value")
-			);
-
-			/* sequence importDef = 'import' IDENTIFIER options? '=' languagename:IDENTIFIER rulename: IDENTIFIER?; */
-			b.addSequence("importDef",
-					new SequenceItem(b.keyword("import")),
-					new SequenceItem("IDENTIFIER"),
-					new SequenceItem("options", false),
-					new SequenceItem(b.keyword("=")),
-					new SequenceItem("IDENTIFIER"),
-					new SequenceItem(b.keyword(".")),
-					new SequenceItem("IDENTIFIER")
-			);
-
-			b.addList("values", false, "value", null, null, null, false);
-			b.addChoice("value", "SINGLEQUOTEDSTRING", "IDENTIFIER", "subRule");
-
-			/*        choice Subrule =  ListSubrule | ChoiceSubrule | sequenceSubrule;
-
-					sequence ListSubrule = '(' values ')' '*'; //list is prefered above the others as it disambiguates by '*'
-					list ChoiceSubrule      = '(' value '|' ')'; //note that this one is ambigue with CombSubrule for '(' A ')'. That doesn't matter as they do effectively the same
-					list sequenceSubrule        = '(' sequenceItem ')';
-			*/
-			b.addChoice("subRule", "listSubrule", "choiceSubrule", "sequenceSubrule");
-			b.addSequence("listSubrule",
-					new SequenceItem(b.keyword("(")),
-					new SequenceItem("values"),
-					new SequenceItem(b.keyword(")")),
-					new SequenceItem(b.keyword("*")));
-
-			b.addList("choiceSubrule", false, "value", b.keyword("|"), b.keyword("("), b.keyword(")"), false);
-			b.addList("sequenceSubrule", false, "sequenceItem", null, b.keyword("("), b.keyword(")"), false);
-			//b.addChoice("string", items)
-			b.setStartSymbol("langdef");
-			return b;
+		public static named(name: string, matcher: ParseFunction) {
+			matcher.ruleName = name;
+			return matcher;
 		}
 
-		private static addDefaultTokens(b: Grammar) {
-			TokenMatcher.BuiltinToken.values().forEach(tm => tm.registerTokenMatcher(b));
+		public static labeled(label: string, matcher: ParseFunction) {
+			matcher.label = label;
+			return matcher;
 		}
-	}
-
-	export class Exception {
-		constructor(private name: string, private message?: string, private cause?: Exception) {
-		}
-	}
-
-	export class GrammarDefinitionException extends Exception {
-
-		constructor(message: string, cause?: Exception) {
-			super("GrammarDefinitionException", message, cause);
-		}
-
 	}
 
 	export class Grammar {
-		static public languages = {}; //string -> grammar
 
-		private tokenMatchers = {}; //string -> tokenmatcher
-		private wstokenMatchers: TokenMatcher[] = [];
+		private rules = {};
+		whitespaceMatcher: ParseFunction;
+		public startSymbol: string;
 
-		private rules = {}; //string -> AbstracthMatcher
-		private name: string;
+		//TODO: add Grammar registery for import statements
 
-		private caseInSensitive: bool;
-
-		private startSymbol: string;
-
-		private maxBacktrackingDepth: number = -1;
-		public subruleCount: number = 1;
-
-		private disableautowhitespace: bool;
-
-		public static get (name: string): Grammar {
-			if (!languages[name])
-				throw new Error("Unknown language: '" + name + "'");
-			return languages.get(name);
+		public static load(grammarSource: string): Grammar {
+			//TODO:
+			var ast = GrammarReader.bootstrap().parse(grammarSource);
+			//TODO: auto load built in tokens?
+			return GrammarReader.buildGrammar(ast);
 		}
 
-		constructor(name: string) {
-			this.name = name;
-			this.languages.put(name, this);
+		public static loadFromFile(filename: string): Grammar {
+			//TODO:
+			return null;
 		}
 
-		public parse(input: string, startSymbol?: string): Match {
-			return new Parser(this, input).parse(startSymbol);
+		public static loadFromXHR(filename: string, jQuery: any, callback:(grammar:Grammar) => void) {
+			//TODO:
 		}
 
-		public getStartSymbol(): string {
-			return this.startSymbol;
+		public test(input: string, expected: any) : Grammar {
+			//TODO:
+			return this;
 		}
 
-		public getMatcher(token: string): AbstractMatcher {
-			if (!this.rules.containsKey(token))
-				throw new Error("Undefined rule / token: '" + token + "'");
-			return this.rules.get(token);
+		addRule(rule: ParseFunction): ParseFunction;
+		addRule(name: string, rule: ParseFunction, replace: bool = false): ParseFunction;
+		addRule(arg1: any, arg2?: ParseFunction, replace: bool = false) : ParseFunction {
+			var rule: ParseFunction = arg2 ? MatcherFactory.named(arg1, arg2) : arg1;
+			if (!rule.ruleName)
+				throw new Error("Anonymous rules cannot be registered in a grammar. ");
+			if (!replace && this.rules[rule.ruleName])
+				throw new Error("Rule '" + rule.ruleName + "' is already defined");
+			if ("whitespace" == rule.ruleName)
+				this.whitespaceMatcher = rule;
+			if (this.startSymbol == null)
+				this.startSymbol = rule.ruleName;
+
+			this.rules[rule.ruleName] = rule;
+			return rule;
 		}
 
-		public getCaseInSensitive(): bool {
-			return this.caseInSensitive;
+		public rule(ruleName: string): ParseFunction {
+			if (!this.rules[ruleName])
+				throw new Error("Rule '" + ruleName + "' is not defined");
+			return this.rules[ruleName];
 		}
 
-		public getName(): string {
-			return name;
+		public parse(input: string, opts: { startSymbol?: string; inputName?: string; debug?: bool; } = {}): any {
+			//TODO: store inputName and show in exceptions
+			//TODO: use 'debug' for logging
+			return new Parser(this, input).parseInput(this.rule(opts.startSymbol || this.startSymbol));
 		}
 
-		public setStartSymbol(startSymbol: string) {
-			this.startSymbol = startSymbol;
-		}
-
-		public setCaseInsensitive(b: bool) {
-			this.caseInSensitive = b;
-		}
-
-		public setDisableAutoWhitespace(b: bool) {
-			this.disableautowhitespace = b;
-		}
-
-		public addRule(rule: AbstractMatcher): string {
-			if (this.rules.containsKey(rule.getName()))
-				throw new Error("A rule for '" + rule.getName() + "' has already been registered");
-			this.rules.put(rule.getName(), rule);
-			return rule.getName();
-		}
-
-		public addTokenmatcher(name: string, regexp: string, whiteSpace: bool): AbstractMatcher {
-			try {
-				var tm: TokenMatcher = new TokenMatcher(this, name, regexp, whiteSpace);
-				this.tokenMatchers[regexp] = tm;
-				if (whiteSpace)
-					this.wstokenMatchers.push(tm);
-
-				this.addRule(tm);
-				return tm;
-			}
-			catch (e) {
-				throw new GrammarDefinitionException("Invalid token definition, regular expression is invalid: " + e.getMessage(), e);
-			}
-		}
-
-		public keyword(token: string): string {
-
-			var regexp: string = Pattern.quote(token);
-			if (Pattern.matches("^[a-zA-Z_]+$", token)) //add a word boundary if the token is a word
-				regexp += "\\b";
-
-			var existing: TokenMatcher = this.tokenMatchers.get(regexp);
-			if (existing != null) {
-				if (existing.isWhiteSpace() || !existing.isKeyword())
-					throw new GrammarDefinitionException("Failed to register keyword '" + token + "': the same token is already defined as a non-keyword or whitespace token");
-				return existing.getName();
-			}
-
-			var tokenname: string = /*  "_t" + (tokenMatchers.length + 1) */ "'" + token + "'";
-
-			var tm: TokenMatcher = <TokenMatcher> this.addTokenmatcher(tokenname, regexp, false);
-			tm.setIsKeyword(token);
-			return tokenname;
-		}
-
-		public addList(name: string, nullable: bool, item: string, nullOrSeperator: string, nullOrPre: string, nullOrPost: string, allowTrailing: bool): string {
-			var newrule: ListMatcher = new ListMatcher(this, name, item, nullOrSeperator, nullOrPre, nullOrPost);
-			newrule.setOption(ListMatcher.NULLABLE_OPTION, nullable);
-			newrule.setOption(ListMatcher.ALLOWTRAILING_OPTION, allowTrailing);
-			return this.addRule(newrule);
-		}
-
-		public addSequence(name: string, ...items: SequenceItem[]): SequenceMatcher {
-			var r: SequenceMatcher = new SequenceMatcher(this, name);
-			items.forEach(item => r.addItem(item));
-			this.addRule(r);
-			return r;
-		}
-
-		public addChoice(name: string, ...items: string[]): string {
-			return this.addRule(new ChoiceMatcher(this, name, items));
-		}
-
-		public addOperator(name: string, left: bool, operator: string, operand: string): string {
-			return this.addRule(new OperatorMatcher(this, name, left, operator, operand));
-		}
-
-		public addSet(name: string, seperatorOrNull: string, preOrNull: string, postOrNull: string, ...items: string[]): string {
-			return this.addRule(new SetMatcher(this, name, seperatorOrNull, preOrNull, postOrNull, items));
-		}
-
-		public setBacktracking(maxdepth: number) {
-			this.maxBacktrackingDepth = maxdepth;
-
-		}
-
-		public getMaxRecursionDepth(): number {
-			return this.maxBacktrackingDepth;
-		}
-
-		public getWhiteSpaceTokens(): TokenMatcher[] {
-			return this.wstokenMatchers;
-		}
-
-		public ruleCount(): number {
-			return Util.objectSize(this.rules);
-		}
-
-		public register() {
-			//TODO: never used?
-			Grammar.languages.put(this.getName(), this);
-		}
-
-		public getDisableAutoWhitespace(): bool {
-			return this.disableautowhitespace;
-		}
-
-		public parsePartial(parentParser: Parser, parent: Match, rulename: string): bool {
-			return new Parser(this, parentParser.getInputString()).parsePartial(parentParser, parent, rulename);
-		}
 	}
 
+	export interface StackItem {
+		func: ParseFunction;
+		startPos: number;
+	}
 
+	interface MemoizeResult {
+		result: any;
+		endPos: number;
+	}
 
+	export class Parser {
 
-	export class Match {
-		private children: Match[] = [];
-		private nonWSchildren: Match[] = [];
+		private static nextMemoizationId = 1;
 
-		private parent: Match;
-		private start: number;
-		private end: number;
-		private matchedBy: AbstractMatcher;
-		private isRoot: bool;
-		private max: number;
-		private terminal: Token = null;
-		private nilMatch: string = null;
-		private parser: Parser;
+		currentPos: number = 0;
+		memoizedParseFunctions = {};
+		inputName: string; //TODO: filename and such
+		public debug = false; //TODO: false
+		private previousIsCharacterClass = false;
+		private parsingWhitespace = false; //TODO: rename to 'isParsingWhitespace'
+		private stack: StackItem[] = []; //TODO: is stack required anywhere?
+		expected = [];
 
-		constructor(parser: Parser, parent?: Match, matchedBy?: AbstractMatcher) {
-			this.parser = parser;
-			if (parent) {
-				this.start = parent.getLastCharPos();
-				this.end = parent.getLastCharPos();
-				this.matchedBy = matchedBy;
-				parent.register(this);
-				this.parent = parent;
-			}
-			else
-				this.isRoot = true;
+		constructor(public grammar: Grammar, public input: string) {
+			//empty
 		}
 
-		public register(match: Match) {
-			this.children.push(match);
-			//if its a match from the cache, we can consume all its tokens directly
-			this.eat(match.charsConsumed());
-
-			if (!match.isWhitespace())
-				this.nonWSchildren.push(match);
+		public getRemainingInput(): string {
+			return this.input.substring(this.currentPos);
 		}
 
-		public eat(amount: number) {
-			this.end += amount;
-			if (this.parent != null)
-				this.parent.eat(amount);
-			this.max = Math.max(this.max, this.end);
-		}
-
-		public charsConsumed(): number { return this.end - this.start; }
-
-		public subMatchCount(excludeWS: bool): number {
-			if (excludeWS)
-				return this.nonWSchildren.length;
-			else
-				return this.children.length;
-		}
-
-		public getMaximumMatchedCharPos(): number { return this.max; }
-
-		public getLastCharPos(): number {
-			return this.end;
-		}
-
-		/**
-		 * reverts the last i matches.
-		 * @param i
-		 */
-		public unMatch() {
-			var m = this.children[this.children.length - 1];
-			this.unEat(m.charsConsumed());
-
-			this.children.splice(0, -1); //TODO: does this remove the last item?
-			if (!m.isWhitespace())
-				this.nonWSchildren.splice(0, -1);//TODO: does this remove the last item?
-		}
-
-		public isWhitespace(): bool {
-			return this.getMatchedBy() instanceof TokenMatcher && (<TokenMatcher> this.getMatchedBy()).isWhiteSpace();
-		}
-
-		private unEat(items: number) {
-			this.end -= items;
-			if (this.parent != null)
-				this.parent.unEat(items);
-		}
-
-		public toString(): string {
-			if (this.isRoot)
-				return string.format("[%d : %d = [ROOT]]", this.start, this.end);
-			return string.format("[%d : %d = %s []]", this.start, this.end, this.matchedBy.getName());
-		}
-
-		public toMatchString(): string {
-			if (this.isRoot)
-				return this.subMatchCount(true) > 0 ? this.getSubMatch(0, true).toMatchString() : "";
-
-			if (this.nilMatch != null)
-				return "-";
-			var res = "(" + this.matchedBy.getName() + ":";
-			if (this.matchedBy instanceof TokenMatcher) {
-				if (this.terminal == null)
-					return "...";
-				var tm = <TokenMatcher> this.matchedBy;
-				if (tm.isWhiteSpace())
-					return "";
-				else if (tm.isKeyword())
-					return this.terminal.getText();
-				else
-					return "'" + this.terminal.getText() + "'";
-			}
-			res += " " + this.nonWSchildren.map(x => x.toMatchString()).join(" ");
-			return res + ")";
-		}
-
-		public lastChild(): Match {
-			return this.children[this.children.length - 1];
-		}
-
-		public getFirstCharPos(): number {
-			return this.start;
-		}
-
-		public setTerminal(terminal: Token) {
-			this.terminal = terminal;
-		}
-
-		public setNil(token: string) {
-			this.nilMatch = token;
-		}
-
-		public getLastMatch(excludeWS: bool): Match {
-			if (this.subMatchCount(excludeWS) == 0)
-				throw new Error("Empty matches do not have a last match");
-			return this.getSubMatch(0, excludeWS);
-		}
-
-		public getSubMatch(i: number, excludeWS: bool): Match {
-			if (!excludeWS) {
-				if (i < this.children.length)
-					return this.children[i];
+		parseInput(func: ParseFunction) : any {
+			var res = this.parse(func);
+			if (res === undefined) {
+				if (this.expected.length >= this.input.length)
+					throw new ParseException(this, "Unexpected end of input. ");
+				throw new ParseException(this, "Failed to parse");
 			}
 			else {
-				if (i < this.nonWSchildren.length)
-					return this.nonWSchildren[i];
-			}
-			throw new Error();
-		}
-
-
-		public getMatchedBy(): AbstractMatcher {
-			return this.matchedBy;
-		}
-
-		public getParentMatch(): Match {
-			return this.parent;
-		}
-
-		public toAST(): Node {
-			if (this.isRoot)
-				return this.getSubMatch(0, true).toAST();
-			//return new Node(this.getSubMatch(0, true).matchedBy.getName(), Arrays.asList(new Node [] { this.getSubMatch(0, true).toAST()}));
-			if (this.nilMatch != null)
-				return new Node(this.nilMatch);
-
-			var res: Node = this.matchedBy.toAST(this);
-			res.setSource(this.parser.getInputString().substring(this.getFirstCharPos(), this.getLastCharPos()));
-			return res;
-		}
-
-		public getTerminal(): Token {
-			return this.terminal;
-		}
-
-		public getSubMatches(): Match[] {
-			return this.nonWSchildren;
-		}
-
-	}
-
-	export class MatchMemoizer {
-		cachehits: number = 0;
-		cachemisses: number = 0;
-
-		private matchCache = {}; //number -> { string -> match }
-
-		isInCache(curpos: number, matcher: AbstractMatcher): bool {
-			if (!Miniup.USE_TOKEN_MEMOIZATION)
-				return false;
-
-			var res: bool = matcher instanceof TokenMatcher;
-
-			if (res) {
-				if (!this.matchCache[curpos]) {
-					this.matchCache[curpos] = {};
-					res = false; //appearantly, it is not in cache :)
+				if (this.currentPos < this.input.length) {
+					if (this.currentPos == this.expected.length -1) //we parsed something valid, but we expected more..
+						throw new ParseException(this, "Found superflous input after parsing");
+					throw new ParseException(this, "Failed to parse");
 				}
-				else
-					res = !!this.matchCache[curpos][matcher.getName()];
-
-				if (res)
-					this.cachehits += 1;
-				else
-					this.cachemisses += 1;
 				return res;
 			}
 		}
 
-		consumeFromCache(parent: Match, token: string, curpos: number): bool {
-			var catched = this.matchCache[curpos][token];
-			if (catched != null) {
-				parent.register(catched);
-				return true;
-			}
-			return false;
-		}
-
-		storeInCache(parent: Match, curpos: number, matcher: AbstractMatcher) {
-			if (!Miniup.USE_TOKEN_MEMOIZATION)
-				return;
-
-			if (matcher instanceof TokenMatcher)
-				this.matchCache[curpos][matcher.getName()] =
-						parent == null
-								? undefined                //not a match
-								: parent.lastChild()  //match
-		}
-
-	}
-
-
-
-	export class ParseException extends Exception {
-
-		private msg: string[];
-		private stack = []; //Stack <Pair <string, Integer >>
-
-		/**
-		 *
-		 * @param p
-		 * @param usebestMatchStack, true: display the stack that gave us the best result, false: display the current stack
-		 * @param 		 */
-		constructor(p: Parser, usebestMatchStack: bool, str: string) {
-			super("ParseException");
-			this.msg = [];
-			this.msg.push("Parse Error: " + str);
-
-			if (p.bestPoint > -1)
-				this.msg.push(Util.hightlightLine(p.getInputString(), p.getCurrentLineNr(p.bestPoint), p.getCurrentColNr(p.bestPoint)));
-
-			if (usebestMatchStack && p.expected.length > 0)
-				this.msg.push("\nExpected: " + Util.join(p.expected, " or ") + "\n");
-
-			this.stack = usebestMatchStack ? Util.clone(p.bestStack) : Util.clone(p.stack);
-
-			if (Miniup.VERBOSE) {
-				this.msg.push("\nParse stack: \n");
-
-				this.stach.forEach(item => {
-					this.msg.push("\t" + item.getFirst() + (item.getSecond() > 0 ? " no. " + (item.getSecond() + 1) : "") + "\n");
-				});
-			}
-		}
-
-		public getMessage(): string {
-			return this.msg.join();
-		}
-
-		public getParseStack() {
-			return this.stack;
-		}
-
-	}
-
-
-
-	export class Parser {
-		private language: Grammar;
-		private inputstring: string = null;
-
-		private stack = []; //new Stack < Pair < string, Integer >>();
-		private bestStack = [];//new Stack < Pair < string, Integer >>();
-		private expected = {}; //new HashSet <string >: ();
-
-		private bestPoint: number = -1;
-
-		private memoizer: MatchMemoizer;
-
-		//Fields used for statistics
-		private start: number;
-
-		private calls: number = 0;
-		private found: number = 0;
-		private notfound: number = 0;
-
-
-		constructor(language: Grammar, input: string) {
-			this.language = language;
-			this.inputstring = input;
-			this.memoizer = new MatchMemoizer();
-		}
-
-		public parsePartial(parentParser: Parser, parentMatch: Match, startSymbol: string): bool {
-			this.stack = parentParser.stack;
-			this.bestPoint = parentParser.bestPoint;
-			this.consumeWhitespace(parentMatch);
-			var res: bool = this.consume(parentMatch, startSymbol);
-
-			if (this.bestPoint > parentParser.bestPoint) {
-				parentParser.expected = this.expected;
-				parentParser.bestPoint = this.bestPoint;
-				parentParser.bestStack = this.bestStack;
-			}
-
-			return res;
-		}
-
-		public parse(startSymbol?: string): Match {
-			this.start = new Date().getTime();
-
-			var m = new Match(this);
-			this.consumeWhitespace(m); //consume prepending whitespace
-
-			var s: string = startSymbol;
-			if (s == null && this.language.getStartSymbol() == null)
-				throw new ParseException(this, false, "Grammar has no start symbol!");
-			if (s == null)
-				s = this.language.getStartSymbol();
-
-			if (!this.consume(m, s)) {
-				if (m.getMaximumMatchedCharPos() < this.inputstring.length)
-					throw new ParseException(this, true, "Unexpected '" + this.inputstring.charAt(m.getMaximumMatchedCharPos()) + "' ");
-				else
-					throw new ParseException(this, true, "Unexpected end of input (EOF) ");
-			}
-
-			if (m.getLastCharPos() < this.inputstring.length)
-				throw new ParseException(this, true, "Parsing succeeded, but not all input was consumed ");
-
-			if (Miniup.SHOWSTATS)
-				System.out.println(string.format("Finished parsing in %d ms. Stats: %d/%d/%d/%d/%d (read attempts/successfull reads/failed reads/cache hits/cache misses)",
-						(new Date().getTime()) - this.start, this.calls, this.found, this.notfound, this.memoizer.cachehits, this.memoizer.cachemisses));
-			return m;
-		}
-
-		public consume(parent: Match, token: string): bool {
-			this.stack.push([token, 0]);
-			var curpos = parent.getLastCharPos();
-			var result = false;
-
-			if (Miniup.VERBOSE)
-				console.log(string.format("[%s:%s]%s", this.getCurrentLineNr(curpos), this.getCurrentColNr(curpos), Util.leftPad(token + " ?", this.stack.length)));
-			this.calls += 1;
+		parse(func: ParseFunction): any {
+			var startpos = this.currentPos,
+				isMatch = false,
+				result = undefined;
 
 			try {
-				if (this.language.getMaxRecursionDepth() != -1 && this.stack.length > this.language.getMaxRecursionDepth())
-					throw new ParseException(this, false, "Maximum stack depth reached. ");
+				//consume whitespace
+				if (!this.parsingWhitespace && (!func.isCharacterClass || this.previousIsCharacterClass))
+					this.consumeWhitespace(); //whitespace was not consumed yet, do it now
 
-				var matcher = this.language.getMatcher(token);
-				this.storeExpected(matcher, parent, curpos);
+				this.stack.push({ func: func, startPos : this.currentPos}); //Note, not startpos.
 
-				if (this.memoizer.isInCache(curpos, matcher)) {
-					result = this.memoizer.consumeFromCache(parent, token, curpos);
+				//check memoization cache
+				if (this.isMemoized(func)) {
+					if (this.debug && !this.parsingWhitespace)
+						Util.debug(Util.leftPad(" /" + func.toString() + " ? (memo)", this.stack.length, " |"));
 
-					if (result)
-						this.consumeWhitespace(parent);
+					result = this.consumeMemoized(func);
 				}
 
-					//not in cache {
 				else {
-					if (matcher.match(this, parent)) {
-						this.memoizer.storeInCache(parent, curpos, matcher);
+					if (this.debug && !this.parsingWhitespace)
+						Util.debug(Util.leftPad(" /" + func.toString() + " ?", this.stack.length, " |"));
 
-						this.consumeWhitespace(parent);
-
-						result = true;
+					//store expected
+					if (func.isTerminal && !this.parsingWhitespace) {
+						if (!this.expected[this.currentPos])
+							this.expected[this.currentPos] = [];
+						this.expected[this.currentPos].push(func.friendlyName || func.ruleName || func.toString());
 					}
-					else
-						this.memoizer.storeInCache(null, curpos, matcher);
-				}
 
-				if (Miniup.VERBOSE && result)
-					System.out.println(string.format("[%s:%s]%s", this.getCurrentLineNr(curpos), this.getCurrentColNr(curpos), Util.leftPad(token + " V", this.stack.length)));
-				if (result) {
-					this.found += 1;
-					/*	        	if (Miniup.VERBOSE)
-										System.out.println(Util.leftPad("...and now for something completely different: " +
-												Util.trimLength(this.getInputString().substring(parent.getLastCharPos()),20),
-												stack.length -1));
-					*/
+					//finally... parse!
+					result = func.parse(this);
+
+					//enrich result with match information
+					if (result !== null && result !== undefined && !result.$rule)
+						Util.extend(result, { $start : startpos, $end : this.currentPos, $rule : func.ruleName }); //TODO; only if object?
+
+					//store memoization result
+					this.memoizedParseFunctions[func.memoizationId][startpos] = <MemoizeResult> {
+						result: result,
+						endPos: this.currentPos
+					};
 				}
-				else
-					this.notfound += 1;
 
 				return result;
 			}
 			finally {
+				isMatch = result !== undefined;
+
+				if (isMatch) {
+					if (!this.parsingWhitespace && !func.isCharacterClass)
+						this.consumeWhitespace();
+					this.previousIsCharacterClass = func.isCharacterClass;
+				}
+
+				else
+					this.currentPos = startpos; //rewind
+
+				if (this.debug && !this.parsingWhitespace)
+					Util.debug(Util.leftPad(" \\" + func.toString() + (isMatch ? " V" : " X"), this.stack.length, " |") + " @" + this.currentPos);
+
 				this.stack.pop();
 			}
 		}
 
-		private consumeWhitespace(parent: Match) {
-			if (this.language.getDisableAutoWhitespace())
-				return;
+		isMemoized(func: ParseFunction): bool {
+			if (!func.memoizationId)
+				func.memoizationId = Parser.nextMemoizationId++;
 
-			var res = true;
-			var curpos = parent.getLastCharPos();
-
-			while (res) {
-				res = false;
-				this.language.getWhiteSpaceTokens().forEach(wsMatcher => {
-					if (this.memoizer.isInCache(curpos, wsMatcher))
-						res = this.memoizer.consumeFromCache(parent, wsMatcher.getName(), curpos);
-					else
-						res = wsMatcher.match(this, parent);
-					//TODO: restore: if (res)
-					//	break;
-				});
-			}
-		}
-
-		public consumeLambda(parent: Match, token: string) {
-			var match = new Match(this, parent, null);
-			match.setNil(token);
-
-			if (Miniup.VERBOSE)
-				System.out.println(Util.leftPad("-", this.stack.length));
-		}
-
-		public getInputString(): string {
-			return this.inputstring;
-		}
-
-		private storeExpected(matcher: AbstractMatcher, parent: Match, curpos: number) {
-			if (curpos > this.bestPoint) {
-				this.bestPoint = curpos;
-				this.bestStack = Util.clone(this.stack);
-				this.expected = {};
-			}
-			if (matcher instanceof TokenMatcher && curpos >= this.bestPoint) {
-				this.expected.push(matcher.getName());
-			}
-		}
-
-		public setStackIter(index: number) {
-			this.stack.push([this.stack.pop()[0], index]);
-		}
-
-		public getCurrentLineNr(curpos: number): number {
-			if (curpos == -1)
-				return -1;
-
-			var input = this.getInputString().substring(0, curpos);
-			var line = 1 + Util.countMatches(input, "\n");
-			return line;
-		}
-
-		public getCurrentColNr(curpos: number): number {
-			if (curpos == -1)
-				return -1;
-
-			var input: string = this.getInputString().substring(0, curpos);
-			var last = this.input.lastIndexOf('\n');
-			var col = this.input.length() - last;
-			return col;
-		}
-
-		public getCurrentInputLine(curpos: number): string {
-			return Util.getInputLineByPos(this.getInputString(), curpos);
-		}
-
-
-	}
-
-
-
-
-
-
-
-	export class AbstractMatcher {
-
-		name: string;
-		private language: Grammar;
-		private options = {}; //new HashMap < string, Object >();
-
-		constructor(language: Grammar, name: string) {
-			this.name = name;
-			this.language = language;
-		}
-
-		public match(parser: Parser, parent: Match): bool {
-			var match = new Match(parser, parent, this);
-			if (!this.performMatch(parser, match)) {
-				parent.unMatch();
+			if (!this.memoizedParseFunctions[func.memoizationId]) {
+				this.memoizedParseFunctions[func.memoizationId] = {};
 				return false;
 			}
-
-			return true;
+			return this.memoizedParseFunctions[func.memoizationId][this.currentPos] !== undefined;
 		}
 
-		performMatch(parser: Parser, parent: Match): bool { throw new Error("performMatch is an abstract method"); }
-
-		public getName(): string { return this.name; }
-		public getLanguage(): Grammar { return this.language; }
-
-		public toString(): string { return "Matcher: " + this.getName(); }
-
-		public toAST(match: Match): Node { throw new Error("toAT is an abstract method"); }
-
-		public setOption(key: string, object: any) {
-			this.options[key] = object;
+		consumeMemoized(func: ParseFunction): any {
+			var m: MemoizeResult = this.memoizedParseFunctions[func.memoizationId][this.currentPos];
+			this.currentPos = m.endPos;
+			return m.result;
 		}
 
-		public getOption(key: string, defaultvalue: any): any {
-			if (this.options[key] !== undefined)
-				return this.options[key]
-			return defaultvalue;
+		consumeWhitespace() {
+			if (this.grammar.whitespaceMatcher) {
+				this.parsingWhitespace = true;
+				this.parse(this.grammar.whitespaceMatcher);
+				this.parsingWhitespace = false;
+			}
 		}
 	}
 
-
-
-
-	export class ChoiceMatcher extends AbstractMatcher {
-
-		private choices: string[] = [];
-
-		constructor(language: Grammar, name: string, items: string[]) {
-			super(language, name);
-			this.choices = Util.clone(items);
-		}
-
-		performMatch(parser: Parser, parent: Match): bool {
-			var index = 0, choice;
-			for (var i = 0; i < this.choices.length, choice = this.choices[i]; i++) {
-				parser.setStackIter(index++);
-				if (parser.consume(parent, choice))
-					return true;
-			}
-			return false;
-		}
-
-		public toAST(match: Match): Node {
-			var inner = match.getLastMatch(true).toAST();
-			if (!this.getOption("wrap", false)) //nowrap?
-				return inner;
-
-			return new Node(this.getName(), inner);
-		}
-
-	}
-
-
-	export class ImportMatcher extends AbstractMatcher {
-
-		private languagename: string;
-		private rulename: string;
-
-		constructor(language: Grammar, name: string, languagename: string, rulename: string) {
-			super(language, name);
-			this.languagename = languagename;
-			this.rulename = rulename;
-		}
-
-		performMatch(parser: Parser, parent: Match): bool {
-			if (!Grammar.languages[this.languagename])
-
-				try {
-					return Grammar.get(this.languagename).parsePartial(parser, parent, this.rulename);
-				}
-				catch (inner) {
-					//TODO: wrap Error? calculate real coordinates?
-					throw inner;
-				}
-		}
-
-		public toAST(match: Match): Node {
-			var inner = match.getLastMatch(true).toAST();
-			if (!this.getOption("wrap", true)) //nowrap? //TODO: compare with string or with bool value?
-				return inner;
-
-			return new Node(this.getName(), inner);
-		}
-
-	}
-
-	export class ListMatcher extends AbstractMatcher {
-
-		public static NULLABLE_OPTION: string = "nullable";
-		public static ALLOWTRAILING_OPTION: string = "allowtrailing";
-
-		private token: string;
-		private pre: string = null;
-		private post: string = null;
-		private seperator: string;
-
-		constructor(language: Grammar, name: string, token: string, seperator: string, pre: string, post: string) {
-			super(language, name);
-			this.token = token;
-			this.seperator = seperator;//TODO: separator
-			this.pre = pre;
-			this.post = post;
-		}
-
-		public performMatch(parser: Parser, parent: Match): bool {
-			//match pre token
-			if (this.pre != null) {
-				if (!parser.consume(parent, this.pre))
-					return false;
-			}
-			var index = 0;
-			var basepos = -1;
-
-			if (this.post != null && parser.consume(parent, this.post))
-				return this.isNullable();
-
-			if (parser.consume(parent, this.token)) {
-				while (this.seperator == null || parser.consume(parent, this.seperator)) {
-					//detect lambda matching lists...
-					if (parent.getLastCharPos() <= basepos)
-						throw new ParseException(parser, false, "The rule '" + this.name + "', never ends, its items ('" + token + "') can match an empty string");
-
-					basepos = parent.getLastCharPos();
-					parser.setStackIter(++index);
-
-					//something has been consumed, assert that it is not empty, otherwise we end up in an endless loop
-					//if (seperator == null && parent.getLastMatch(true).charsConsumed() == 0)
-					//	throw new ParseException(parser, false, "Unterminating match detected. List items should either consume terminals or be seperated.");
-
-					if (this.post != null && parser.consume(parent, this.post))
-						return this.seperator == null || this.allowTrailing();
-
-					if (!parser.consume(parent, this.token)) {
-						return this.post == null; //we should have read post already otherwise
-					}
-				}
-				return this.post == null || parser.consume(parent, this.post);
-			}
-			//nothing matched yet..
-			return this.isNullable() && (this.post == null || parser.consume(parent, this.post));
-		}
-
-		public allowTrailing(): bool {
-			return this.getOption(ListMatcher.ALLOWTRAILING_OPTION, false); //TODO: string compare
-		}
-
-		public isNullable(): bool {
-			return this.getOption(ListMatcher.NULLABLE_OPTION, true);//TODO: string compare?
-		}
-
-		public toAST(match: Match): Node {
-			var children: Node[] = [];
-			var hasPre: bool = this.pre != null;
-			var hasSep: bool = this.seperator != null;
-			var hasPost: bool = this.post != null;
-			for (var i = 0; i < match.subMatchCount(true); i++) {
-				if (i == 0 && hasPre)
-					continue;
-				if (i == match.subMatchCount(true) - 1 && hasPost)
-					continue;
-				if (hasSep && i % 2 == (hasPre ? 0 : 1))
-					continue;
-				if (match.getSubMatch(i, true).getMatchedBy().getName() != this.seperator)
-					children.push(match.getSubMatch(i, true).toAST());
-			}
-			return new Node(this.name, children);
-		}
-	}
-
-
-
-
-	export class OperatorMatcher extends AbstractMatcher {
-
-		private operand: string;
-		private operator: string;
-
-		public static RIGHT_OPTION: string = "right";//TODO: stupid name?
-
-		constructor(language: Grammar, name: string, leftassociative: bool, operator: string, operand: string) {
-			super(language, name);
-			this.operand = operand;
-			this.operator = operator;
-			if (!leftassociative)
-				this.setOption(OperatorMatcher.RIGHT_OPTION, true);
-		}
-
-		public performMatch(parser: Parser, parent: Match): bool {
-			//left : a = b (op b)*
-			// if (this.getIsLeftAssociative()) {
-			if (this.isRepeatingState(parent)) //force backtrack for operators we already tried.
-				return false;
-
-			if (!parser.consume(parent, this.operand))
-				return false;
-			while (parser.consume(parent, this.operator)) {
-				if (!parser.consume(parent, this.operand))
-					return false;
-			}
-			return true;
-		}
-
-		/**
-		 * The general idea behind this method that an operator cannot be matched if its already in the current parse
-		 * stack, unless some other input has been consumed, in which case a new 'expression' is needed
-		 * @param parent
-		 * @return
-		 */
-		private isRepeatingState(parent: Match): bool {
-			var p = parent.getParentMatch();
-			while (p != null && p.getMatchedBy() != null) {
-				var matcher = p.getMatchedBy();
-
-				//something has been consumed?
-				if (!(matcher instanceof OperatorMatcher)
-					&& !(matcher instanceof ChoiceMatcher)
-					&& p.charsConsumed() > 0)
-					return false;
-
-				//same rule as this rule? kill endless recursion right away!
-				if (this == p.getMatchedBy())
-					return true;
-
-				p = p.getParentMatch();
-			}
-			return false;
-		}
-
-		public getIsLeftAssociative(): bool {
-			return !this.getOption(OperatorMatcher.RIGHT_OPTION, false);
-		}
-
-		public toAST(match: Match): Node {
-			var matches: Match[] = match.getSubMatches();
-			return this.toASTNodeHelper(matches);
-		}
-
-		private toASTNodeHelper(matches: Match[]): Node {
-			var children: Node[] = [];
-			var size = matches.length;
-			if (size == 3) {
-				children.push(matches[1].toAST());
-				children.push(matches[0].toAST());
-				children.push(matches[2].toAST());
-			}
-			else if (size == 1) {
-				return (matches[0].toAST());
-			}
-			else if (this.getIsLeftAssociative()) {
-				children.push(matches[size - 2].toAST());
-				children.push(this.toASTNodeHelper(matches.subList(0, size - 2)));
-				children.push(matches[size - 1].toAST());
-			}
-			else {
-				children.push(matches[1].toAST());
-				children.push(matches[0].toAST());
-				children.push(this.toASTNodeHelper(matches.subList(2, size)));
-			}
-			return new Node(this.name, children);
-		}
-
-	}
-
-
-
-	export class SequenceItem {
-		private item: string;
-		private required: bool;
-		private name: string;
-
-		constructor(item: string, required: bool = true, name: string = null) {
-			this.item = item;
-			this.required = required;
-			this.name = name;
-		}
-	}
-
-	export class SequenceMatcher extends AbstractMatcher {
-
-		constructor(language: Grammar, name: string) {
-			super(language, name);
-		}
-
-		private toMatch: SequenceItem[] = [];
-
-		public performMatch(parser: Parser, parent: Match): bool {
-			for (var i = 0; i < this.toMatch.length; i++) {
-				parser.setStackIter(i);
-				var item = this.toMatch.get(i);
-				if (parser.consume(parent, item.item))
-					continue;
-				if (item.required)
-					return false;
-				parser.consumeLambda(parent, item.item);
-			}
-			return true;
-		}
-
-		public addItem(item: SequenceItem) {
-			this.toMatch.push(item);
-		}
-
-		public toAST(match: Match): Node {
-			var children: Node[] = [];
-			var childMap = {}; //string ->Node
-
-			for (var i = 0; i < match.subMatchCount(true); i++) {
-				if (this.toMatch.get(i).required == false ||
-					!(match.getSubMatch(i, true).getMatchedBy() instanceof TokenMatcher) ||
-					!(<TokenMatcher> match.getSubMatch(i, true).getMatchedBy()).isKeyword()) {
-
-					var child = match.getSubMatch(i, true).toAST();
-					children.push(child);
-					var name = this.toMatch.get(i).name;
-					if (name != null && !name.isEmpty())
-						childMap.put(name, child);
-				}
-			}
-			return new Node(this.name, children, childMap);
-		}
-	}
-
-	export class SetMatcher extends AbstractMatcher {
-
-		private seperator: string; //TODO: separator
-		private items: string[];
-		private pre: string;
-		private post: string;
-
-		constructor(language: Grammar, name: string, seperatorOrNull: string, preOrNull: string, postOrNull: string, items: string[]) {
-			super(language, name);
-			this.seperator = seperatorOrNull;
-			this.pre = preOrNull;
-			this.post = postOrNull;
-			this.items = items;
-		}
-
-		public performMatch(parser: Parser, parent: Match): bool {
-			if (this.pre != null && !parser.consume(parent, this.pre))
-				return false;
-
-			var available = Util.clone(this.items);
-			var matched: bool = true;
-			var sepmatched: bool = false;
-			while (available.length > 0 && matched) {
-				matched = false;
-				available.forEach(token => {
-					if (parser.consume(parent, token)) {
-						available.remove(token);
-						matched = true;
-						if (this.seperator == null) {
-							//TODO: restore	break;
-						}
-						else
-							sepmatched = parser.consume(parent, this.seperator);
-					}
-				});
-			}
-			if (sepmatched) //there was a trailing seperator!
-				return false;
-
-			return this.post == null || parser.consume(parent, this.post);
-		}
-
-		public toAST(match: Match): Node {
-			var children: Node[] = [];
-			var hasPre: bool = this.pre != null;
-			var hasSep: bool = this.seperator != null;
-			var hasPost: bool = this.post != null;
-			for (var i = 0; i < match.subMatchCount(true); i++) {
-				if (i == 0 && hasPre)
-					continue;
-				if (i == match.subMatchCount(true) - 1 && hasPost)
-					continue;
-				if (hasSep && i % 2 == (hasPre ? 0 : 1))
-					continue;
-				children.push(match.getSubMatch(i, true).toAST());
-			}
-			return new Node(this.name, children);
-		}
-	}
-
-	export class BuiltinToken {
-		constructor(private name: string, private regexp: string, private whitespace: bool) {
-		}
-
-		public registerTokenMatcher(language: Grammar): TokenMatcher {
-			return <TokenMatcher> language.addTokenmatcher(this.name, this.regexp, this.whitespace);
-		}
-
-
-		public static IDENTIFIER = new BuiltinToken("IDENTIFIER", "[a-zA-Z_][a-zA-Z_0-9]*", false);
-		public static WHITESPACE = new BuiltinToken("WHITESPACE", "\\s+", true);
-		public static INTEGER = new BuiltinToken("INTEGER", "-?\\d+", false);
-		public static FLOAT = new BuiltinToken("FLOAT", "-?\\d+(\\.\\d+)?(e\\d+)?", false);
-		public static SINGLEQUOTEDSTRING = new BuiltinToken("SINGLEQUOTEDSTRING", "'(?>[^\\\\']|(\\\\[btnfr\"'\\\\]))*'", false);
-		public static DOUBLEQUOTEDSTRING = new BuiltinToken("DOUBLEQUOTEDSTRING", "\"(?>[^\\\\\"]|(\\\\[btnfr\"'\\\\]))*\"", false);
-		public static SINGLELINECOMMENT = new BuiltinToken("SINGLELINECOMMENT", "//[^\\n]*(\\n|$)", true);
-		public static MULTILINECOMMENT = new BuiltinToken("MULTILINECOMMENT", "/\\*(?:.|[\\n\\r])*?\\*/", true);
-		public static bool = new BuiltinToken("bool", "true|false", false);
-		public static REGULAREXPRESSION = new BuiltinToken("REGULAREXPRESSION", "/(?>[^\\\\/]|(\\\\.))*/", false);
-	}
-
-	export class TokenMatcher extends AbstractMatcher {
-
-
-		/**
-		 * Takes a willed arsed quess to confert a tokens text to a native java primitive, tries
-		 * - 		 * : bool" - long
-		 * - float
-		 * - quoted 		 *:string - javascript style regex
-		 * - return original input
-		 * @param input
-		 * @return
-		 */
-		public static textToValue(input: string): any {
-			if (input == null)
-				return null;
-			if (input.matches("^" + BuiltinToken.bool.regexp + "$"))
-				return bool.parsebool(input);
-			if (input.matches("^" + BuiltinToken.INTEGER.regexp + "$"))
-				return Long.parseLong(input);
-			if (input.matches("^" + BuiltinToken.FLOAT.regexp + "$"))
-				return Double.parseDouble(input);
-			if ((input.startsWith("'") && input.endsWith("'")) || (input.startsWith("\"") && input.endsWith("\"")))
-				return Util.unescape(Util.substring(input, 1, -1));
-			if (input.startsWith("/") && input.endsWith("/"))
-				return Pattern.compile(Util.substring(input, 1, -1).replaceAll("\\\\([\\/])", "$1"));
-			return input;
-		}
-
-
-		private regexp: RegExp;
-		private _isWhiteSpace: bool;
-		private _isKeyword: bool;
-		private keyword: string;
-
-		constructor(language: Grammar, name: string, regexp: string, whiteSpace: bool) {
-			super(language, name);
-			this.regexp = Pattern.compile("\\A" + regexp, Pattern.MULTILINE &
-				(language.getCaseInSensitive() ? Pattern.CASE_INSENSITIVE : 0)
+	export class ParseException {
+		public name = "Miniup.ParseException";
+		public message : string;
+		public coords: TextCoords;
+
+		constructor(parser: Parser, message: string, highlightBestMatch : bool = true) {
+			var pos = highlightBestMatch ? parser.expected.length -1 : parser.currentPos;
+			this.coords = Util.getCoords(parser.input, pos);
+
+			this.message = Util.format("{0} at {1} line {2}:{3}\n\n{4}\n{5}\nExpected: {6}",
+				message, parser.inputName, this.coords.line, this.coords.col,
+				this.coords.linetrimmed,
+				this.coords.linehighlight,
+				parser.expected[pos].join(" or ")
 			);
-			this._isWhiteSpace = whiteSpace;
 		}
 
-		public match(input: string): Token {
-			//System.out.println("About to match " + this.name + this.language.getName() + regexp.pattern());
-			var m = regexp.matcher(input);
-			if (!m.find())
+		public toString():string { return this.name + ": " + this.message }
+	}
+
+	export class GrammarReader {
+		private static miniupGrammar: Grammar = null;
+
+		public static getMiniupGrammar(): Grammar {
+			if (miniupGrammar == null)
+				miniupGrammar = bootstrap();
+			return miniupGrammar;
+		}
+
+		private static bootstrap(): Grammar {
+			//Based on https://github.com/dmajda/pegjs/blob/master/src/parser.pegjs
+
+			var g = new Grammar(), f = MatcherFactory;
+
+			//literals
+			var
+			  equals = f.literal("="),
+			  colon = f.literal(":"),
+			  semicolon = f.literal(";"),
+			  slash = f.literal("/"),
+			  and = f.literal("&"),
+			  not = f.literal("!"),
+			  dollar = f.literal("$"),
+			  question = f.literal("?"),
+			  star = f.literal("*"),
+			  plus = f.literal("+"),
+			  lparen = f.literal("("),
+			  rparen = f.literal(")"),
+			  dot = f.literal(".");
+
+			var
+			  identifier = f.named('Identifier', f.regex(RegExpUtil.identifier)), //TODO: automated construct these rules
+			  singleQuoteString = f.named('SingleQuoteString', f.regex(RegExpUtil.singleQuoteString)),
+			  doubleQuoteString = f.named('DoubleQuoteString', f.regex(RegExpUtil.doubleQuoteString)),
+			  singlelinecomment = f.named('Comment', f.regex(RegExpUtil.singleLineComment)),
+			  multilinecomment = f.named('MultiLineComment', f.regex(RegExpUtil.multiLineComment)),
+			  whitespacechar = f.named('WhiteSpace', f.regex(RegExpUtil.whitespace)),
+			  regexp = f.named('Regex', f.regex(RegExpUtil.regex)),
+			  characterClass = f.named('CharacterClass', f.regex(RegExpUtil.characterClass));
+
+			//rules
+			var seq = f.sequence, label = f.labeled, opt = f.optional, choice = f.choice;
+
+			var str = g.addRule('string', choice(singleQuoteString, doubleQuoteString));
+			var literal = g.addRule('literal', seq(str, opt(f.literal("i"))));
+			g.addRule('whitespace', choice(whitespacechar, multilinecomment, singlelinecomment));
+
+			var paren = g.addRule('paren', seq(lparen, label('expression', f.rule('expression')), rparen));
+		    var call = g.addRule('call', seq(label('name', identifier), f.negativeLookAhead(seq(opt(str), equals))));
+
+			var primary = g.addRule('primary', choice(
+			  call,
+			  literal,
+		      characterClass,
+		      dot,
+		    //  regexp,
+		      paren));
+
+			var suffixed = g.addRule('suffixed', choice(
+			  seq(label('expression', primary), question),
+			  seq(label('expression', primary), star),
+			  seq(label('expression', primary), plus),
+			  primary));
+
+			var prefixed = g.addRule('prefixed', choice(
+			  seq(label('prefix', dollar), label('expression', suffixed)),
+			  seq(label('prefix', and), label('expression', suffixed)),
+			  seq(label('prefix', not), label('expression', suffixed)),
+			  suffixed));
+
+			var labeled = g.addRule('labeled',
+			  choice(seq(label('label', identifier), colon, label('expression', prefixed)), prefixed));
+
+			var sequence = g.addRule('sequence', f.zeroOrMore(labeled));
+
+			var choicerule = g.addRule('choice', seq(
+				label('head', sequence), label('tail', f.zeroOrMore(seq(slash, sequence)))));
+
+			var expression = g.addRule('expression', choicerule);
+
+			var rule = g.addRule('rule', seq(label('name', identifier), label('displayName', opt(str)), equals, label('expression', expression), opt(semicolon)));
+			g.addRule('grammar', label('rules', f.oneOrMore(rule)));
+
+			g.startSymbol = "grammar";
+			return g;
+		}
+
+		public static buildGrammar(ast: any): Grammar {
+			var g = new Grammar();
+			(<any[]>ast/*.rules*/).forEach((ast: any) => {
+				var r = astToMatcher(ast.expression);
+				if (ast.displayName)
+					r.friendlyName = ast.displayName;
+				g.addRule(ast.name, r);
+			});
+			return g;
+		}
+
+		static astToMatcher(ast: any): ParseFunction {
+			var f = MatcherFactory;
+			if (ast === null)
 				return null;
+			switch (ast.$rule) {
+				case "Identifier":
+					return ast; //return the same string
+				case "SingleQuoteString":
+				case "DoubleQuoteString":
+					return f.literal(RegExpUtil.unescape(ast)); //TODO: 'i' flag
+				case "Regex":
+					return f.regex(new RegExp(RegExpUtil.unescape(ast))); //TODO: 'i' flag
+				case "CharacterClass":
+					return f.characterClass(RegExpUtil.unescape(ast)); //TODO: 'i' flag
+				case "call":
+					return f.rule(ast.name);
+				case "suffixed":
+					switch (ast.postfix) {
+						case "?": return f.optional(astToMatcher(ast.expression));
+						case "*": return f.zeroOrMore(astToMatcher(ast.expression));
+						case "+": return f.oneOrMore(astToMatcher(ast.expression));
+						default: throw new Error("Unimplemented postfix: " + ast.postfix);
+					}
+				case "prefixed":
+					switch (ast.prefix) {
+					//TODO:	case "$": return f.dollar(astToMatcher(ast.expression));
+						case "&": return f.positiveLookAhead(astToMatcher(ast.expression));
+						case "!": return f.negativeLookAhead(astToMatcher(ast.expression));
+						default: throw new Error("Unimplemented prefix: " + ast.prefix);
+					}
+				case "labeled":
+					return f.labeled(ast.label, astToMatcher(ast.expression));
+				case "sequence":
+					return f.sequence.apply(f, ast.map(astToMatcher));
+				case "choice":
+					return f.choice.apply(f, [ast.head].concat(ast.tail ? ast.tail : []).map(astToMatcher));
 
-			var string = input.substring(0, m.end());
 
-			return new Token(this, text);
-		}
 
-		public isWhiteSpace(): bool {
-			return this._isWhiteSpace;
-		}
-
-		performMatch(parser: Parser, parent: Match): bool {
-			var curpos = parent.getLastCharPos();
-			var rest = parser.getInputString().substring(curpos);
-			var next = this.match(rest);
-
-			if (next != null) {
-
-				//if (Miniup.VERBOSE &&  !next.getText().trim().isEmpty())
-				//	System.out.println(" -- " + this.name + " --> `" + next.getText() + "`");
-
-				next.setCoords(parser.getCurrentLineNr(curpos), parser.getCurrentColNr(curpos));
-				parent.setTerminal(next);
-				parent.eat(next.getText().length());
-				return true;
+				default:
+					throw new Error("Unimplemented ruletype: " + ast.$rule);
 			}
-			return false;
+		}
+	}
+
+	export class RegExpUtil {
+		//TODO: check if all regexes do not backtrack!
+		public static identifier = /[a-zA-Z_][a-zA-Z_0-9]*/;
+		public static whitespace = /\s+/;
+		public static regex = /\/([^\\\/]|(\\.))*\//;
+		public static singleQuoteString = /'([^'\\]|(\\.))*'/; //TODO: or /(["'])(?:\\\1|[^\1])*?\1/g, faster?
+		public static doubleQuoteString = /"([^"\\]|(\\.))*"/;
+		public static singleLineComment = /\/\/.*(\n|$)/;
+		public static multiLineComment = /\/\*(?:[^*]|\*(?!\/))*?\*\//;
+		public static characterClass = /\[([^\\\/]|(\\.))*\]/;
+		public static integer = /-?\d+/;
+		public static float = /-?\d+(\.\d+)?(e\d+)?/;
+		public static boolRegexp = /(true|false)/;
+		public static lineend = /\r?\n/;
+
+		public static quoteRegExp(str: string): string {
+			return (str + '').replace(/([.?*+^$[\]\\(){}|-])/g, "\\$1");
 		}
 
-		public getName(): string {
-			return this.name;
+		public static unescape(str: string) {
+			return str.substring(1, str.length - 2)
+				.replace(/\\n/g, "\n")
+				.replace(/\\r/g, "\r")
+				.replace(/\\t/g, "\t")
+				.replace(/\\f/g, "\f")
+				.replace(/\\b/g, "\b")
+				.replace(/\\'/g, "'")
+				.replace(/\\"/g, "\"")
+				.replace(/\\\\/g, "\]");
+				//TODO: \u \x unicode chars
 		}
+	}
 
-		public toString(): string {
-			return string.format("[TokenMatcher '%s'->%s]", this.regexp.pattern(), this.name);
-		}
-
-		public getRegexp(): string {
-			return this.regexp.pattern();
-		}
-
-		/** indicates that this is a generated token, which should not be included in output etc */
-		public setIsKeyword(keyword: string) {
-			this.keyword = keyword;
-			this._isKeyword = true;
-		}
-
-		public getKeyword(): string { return this.keyword; }
-
-		public isKeyword(): bool {
-			return this._isKeyword;
-		}
-
-		public toAST(match: Match): Node {
-			return new Node(this.name, match.getTerminal());
-		}
-
-
+	export interface TextCoords {
+		line: number;
+		col: number;
+		linetext: string;
+		linetrimmed: string;
+		linehighlight: string;
 	}
 
 	export class Util {
 
-		public static leftPad(str: string, col: number): string {
-			var v = col;
-			var r = "";
-			while (v-- > 0)
-				r += " ";
+		public static format(str: string, ...args: any[]) {
+			return str.replace(/{(\d+)}/g, (match, nr) => "" + args[nr]);
+		}
+
+		public static extend(thing: any, extendWith: Object): any {
+			for (var key in extendWith)
+				thing[key] = extendWith[key];
+			return thing;
+		}
+
+		public static getCoords(input: string, pos: number): TextCoords {
+			var lines = input.substring(0, pos).split(RegExpUtil.lineend);
+			var curline = input.split(RegExpUtil.lineend)[lines.length -1];
+			lines.pop(); //remove curline
+			var col = pos - lines.join().length;
+
+			return {
+				line : lines.length + 1,
+				col : col,
+				linetext : curline,
+				linetrimmed: curline.replace(/(^\s+)|(\s+$)/g,"").replace(/\t/," "), //trim and replace tabs
+				linehighlight : Util.leftPad("^", col - (curline.length - curline.replace(/^\s+/,"").length) - 1 , "-") //correct padding for trimmed whitespacse
+			}
+		}
+
+		public static leftPad(str: string, amount: number, padString: string = " ") {
+			for (var i = 0, r = ""; i < amount; i++, r += padString);
 			return r + str;
 		}
+
+		public static debug(msg: string, ...args: string[]) {
+			console && console.log(format.apply(null, [msg].concat(args)));
+		}
+
 	}
+
 
 }
