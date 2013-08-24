@@ -494,11 +494,11 @@ module miniup {
 					return ast; //return the same string
 				case "SingleQuoteString":
 				case "DoubleQuoteString":
-					return f.literal(RegExpUtil.unescape(ast)); //TODO: 'i' flag
+					return f.literal(RegExpUtil.unescapeQuotedString(ast)); //TODO: 'i' flag
 				case "Regex":
-					return f.regex(new RegExp(RegExpUtil.unescape(ast))); //TODO: 'i' flag
+					return f.regex(RegExpUtil.unescapeRegexString (ast)); //TODO: 'i' flag
 				case "CharacterClass":
-					return f.characterClass(RegExpUtil.unescape(ast)); //TODO: 'i' flag
+					return f.characterClass(RegExpUtil.unescapeRegexString(ast).source); //TODO: 'i' flag
 				case "call":
 					return f.rule(ast.name);
 				case "suffixed":
@@ -534,7 +534,7 @@ module miniup {
 		//TODO: check if all regexes do not backtrack!
 		public static identifier = /[a-zA-Z_][a-zA-Z_0-9]*/;
 		public static whitespace = /\s+/;
-		public static regex = /\/([^\\\/]|(\\.))*\//;
+		public static regex = /\/([^\\\/]|(\\.))*\//; //TODO: unescape regex is remove the begin and end + double all backslashes
 		public static singleQuoteString = /'([^'\\]|(\\.))*'/; //TODO: or /(["'])(?:\\\1|[^\1])*?\1/g, faster?
 		public static doubleQuoteString = /"([^"\\]|(\\.))*"/;
 		public static singleLineComment = /\/\/.*(\n|$)/;
@@ -543,14 +543,27 @@ module miniup {
 		public static integer = /-?\d+/;
 		public static float = /-?\d+(\.\d+)?(e\d+)?/;
 		public static boolRegexp = /(true|false)/;
-		public static lineend = /\r?\n/;
+		public static lineend = /\r?\n|\u2028|\u2029/;
 
 		public static quoteRegExp(str: string): string {
 			return (str + '').replace(/([.?*+^$[\]\\(){}|-])/g, "\\$1");
 		}
 
-		public static unescape(str: string) {
+		/**
+			Given a string in javascript regex format e.g. /slash\/backslash\\end/
+			transforms it to a RegExp
+		*/
+		public static unescapeRegexString(str: string): RegExp {
+			return new RegExp(str.substring(1, str.length - 2).replace(/\\/g, "\\"));
+		}
+
+		/**
+			Given a string an javascript string format, e.g. (including the quotes) "line\nnewline\"quote",
+			transforms it to a string
+		*/
+		public static unescapeQuotedString(str: string) {
 			return str.substring(1, str.length - 2)
+				.replace(/\\\\/g, "\\")
 				.replace(/\\n/g, "\n")
 				.replace(/\\r/g, "\r")
 				.replace(/\\t/g, "\t")
@@ -558,8 +571,11 @@ module miniup {
 				.replace(/\\b/g, "\b")
 				.replace(/\\'/g, "'")
 				.replace(/\\"/g, "\"")
-				.replace(/\\\\/g, "\]");
-				//TODO: \u \x unicode chars
+				.replace(/\\0/g, "\0")
+				//http://stackoverflow.com/questions/7885096/how-do-i-decode-a-string-with-escaped-unicode
+				.replace(/\\u(d){4}/, (m,code) => String.fromCharCode(parseInt(code, 16)))
+				.replace(/\\x(d){2}/, (m,code) => parseInt(code, 16))
+				.replace(/\\0(d){2}/, (m,code) => parseInt(code, 8))
 		}
 	}
 
