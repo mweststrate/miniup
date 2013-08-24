@@ -1,0 +1,29 @@
+{
+  "name": "miniup",
+  "version": "0.0.1",
+  "description": "Miniup pragmatic parsing library",
+  "main": "miniup.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "jake test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mweststrate/miniup-typescript.git"
+  },
+  "keywords": [
+    "parsing",
+    "peg",
+    "parse"
+  ],
+  "author": "Michel Weststrate",
+  "license": "BSD",
+  "readmeFilename": "README.md",
+  "gitHead": "65fbd86dfb592d7d501e55efac5502a2753f7585",
+  "devDependencies": {
+    "jake": "latest",
+    "nodeunit": "latest"
+  }
+}

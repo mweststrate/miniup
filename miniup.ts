@@ -27,6 +27,7 @@ module miniup {
 		//TODO: operator matcher (operand operator)<   (or >)
 		//TODO: list matcher with separator A{separate: B}*
 		//TODO: non lazy or matcher?
+		//TODO: some way to group parts of the language with and without whitespaces
 
 		private static regexMatcher(regex: RegExp);
 		private static regexMatcher(regex: string, ignoreCase: bool = false);
@@ -482,6 +483,8 @@ module miniup {
 					r.friendlyName = ast.displayName;
 				g.addRule(ast.name, r);
 			});
+
+			//TODO: consistency check?
 			return g;
 		}
 
@@ -627,3 +630,11 @@ module miniup {
 
 
 }
+
+//TODO: fixme: still strugling with the typescript module export system. Lets work around..
+declare var exports : any;
+(function(root) {
+//var exports = root['exports'];
+	if (typeof(exports) !== "undefined") for(var key in miniup)
+		exports[key] = miniup[key];
+})(this);
