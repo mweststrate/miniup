@@ -1,3 +1,9 @@
+// Some global environment stuff we use..
+declare var exports : any;
+declare var module: any;
+declare var require: any;
+declare var process : any;
+
 module miniup {
 
 	export class ParseFunction {
@@ -184,17 +190,7 @@ module miniup {
 		}
 
 		public static loadFromFile(filename: string): Grammar {
-			//TODO:
-			return null;
-		}
-
-		public static loadFromXHR(filename: string, jQuery: any, callback:(grammar:Grammar) => void) {
-			//TODO:
-		}
-
-		public test(input: string, expected: any) : Grammar {
-			//TODO:
-			return this;
+			return load(Util.readStringFromFile(filename));
 		}
 
 		addRule(rule: ParseFunction): ParseFunction;
@@ -250,6 +246,7 @@ module miniup {
 		private parsingWhitespace = false; //TODO: rename to 'isParsingWhitespace'
 		private stack: StackItem[] = []; //TODO: is stack required anywhere?
 		expected = [];
+		//TODO: with-parse-information option (that generates $rule and $start and such..)
 
 		constructor(public grammar: Grammar, public input: string) {
 			//empty
@@ -443,7 +440,6 @@ module miniup {
 			  literal,
 		      characterClass,
 		      dot,
-		    //  regexp,
 		      paren));
 
 			var suffixed = g.addRule('suffixed', choice(
@@ -461,7 +457,7 @@ module miniup {
 			var labeled = g.addRule('labeled',
 			  choice(seq(label('label', identifier), colon, label('expression', prefixed)), prefixed));
 
-			var sequence = g.addRule('sequence', f.zeroOrMore(labeled));
+			var sequence = g.addRule('sequence', choice(regexp, f.zeroOrMore(labeled)));
 
 			var choicerule = g.addRule('choice', seq(
 				label('head', sequence), label('tail', f.zeroOrMore(seq(slash, sequence)))));
@@ -545,7 +541,7 @@ module miniup {
 		public static characterClass = /\[([^\\\/]|(\\.))*\]/;
 		public static integer = /-?\d+/;
 		public static float = /-?\d+(\.\d+)?(e\d+)?/;
-		public static boolRegexp = /(true|false)/;
+		public static boolRegexp = /(true|false)\b/;
 		public static lineend = /\r?\n|\u2028|\u2029/;
 
 		public static quoteRegExp(str: string): string {
@@ -626,15 +622,60 @@ module miniup {
 			console && console.log(format.apply(null, [msg].concat(args)));
 		}
 
+		public static readStringFromFile(filename : string) : string {
+			return require('fs').readFileSync(filename, "utf8")
+		}
+
+		public static writeStringToFile(filename : string, contents: string) {
+			return require('fs').writeFileSync(filename, contents, { encoding: "utf8" });
+		}
+
+		public static readStringFromStdin(cb : (str: string) => void) {
+			//http://stackoverflow.com/questions/13410960/how-to-read-an-entire-text-stream-in-node-js
+			var content = '';
+			process.stdin.resume();
+			process.stdin.on('data', function(buf) { content += buf.toString(); });
+			process.stdin.on('end', function() {
+				cb(content);
+			});
+		}
 	}
-
-
 }
 
 //TODO: fixme: still strugling with the typescript module export system. Lets work around..
-declare var exports : any;
 (function(root) {
 //var exports = root['exports'];
 	if (typeof(exports) !== "undefined") for(var key in miniup)
 		exports[key] = miniup[key];
 })(this);
+
+//root script?
+
+if ((typeof (module ) !== "undefined" && !module.parent)) {
+	(() => {
+		// miniup -d /debug/ -t /test only/ -o /output file/ -i /input file/ -g /grammar file/
+		var argv = require('optimist')
+			.usage('Miniup parser. Given a Programmable Expression Grammar (PEG), transforms input into a JSON based Abstract Syntax Tree.\nUsage: $0')
+			.describe('g','Grammar file (defaults to Miniup grammar)').alias('g', 'grammar')
+			.describe('i','Input file').alias('i', 'input')
+			.describe('r','Read input from stdin')
+			.describe('v','Verbose')
+			.describe('o','Output file').alias('o', 'output')
+			.describe('c','Clean AST. Do not enrich the AST with parse information').alias("c", "clean")
+			.default( { c : true, v : false })
+			.argv;
+
+		var args = argv._;
+		var Util = miniup.Util;
+		var grammar : miniup.Grammar = argv.g ? miniup.Grammar.loadFromFile(argv.g) : miniup.GrammarReader.getMiniupGrammar();
+
+		var processInput = (input: string) => {
+			var res = grammar.parse(input, {
+				debug : argv.v,
+				parseInfo : argv.p
+			});
+			argv.o ? Util.writeStringToFile(argv.o, JSON.stringify(res)) : console.dir(res);
+		}
+		argv.r ? Util.readStringFromStdin(processInput) : processInput(argv.i ? Util.readStringFromFile(argv.i) :  argv._.join(" "));
+	})();
+}

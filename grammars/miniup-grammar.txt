@@ -10,7 +10,7 @@ choice
   = head:sequence tail:(slash sequence)*
 
 sequence
-  = elements:labeled*
+  = regex / elements:labeled*
 
 labeled
   = label:identifier colon expression:prefixed

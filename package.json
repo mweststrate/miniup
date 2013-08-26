@@ -24,6 +24,10 @@
   "gitHead": "65fbd86dfb592d7d501e55efac5502a2753f7585",
   "devDependencies": {
     "jake": "latest",
-    "nodeunit": "latest"
+    "nodeunit": "latest",
+    "typescript" : "0.8.4"
+  },
+  "dependencies": {
+    "optimist": "~0.6.0"
   }
 }
