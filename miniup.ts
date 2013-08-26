@@ -674,7 +674,7 @@ module miniup {
 					if (argv.o)
 						writeStringToFile(argv.o, JSON.stringify(res))
 					else
-						console.dir(res);
+						console.log(JSON.stringify(res, null, 2));
 				}
 				catch (e) {
 					if (e instanceof miniup.ParseException) {
@@ -688,9 +688,9 @@ module miniup {
 
 			//get the input
 			if (argv.i)
-				processInput(argv.i)
-			else if (argv._.length)
 				processInput(readStringFromFile(argv.i))
+			else if (argv._.length)
+				processInput(argv._.join(" "))
 			else
 				readStringFromStdin(processInput);
 		}
