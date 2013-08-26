@@ -190,7 +190,7 @@ module miniup {
 		}
 
 		public static loadFromFile(filename: string): Grammar {
-			return load(Util.readStringFromFile(filename));
+			return load(CLI.readStringFromFile(filename));
 		}
 
 		addRule(rule: ParseFunction): ParseFunction;
@@ -621,21 +621,94 @@ module miniup {
 		public static debug(msg: string, ...args: string[]) {
 			console && console.log(format.apply(null, [msg].concat(args)));
 		}
+	}
 
-		public static readStringFromFile(filename : string) : string {
+	export class CLI {
+		public static main() {
+			//CLI definition. Thank you, optimist :)
+			var argv = require('optimist')
+				.usage("Miniup parser. Given a Programmable Expression Grammar (PEG), transforms input into a JSON based Abstract Syntax Tree."
+					+ "\nUsage: miniup <input>"
+					+ "\nUsage: stdin | miniup"
+					+ "\nUsage: miniup -i <input file>"
+					+ "\nUsage: miniup -g <grammar string> <input>"
+					+ "\nUsage: miniup -[vc] -s <grammar file> -i <input file> -o <output file>"
+					+ "\nUsage: miniup -h")
+				.describe('g', 'Grammar definition (defaults to Miniup grammar)').alias('g', 'grammar')
+				.describe('i', 'Input file').alias('i', 'input')
+				.describe('s', 'Read grammar from file')
+				.describe('o', 'Output file').alias('o', 'output')
+				.describe('v', 'Verbose')
+				.describe('c', 'Clean AST. Do not enrich the AST with parse information').alias("c", "clean")
+				.describe('h', 'Print this help').alias('help')
+				.default({ c: false, v: false })
+				.boolean('vch'.split(''))
+				.string("giso".split(''))
+				.check(argv => !!(argv._.length || argv.i || argv.r)) //input source should be provided
+				.argv;
+
+			//help
+			var args = argv._, grammar: Grammar;
+			if (argv.h) {
+				argv.help();
+				process.exit(0);
+			}
+
+			//get the grammar
+			if (argv.s)
+				grammar = Grammar.loadFromFile(argv.s)
+			else if (argv.g)
+				grammar = miniup.Grammar.load(argv.g)
+			else
+				grammar = miniup.GrammarReader.getMiniupGrammar();
+
+			function processInput (input: string) => {
+				try {
+					//parse
+					var res = grammar.parse(input, {
+						debug: argv.v,
+						cleanAST: argv.c
+					});
+
+					//store
+					if (argv.o)
+						writeStringToFile(argv.o, JSON.stringify(res))
+					else
+						console.dir(res);
+				}
+				catch (e) {
+					if (e instanceof miniup.ParseException) {
+						console.error(e.toString());
+						process.exit(1);
+					}
+					else
+						throw e;
+				}
+			}
+
+			//get the input
+			if (argv.i)
+				processInput(argv.i)
+			else if (argv._.length)
+				processInput(readStringFromFile(argv.i))
+			else
+				readStringFromStdin(processInput);
+		}
+
+		public static readStringFromFile(filename: string): string {
 			return require('fs').readFileSync(filename, "utf8")
 		}
 
-		public static writeStringToFile(filename : string, contents: string) {
+		public static writeStringToFile(filename: string, contents: string) {
 			return require('fs').writeFileSync(filename, contents, { encoding: "utf8" });
 		}
 
-		public static readStringFromStdin(cb : (str: string) => void) {
+		public static readStringFromStdin(cb: (str: string) => void ) {
 			//http://stackoverflow.com/questions/13410960/how-to-read-an-entire-text-stream-in-node-js
 			var content = '';
 			process.stdin.resume();
-			process.stdin.on('data', function(buf) { content += buf.toString(); });
-			process.stdin.on('end', function() {
+			process.stdin.on('data', function (buf) { content += buf.toString(); });
+			process.stdin.on('end', function () {
 				cb(content);
 			});
 		}
@@ -650,48 +723,5 @@ module miniup {
 })(this);
 
 //root script?
-
-if ((typeof (module ) !== "undefined" && !module.parent)) {
-	(() => {
-		// miniup -d /debug/ -t /test only/ -o /output file/ -i /input file/ -g /grammar file/
-		var argv = require('optimist')
-			.usage('Miniup parser. Given a Programmable Expression Grammar (PEG), transforms input into a JSON based Abstract Syntax Tree.\nUsage: miniup [input]')
-			.describe('g','Grammar file (defaults to Miniup grammar)').alias('g', 'grammar')
-			.describe('i','Input file').alias('i', 'input')
-			.describe('r','Read input from stdin')
-			.describe('v','Verbose')
-			.describe('o','Output file').alias('o', 'output')
-			.describe('c','Clean AST. Do not enrich the AST with parse information').alias("c", "clean")
-			.describe('h', 'Print this help').alias('help')
-			.default( { c : false, v : false })
-			.check(argv => !!(argv._.length || argv.i || argv.r)) //input source should be provided
-			.argv;
-
-		var args = argv._;
-		if (argv.h) {
-			argv.help();
-			process.exit(0);
-		}
-		var Util = miniup.Util;
-		var grammar : miniup.Grammar = argv.g ? miniup.Grammar.loadFromFile(argv.g) : miniup.GrammarReader.getMiniupGrammar();
-
-		var processInput = (input: string) => {
-			try {
-				var res = grammar.parse(input, {
-					debug : argv.v,
-					parseInfo : argv.p
-				});
-				argv.o ? Util.writeStringToFile(argv.o, JSON.stringify(res)) : console.dir(res);
-			}
-			catch(e) {
-				if (e instanceof miniup.ParseException) {
-					console.error(e.toString());
-					process.exit(1);
-				}
-				else
-					throw e;
-			}
-		}
-		argv.r ? Util.readStringFromStdin(processInput) : processInput(argv.i ? Util.readStringFromFile(argv.i) :  argv._.join(" "));
-	})();
-}
+if ((typeof (module ) !== "undefined" && !module.parent)) 
+	miniup.CLI.main();
