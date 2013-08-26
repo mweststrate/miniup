@@ -655,26 +655,42 @@ if ((typeof (module ) !== "undefined" && !module.parent)) {
 	(() => {
 		// miniup -d /debug/ -t /test only/ -o /output file/ -i /input file/ -g /grammar file/
 		var argv = require('optimist')
-			.usage('Miniup parser. Given a Programmable Expression Grammar (PEG), transforms input into a JSON based Abstract Syntax Tree.\nUsage: $0')
+			.usage('Miniup parser. Given a Programmable Expression Grammar (PEG), transforms input into a JSON based Abstract Syntax Tree.\nUsage: miniup [input]')
 			.describe('g','Grammar file (defaults to Miniup grammar)').alias('g', 'grammar')
 			.describe('i','Input file').alias('i', 'input')
 			.describe('r','Read input from stdin')
 			.describe('v','Verbose')
 			.describe('o','Output file').alias('o', 'output')
 			.describe('c','Clean AST. Do not enrich the AST with parse information').alias("c", "clean")
-			.default( { c : true, v : false })
+			.describe('h', 'Print this help').alias('help')
+			.default( { c : false, v : false })
+			.check(argv => !!(argv._.length || argv.i || argv.r)) //input source should be provided
 			.argv;
 
 		var args = argv._;
+		if (argv.h) {
+			argv.help();
+			process.exit(0);
+		}
 		var Util = miniup.Util;
 		var grammar : miniup.Grammar = argv.g ? miniup.Grammar.loadFromFile(argv.g) : miniup.GrammarReader.getMiniupGrammar();
 
 		var processInput = (input: string) => {
-			var res = grammar.parse(input, {
-				debug : argv.v,
-				parseInfo : argv.p
-			});
-			argv.o ? Util.writeStringToFile(argv.o, JSON.stringify(res)) : console.dir(res);
+			try {
+				var res = grammar.parse(input, {
+					debug : argv.v,
+					parseInfo : argv.p
+				});
+				argv.o ? Util.writeStringToFile(argv.o, JSON.stringify(res)) : console.dir(res);
+			}
+			catch(e) {
+				if (e instanceof miniup.ParseException) {
+					console.error(e.toString());
+					process.exit(1);
+				}
+				else
+					throw e;
+			}
 		}
 		argv.r ? Util.readStringFromStdin(processInput) : processInput(argv.i ? Util.readStringFromFile(argv.i) :  argv._.join(" "));
 	})();
