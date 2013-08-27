@@ -14,6 +14,7 @@ module miniup {
 		isKeyword = false; //TODO: isliteral
 		isCharacterClass = false;
 		isTerminal = false;
+		sequence : ParseFunction[];
 
 		constructor(private asString: string, public parse : (parser: Parser) => any, opts? : Object) {
 			if (opts)
@@ -79,26 +80,19 @@ module miniup {
 			return new ParseFunction(ruleName, p => p.parse(p.grammar.rule(ruleName)));
 		}
 
-		public static zeroOrMore(matcher: ParseFunction): ParseFunction {
-			return new ParseFunction(matcher.toString() + "*", (parser: Parser): any => {
-				var res = [];
-				var item;
-				do {
-					item = parser.parse(matcher);
-					if (item !== undefined)
-						res.push(item);
-				} while (item !== undefined);
+		public static list(matcher: ParseFunction, atleastOne : bool = false, separator : ParseFunction = null): ParseFunction {
+			return new ParseFunction(
+				matcher.toString() + (atleastOne ? "+" : "*") + (separator ? "?" : ""),
+				(parser: Parser): any => {
+					var res = [];
+					var item, sep;
+					do {
+						item = parser.parse(matcher);
+						if (item !== undefined)
+							res.push(item);
+					} while (item !== undefined && (!separator || parser.parse(separator) !== undefined));
 
-				return res;
-			});
-		}
-
-		public static oneOrMore(matcher: ParseFunction): ParseFunction {
-			var zmm = zeroOrMore(matcher);
-
-			return new ParseFunction(matcher.toString() + "+", (parser: Parser): any => {
-				var res = parser.parse(zmm);
-				return res.length > 0 ? res : undefined;
+					return atleastOne && !res.length ? undefined : res;
 			});
 		}
 
@@ -193,9 +187,9 @@ module miniup {
 			return load(CLI.readStringFromFile(filename));
 		}
 
-		addRule(rule: ParseFunction): ParseFunction;
-		addRule(name: string, rule: ParseFunction, replace: bool = false): ParseFunction;
-		addRule(arg1: any, arg2?: ParseFunction, replace: bool = false) : ParseFunction {
+		public addRule(rule: ParseFunction): ParseFunction;
+		public addRule(name: string, rule: ParseFunction, replace: bool = false): ParseFunction;
+		public addRule(arg1: any, arg2?: ParseFunction, replace: bool = false) : ParseFunction {
 			var rule: ParseFunction = arg2 ? MatcherFactory.named(arg1, arg2) : arg1;
 			if (!rule.ruleName)
 				throw new Error("Anonymous rules cannot be registered in a grammar. ");
@@ -208,6 +202,20 @@ module miniup {
 
 			this.rules[rule.ruleName] = rule;
 			return rule;
+		}
+
+		public updateRule(name: string, rule: ParseFunction): ParseFunction {
+			return this.addRule(name, rule, true);
+		}
+
+		public clone() : Grammar {
+			var res = new Grammar();
+			Util.extend(res, {
+				rules : [].concat(this.rules),
+				whitespaceMatcher : this.whitespaceMatcher,
+				startSymbol: this.startSymbol
+			});
+			return res;
 		}
 
 		public rule(ruleName: string): ParseFunction {
@@ -401,6 +409,7 @@ module miniup {
 
 			//literals
 			var
+			//todo: literals should be used automatically
 			  equals = f.literal("="),
 			  colon = f.literal(":"),
 			  semicolon = f.literal(";"),
@@ -410,7 +419,9 @@ module miniup {
 			  dollar = f.literal("$"),
 			  question = f.literal("?"),
 			  star = f.literal("*"),
+			  starquestion = f.literal("*?"),
 			  plus = f.literal("+"),
+			  plusquestion = f.literal("+?"),
 			  lparen = f.literal("("),
 			  rparen = f.literal(")"),
 			  dot = f.literal(".");
@@ -426,7 +437,7 @@ module miniup {
 			  characterClass = f.named('CharacterClass', f.regex(RegExpUtil.characterClass));
 
 			//rules
-			var seq = f.sequence, label = f.labeled, opt = f.optional, choice = f.choice;
+			var seq = f.sequence, label = f.labeled, opt = f.optional, choice = f.choice, list = f.list;
 
 			var str = g.addRule('string', choice(singleQuoteString, doubleQuoteString));
 			var literal = g.addRule('literal', seq(str, opt(f.literal("i"))));
@@ -442,10 +453,13 @@ module miniup {
 		      dot,
 		      paren));
 
+			//TODO: simplifiy prefix and suffix rule, to only choose in the postfix
 			var suffixed = g.addRule('suffixed', choice(
-			  seq(label('expression', primary), question),
-			  seq(label('expression', primary), star),
-			  seq(label('expression', primary), plus),
+			  seq(label('expression', primary), label('suffix', question)),
+			  seq(label('expression', primary), label('suffix', starquestion)),
+			  seq(label('expression', primary), label('suffix', star)),
+			  seq(label('expression', primary), label('suffix', plusquestion)),
+			  seq(label('expression', primary), label('suffix', plus)),
 			  primary));
 
 			var prefixed = g.addRule('prefixed', choice(
@@ -454,18 +468,18 @@ module miniup {
 			  seq(label('prefix', not), label('expression', suffixed)),
 			  suffixed));
 
+			//TODO: simplify to opt(seq(label, colon)))
 			var labeled = g.addRule('labeled',
 			  choice(seq(label('label', identifier), colon, label('expression', prefixed)), prefixed));
 
-			var sequence = g.addRule('sequence', choice(regexp, f.zeroOrMore(labeled)));
+			var sequence = g.addRule('sequence', choice(regexp, f.list(labeled, true)));
 
-			var choicerule = g.addRule('choice', seq(
-				label('head', sequence), label('tail', f.zeroOrMore(seq(slash, sequence)))));
+			var choicerule = g.addRule('choice', list(sequence, true, slash));
 
 			var expression = g.addRule('expression', choicerule);
 
 			var rule = g.addRule('rule', seq(label('name', identifier), label('displayName', opt(str)), equals, label('expression', expression), opt(semicolon)));
-			g.addRule('grammar', label('rules', f.oneOrMore(rule)));
+			g.addRule('grammar', label('rules', f.list(rule)));
 
 			g.startSymbol = "grammar";
 			return g;
@@ -503,8 +517,13 @@ module miniup {
 				case "suffixed":
 					switch (ast.postfix) {
 						case "?": return f.optional(astToMatcher(ast.expression));
-						case "*": return f.zeroOrMore(astToMatcher(ast.expression));
-						case "+": return f.oneOrMore(astToMatcher(ast.expression));
+						case "*": return f.list(astToMatcher(ast.expression), false);
+						case "+": return f.list(astToMatcher(ast.expression), true);
+						case "*?":
+						case "+?":
+							var seq = astToMatcher(ast.expression);
+							var sep = seq.sequence && seq.sequence.length ? seq.sequence[seq.sequence.length -1] : null;
+							return f.list(seq, ast.postfix === "+?", sep);
 						default: throw new Error("Unimplemented postfix: " + ast.postfix);
 					}
 				case "prefixed":
@@ -723,5 +742,5 @@ module miniup {
 })(this);
 
 //root script?
-if ((typeof (module ) !== "undefined" && !module.parent)) 
+if ((typeof (module ) !== "undefined" && !module.parent))
 	miniup.CLI.main();

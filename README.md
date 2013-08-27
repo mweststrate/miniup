@@ -19,6 +19,32 @@ automatic whitespace and built in token definitions
 
 In contrast to LL or LR based parsing algorithms, rules in Miniup are not defined by using BNF. In miniup, rules are defined by referring to common concepts typically encountered in most programming languages. Concepts such as 'infix operator' or 'list'. This gives Miniup an edge over parsers that do not support this concept. First of all, writing grammars is easier, the author is not required to know which kind of parsing algoritm is applied to be able to write a working grammar. Second, the AST produced by miniup is built up in such a way that it reflects these concepts.
 
+### PEG extensions
+
+(stuff separator)+?
+
+(stuff separator)*?
+
+(stuf)# match a set
+
+@import module.name
+
+@set item1 item2 ..itemn
+
+@left-associative operand operator operand
+
+@right-associative operand operator operand
+
+@whitespace-on itemx itemy itemz
+
+@whitespace-off itemx itemy itemz
+
+# built-in tokens
+
+# left recursion
+
+# adept grammar on the fly
+
 ### Show me a grammar!
 
 Some grammar
