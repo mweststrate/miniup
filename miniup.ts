@@ -109,11 +109,11 @@ module miniup {
 
 			var wrapAst = items.filter(x => x.label).length > 1;
 
-			return new ParseFunction(
+			return Util.extend(new ParseFunction(
 				"(" + items.map(i => i.toString()).join(" ") + ")",
 				(parser: Parser): any => {
 					var result = {};
-					var success = items.every(item => {
+					var success = items.every(item => { 
 						var itemres = parser.parse(item);
 						if (item.label) {//we are interested in the result
 							if (wrapAst)
@@ -125,7 +125,8 @@ module miniup {
 					});
 
 					return success ? result : undefined;
-				});
+				}),
+				{ sequence : items});
 		}
 
 		public static choice(...choices: ParseFunction[]): ParseFunction {
@@ -137,6 +138,27 @@ module miniup {
 					if (choices.some(choice => undefined !== (res = parser.parse(choice))))
 						return res;
 					return undefined;
+				});
+		}
+
+		public static set(...items: ParseFunction[]): ParseFunction {
+			return new ParseFunction(
+				"(" + items.map(x => x.toString()).join(" ") + ")#",
+				(parser: Parser): any => {
+					var left : ParseFunction[] = [].concat(items),
+						l : number, res = {};
+					do {
+						l = left.length;
+						for(var i = l -1; i >= 0; i--) {
+							var item = parser.parse(left[i]);
+							if (item !== undefined) {
+								left.splice(i, 1);
+								if (item.label)
+									res[item.label] = item;
+							}
+						}
+					} while (left.length && l != left.length)
+					return res; //set matcher always succeeds. It might just have matched nothing
 				});
 		}
 
@@ -422,6 +444,7 @@ module miniup {
 			  starquestion = f.literal("*?"),
 			  plus = f.literal("+"),
 			  plusquestion = f.literal("+?"),
+			  hash = f.literal("#"),
 			  lparen = f.literal("("),
 			  rparen = f.literal(")"),
 			  dot = f.literal(".");
@@ -445,12 +468,14 @@ module miniup {
 
 			var paren = g.addRule('paren', seq(lparen, label('expression', f.rule('expression')), rparen));
 		    var call = g.addRule('call', seq(label('name', identifier), f.negativeLookAhead(seq(opt(str), equals))));
+		    var importRule = g.addRule('import', seq(f.literal('@import'), label('grammar', identifier), dot, label('rule', identifier)));
 
 			var primary = g.addRule('primary', choice(
 			  call,
 			  literal,
 		      characterClass,
-		      dot,
+			  dot,
+			  importRule,
 		      paren));
 
 			//TODO: simplifiy prefix and suffix rule, to only choose in the postfix
@@ -460,6 +485,7 @@ module miniup {
 			  seq(label('expression', primary), label('suffix', star)),
 			  seq(label('expression', primary), label('suffix', plusquestion)),
 			  seq(label('expression', primary), label('suffix', plus)),
+			  seq(label('expression', primary), label('suffix', hash)),
 			  primary));
 
 			var prefixed = g.addRule('prefixed', choice(
@@ -478,7 +504,9 @@ module miniup {
 
 			var expression = g.addRule('expression', choicerule);
 
-			var rule = g.addRule('rule', seq(label('name', identifier), label('displayName', opt(str)), equals, label('expression', expression), opt(semicolon)));
+			var whitespaceflag = g.addRule('whitespaceflag', f.regex(/@whitespace-on|@whitespace-off/));
+
+			var rule = g.addRule('rule', seq(label('name', identifier), label('displayName', opt(str)), equals, label('whitespaceflag', opt(whitespaceflag)), label('expression', expression), opt(semicolon)));
 			g.addRule('grammar', label('rules', f.list(rule)));
 
 			g.startSymbol = "grammar";
@@ -491,6 +519,7 @@ module miniup {
 				var r = astToMatcher(ast.expression);
 				if (ast.displayName)
 					r.friendlyName = ast.displayName;
+				//TODO: ast.whitespaceFlag
 				g.addRule(ast.name, r);
 			});
 
@@ -499,6 +528,9 @@ module miniup {
 		}
 
 		static astToMatcher(ast: any): ParseFunction {
+			//TODO: this in a closure to remember literals
+			//TODO: remember all 'calls' to be later to check whether all rules can be resolved
+
 			var f = MatcherFactory;
 			if (ast === null)
 				return null;
@@ -507,7 +539,7 @@ module miniup {
 					return ast; //return the same string
 				case "SingleQuoteString":
 				case "DoubleQuoteString":
-					return f.literal(RegExpUtil.unescapeQuotedString(ast)); //TODO: 'i' flag
+					return f.literal(RegExpUtil.unescapeQuotedString(ast)); //TODO: 'i' flag //TODO: if not already created, in that case, use from cache
 				case "Regex":
 					return f.regex(RegExpUtil.unescapeRegexString (ast)); //TODO: 'i' flag
 				case "CharacterClass":
@@ -517,13 +549,18 @@ module miniup {
 				case "suffixed":
 					switch (ast.postfix) {
 						case "?": return f.optional(astToMatcher(ast.expression));
+						case "#":
+						//TODO: assert sequence with size < 2
+							var seq = astToMatcher(ast.expression);
+							return f.set.apply(f, seq.sequence ? seq.sequence : [seq]);
 						case "*": return f.list(astToMatcher(ast.expression), false);
 						case "+": return f.list(astToMatcher(ast.expression), true);
 						case "*?":
 						case "+?":
+						//TODO: throw exception if seq is not a sequence or size is smaller than 2. 
 							var seq = astToMatcher(ast.expression);
-							var sep = seq.sequence && seq.sequence.length ? seq.sequence[seq.sequence.length -1] : null;
-							return f.list(seq, ast.postfix === "+?", sep);
+							var sep = seq.sequence && seq.sequence.length ? seq.sequence[seq.sequence.length] : null; 
+							return f.list(f.sequence.apply(f, seq.sequence.slice(0, -1)), ast.postfix === "+?", sep);
 						default: throw new Error("Unimplemented postfix: " + ast.postfix);
 					}
 				case "prefixed":
@@ -537,10 +574,9 @@ module miniup {
 					return f.labeled(ast.label, astToMatcher(ast.expression));
 				case "sequence":
 					return f.sequence.apply(f, ast.map(astToMatcher));
+				case "expression": //TODO: should be either of them,  not both
 				case "choice":
-					return f.choice.apply(f, [ast.head].concat(ast.tail ? ast.tail : []).map(astToMatcher));
-
-
+					return f.choice.apply(f, ast.map(astToMatcher));
 
 				default:
 					throw new Error("Unimplemented ruletype: " + ast.$rule);
@@ -663,7 +699,6 @@ module miniup {
 				.default({ c: false, v: false })
 				.boolean('vch'.split(''))
 				.string("giso".split(''))
-				.check(argv => !!(argv._.length || argv.i || argv.r)) //input source should be provided
 				.argv;
 
 			//help
