@@ -84,7 +84,7 @@ module miniup {
 				try { //Optimization: only put in try..finally if parseWhitespace will be changed by this rule
 					if (rule.autoParseWhitespace !== undefined)
 						p.autoParseWhitespace = rule.autoParseWhitespace;
-					p.parse(p.grammar.rule(ruleName))
+					return p.parse(p.grammar.rule(ruleName))
 				}
 				finally {
 					p.autoParseWhitespace = prevWhitespace;
@@ -262,7 +262,7 @@ module miniup {
 		public parse(input: string, opts: { startSymbol?: string; inputName?: string; debug?: bool; } = {}): any {
 			//TODO: store inputName and show in exceptions
 			//TODO: use 'debug' for logging
-			return new Parser(this, input).parseInput(MatcherFactory.call(opts.startSymbol || this.startSymbol));
+			return new Parser(this, input, opts).parseInput(MatcherFactory.call(opts.startSymbol || this.startSymbol));
 		}
 
 	}
@@ -284,7 +284,7 @@ module miniup {
 		currentPos: number = 0;
 		memoizedParseFunctions = {};
 		inputName: string; //TODO: filename and such
-		public debug = false; //TODO: false
+		public debug = true;
 		private previousIsCharacterClass = false;
 		private isParsingWhitespace = false;
 		autoParseWhitespace = false;
@@ -292,8 +292,8 @@ module miniup {
 		expected = [];
 		//TODO: with-parse-information option (that generates $rule and $start and such..)
 
-		constructor(public grammar: Grammar, public input: string) {
-			//empty
+		constructor(public grammar: Grammar, public input: string, opts: { inputName?: string; debug?: bool; } = {}) {
+			Util.extend(this, opts);
 		}
 
 		public getRemainingInput(): string {
@@ -367,8 +367,10 @@ module miniup {
 			finally {
 				isMatch = result !== undefined;
 
-				if (isMatch && !this.isParsingWhitespace && this.autoParseWhitespace)
-					this.consumeWhitespace();
+				if (isMatch) {
+					if (!this.isParsingWhitespace && this.autoParseWhitespace)
+						this.consumeWhitespace();
+				}
 				else
 					this.currentPos = startpos; //rewind
 
@@ -441,15 +443,15 @@ module miniup {
 		}
 
 		private static bootstrap(): Grammar {
-			var seq = f.sequence, label = f.labeled, opt = f.optional, choice = f.choice, list = f.list, lit = f.literal, call = f.call;
 			var g = new Grammar(), f = MatcherFactory;
+			var seq = f.sequence, label = f.labeled, opt = f.optional, choice = f.choice, list = f.list, lit = f.literal, call = f.call;
 			mixinDefaultRegexes(g);
 
 			//rules
-			var str     = g.addRule('string', choice(call('singleQuoteString'), call('doubleQuoteString')));
+			var str     = g.addRule('string', choice(call('SINGLEQUOTESTRING'), call('DOUBLEQUOTESTRING')));
 			var literal = g.addRule('literal', seq(str, opt(lit("i"))));
-			var ws = g.addRule('whitespace', choice(call('whitespacechar'), call('multilinecomment'), call('singlelinecomment')));
-			var identifier = call('identifier');
+			var ws = g.addRule('whitespace', choice(call('WHITESPACECHAR'), call('MULTILINECOMMENT'), call('SINGLELINECOMMENT')));
+			var identifier = call('IDENTIFIER');
 
 			var paren   = g.addRule('paren', seq(lit('('), label('expression', call('expression')), lit(')')));
 			var callRule = g.addRule('call',
@@ -460,7 +462,7 @@ module miniup {
 			var primary = g.addRule('primary', choice(
 			  callRule,
 			  literal,
-			  call('characterClass'),
+			  call('CHARACTERCLASS'),
 			  lit('.'),
 			  importRule,
 			  paren));
@@ -477,7 +479,7 @@ module miniup {
 			  label('label', opt(seq(identifier, lit(':')))),
 			  label('expression', prefixed)));
 
-			var sequence = g.addRule('sequence', choice(call('regexp'), f.list(labeled, true)));
+			var sequence = g.addRule('sequence', choice(call('REGEX'), f.list(labeled, true)));
 
 			var choicerule = g.addRule('choice', list(sequence, true, lit('/')));
 
@@ -485,15 +487,15 @@ module miniup {
 
 			var whitespaceflag = g.addRule('whitespaceflag', f.regex(/@whitespace-on|@whitespace-off/));
 
-			var rule = g.addRule('rule',
-				seq(label('name', identifier),
+			var rule = g.addRule('rule', seq(
+				label('name', identifier),
 				label('displayName', opt(str)),
 				lit('='),
 				label('autoParseWhitespace', opt(whitespaceflag)),
 				label('expression', expression),
 				opt(lit(';'))));
 
-			g.addRule('grammar', label('rules', f.list(rule, true)));
+			g.addRule('grammar', Util.extend(label('rules', f.list(rule, true)), { autoParseWhitespace: true }));
 
 			g.startSymbol = "grammar";
 			return g;
@@ -524,14 +526,14 @@ module miniup {
 			if (ast === null)
 				return null;
 			switch (ast.$rule) {
-				case "identifier":
+				case "IDENTIFIER":
 					return ast; //return the same string
-				case "singleQuoteString":
-				case "doubleQuoteString":
+				case "SINGLEQUOTESTRING":
+				case "DOUBLEQUOTESTRING":
 					return f.literal(RegExpUtil.unescapeQuotedString(ast)); //TODO: 'i' flag //TODO: if not already created, in that case, use from cache
-				case "regex":
+				case "REGEX":
 					return f.regex(RegExpUtil.unescapeRegexString (ast)); //TODO: 'i' flag
-				case "characterClass":
+				case "CHARACTERCLASS":
 					return f.characterClass(RegExpUtil.unescapeRegexString(ast).source); //TODO: 'i' flag
 				case "call":
 					return f.call(ast.name);
@@ -575,18 +577,18 @@ module miniup {
 
 	export class RegExpUtil {
 		//TODO: check if all regexes do not backtrack!
-		public static identifier = /[a-zA-Z_][a-zA-Z_0-9]*/;
-		public static whitespaceChar = /\s+/;
-		public static regex = /\/([^\\\/]|(\\.))*\//; //TODO: unescape regex is remove the begin and end + double all backslashes
-		public static singleQuoteString = /'([^'\\]|(\\.))*'/; //TODO: or /(["'])(?:\\\1|[^\1])*?\1/g, faster?
-		public static doubleQuoteString = /"([^"\\]|(\\.))*"/;
-		public static singleLineComment = /\/\/.*(\n|$)/;
-		public static multiLineComment = /\/\*(?:[^*]|\*(?!\/))*?\*\//;
-		public static characterClass = /\[([^\\\/]|(\\.))*\]/;
-		public static integer = /-?\d+/;
-		public static float = /-?\d+(\.\d+)?(e\d+)?/;
-		public static boolean = /(true|false)\b/;
-		public static lineendChar = /\r?\n|\u2028|\u2029/;
+		public static IDENTIFIER = /[a-zA-Z_][a-zA-Z_0-9]*/;
+		public static WHITESPACECHAR = /\s+/;
+		public static REGEX = /\/([^\\\/]|(\\.))*\//; //TODO: unescape regex is remove the begin and end + double all backslashes
+		public static SINGLEQUOTESTRING = /'([^'\\]|(\\.))*'/; //TODO: or /(["'])(?:\\\1|[^\1])*?\1/g, faster?
+		public static DOUBLEQUOTESTRING = /"([^"\\]|(\\.))*"/;
+		public static SINGLELINECOMMENT = /\/\/.*(\n|$)/;
+		public static MULTILINECOMMENT = /\/\*(?:[^*]|\*(?!\/))*?\*\//;
+		public static CHARACTERCLASS = /\[([^\\\/]|(\\.))*\]/;
+		public static INTEGER = /-?\d+/;
+		public static FLOAT = /-?\d+(\.\d+)?(e\d+)?/;
+		public static BOOLEAN = /(true|false)\b/;
+		public static LINEENDCHAR = /\r?\n|\u2028|\u2029/;
 
 		public static quoteRegExp(str: string): string {
 			return (str + '').replace(/([.?*+^$[\]\\(){}|-])/g, "\\$1");
@@ -643,8 +645,8 @@ module miniup {
 		}
 
 		public static getCoords(input: string, pos: number): TextCoords {
-			var lines = input.substring(0, pos).split(RegExpUtil.lineendChar);
-			var curline = input.split(RegExpUtil.lineendChar)[lines.length -1];
+			var lines = input.substring(0, pos).split(RegExpUtil.LINEENDCHAR);
+			var curline = input.split(RegExpUtil.LINEENDCHAR)[lines.length -1];
 			lines.pop(); //remove curline
 			var col = pos - lines.join().length;
 
