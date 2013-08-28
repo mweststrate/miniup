@@ -15,6 +15,7 @@ module miniup {
 		isCharacterClass = false;
 		isTerminal = false;
 		sequence : ParseFunction[];
+		autoParseWhitespace: bool = undefined;
 
 		constructor(private asString: string, public parse : (parser: Parser) => any, opts? : Object) {
 			if (opts)
@@ -76,8 +77,19 @@ module miniup {
 			return new ParseFunction(".", regexMatcher(/./), { isCharacterClass: true, isTerminal: true });
 		}
 
-		public static rule(ruleName: string): ParseFunction { //TODO: rename to call
-			return new ParseFunction(ruleName, p => p.parse(p.grammar.rule(ruleName)));
+		public static call(ruleName: string): ParseFunction { //TODO: rename to call
+			return new ParseFunction(ruleName, p => {
+				var rule= p.grammar.rule(ruleName);
+				var prevWhitespace = p.autoParseWhitespace;
+				try { //Optimization: only put in try..finally if parseWhitespace will be changed by this rule
+					if (rule.autoParseWhitespace !== undefined)
+						p.autoParseWhitespace = rule.autoParseWhitespace;
+					p.parse(p.grammar.rule(ruleName))
+				}
+				finally {
+					p.autoParseWhitespace = prevWhitespace;
+				}
+			});
 		}
 
 		public static list(matcher: ParseFunction, atleastOne : bool = false, separator : ParseFunction = null): ParseFunction {
@@ -87,6 +99,7 @@ module miniup {
 					var res = [];
 					var item, sep;
 					do {
+						//TODO: check if previous rule did consume something, else throw non-terminating rule
 						item = parser.parse(matcher);
 						if (item !== undefined)
 							res.push(item);
@@ -113,7 +126,7 @@ module miniup {
 				"(" + items.map(i => i.toString()).join(" ") + ")",
 				(parser: Parser): any => {
 					var result = {};
-					var success = items.every(item => { 
+					var success = items.every(item => {
 						var itemres = parser.parse(item);
 						if (item.label) {//we are interested in the result
 							if (wrapAst)
@@ -249,7 +262,7 @@ module miniup {
 		public parse(input: string, opts: { startSymbol?: string; inputName?: string; debug?: bool; } = {}): any {
 			//TODO: store inputName and show in exceptions
 			//TODO: use 'debug' for logging
-			return new Parser(this, input).parseInput(this.rule(opts.startSymbol || this.startSymbol));
+			return new Parser(this, input).parseInput(MatcherFactory.call(opts.startSymbol || this.startSymbol));
 		}
 
 	}
@@ -273,7 +286,8 @@ module miniup {
 		inputName: string; //TODO: filename and such
 		public debug = false; //TODO: false
 		private previousIsCharacterClass = false;
-		private parsingWhitespace = false; //TODO: rename to 'isParsingWhitespace'
+		private isParsingWhitespace = false;
+		autoParseWhitespace = false;
 		private stack: StackItem[] = []; //TODO: is stack required anywhere?
 		expected = [];
 		//TODO: with-parse-information option (that generates $rule and $start and such..)
@@ -310,25 +324,25 @@ module miniup {
 
 			try {
 				//consume whitespace
-				if (!this.parsingWhitespace && (!func.isCharacterClass || this.previousIsCharacterClass))
-					this.consumeWhitespace(); //whitespace was not consumed yet, do it now
+				if (!this.isParsingWhitespace && this.autoParseWhitespace)
+					this.consumeWhitespace();
 
 				this.stack.push({ func: func, startPos : this.currentPos}); //Note, not startpos.
 
 				//check memoization cache
 				if (this.isMemoized(func)) {
-					if (this.debug && !this.parsingWhitespace)
+					if (this.debug && !this.isParsingWhitespace)
 						Util.debug(Util.leftPad(" /" + func.toString() + " ? (memo)", this.stack.length, " |"));
 
 					result = this.consumeMemoized(func);
 				}
 
 				else {
-					if (this.debug && !this.parsingWhitespace)
+					if (this.debug && !this.isParsingWhitespace)
 						Util.debug(Util.leftPad(" /" + func.toString() + " ?", this.stack.length, " |"));
 
 					//store expected
-					if (func.isTerminal && !this.parsingWhitespace) {
+					if (func.isTerminal && !this.isParsingWhitespace) {
 						if (!this.expected[this.currentPos])
 							this.expected[this.currentPos] = [];
 						this.expected[this.currentPos].push(func.friendlyName || func.ruleName || func.toString());
@@ -353,16 +367,12 @@ module miniup {
 			finally {
 				isMatch = result !== undefined;
 
-				if (isMatch) {
-					if (!this.parsingWhitespace && !func.isCharacterClass)
-						this.consumeWhitespace();
-					this.previousIsCharacterClass = func.isCharacterClass;
-				}
-
+				if (isMatch && !this.isParsingWhitespace && this.autoParseWhitespace)
+					this.consumeWhitespace();
 				else
 					this.currentPos = startpos; //rewind
 
-				if (this.debug && !this.parsingWhitespace)
+				if (this.debug && !this.isParsingWhitespace)
 					Util.debug(Util.leftPad(" \\" + func.toString() + (isMatch ? " V" : " X"), this.stack.length, " |") + " @" + this.currentPos);
 
 				this.stack.pop();
@@ -388,9 +398,9 @@ module miniup {
 
 		consumeWhitespace() {
 			if (this.grammar.whitespaceMatcher) {
-				this.parsingWhitespace = true;
+				this.isParsingWhitespace = true;
 				this.parse(this.grammar.whitespaceMatcher);
-				this.parsingWhitespace = false;
+				this.isParsingWhitespace = false;
 			}
 		}
 	}
@@ -424,90 +434,66 @@ module miniup {
 			return miniupGrammar;
 		}
 
+		private static mixinDefaultRegexes(g: Grammar) {
+			for (var key in RegExpUtil)
+				if (RegExpUtil[key] instanceof RegExp)
+					g.addRule(key, MatcherFactory.regex(RegExpUtil[key]));
+		}
+
 		private static bootstrap(): Grammar {
-			//Based on https://github.com/dmajda/pegjs/blob/master/src/parser.pegjs
-
+			var seq = f.sequence, label = f.labeled, opt = f.optional, choice = f.choice, list = f.list, lit = f.literal, call = f.call;
 			var g = new Grammar(), f = MatcherFactory;
-
-			//literals
-			var
-			//todo: literals should be used automatically
-			  equals = f.literal("="),
-			  colon = f.literal(":"),
-			  semicolon = f.literal(";"),
-			  slash = f.literal("/"),
-			  and = f.literal("&"),
-			  not = f.literal("!"),
-			  dollar = f.literal("$"),
-			  question = f.literal("?"),
-			  star = f.literal("*"),
-			  starquestion = f.literal("*?"),
-			  plus = f.literal("+"),
-			  plusquestion = f.literal("+?"),
-			  hash = f.literal("#"),
-			  lparen = f.literal("("),
-			  rparen = f.literal(")"),
-			  dot = f.literal(".");
-
-			var
-			  identifier = f.named('Identifier', f.regex(RegExpUtil.identifier)), //TODO: automated construct these rules
-			  singleQuoteString = f.named('SingleQuoteString', f.regex(RegExpUtil.singleQuoteString)),
-			  doubleQuoteString = f.named('DoubleQuoteString', f.regex(RegExpUtil.doubleQuoteString)),
-			  singlelinecomment = f.named('Comment', f.regex(RegExpUtil.singleLineComment)),
-			  multilinecomment = f.named('MultiLineComment', f.regex(RegExpUtil.multiLineComment)),
-			  whitespacechar = f.named('WhiteSpace', f.regex(RegExpUtil.whitespace)),
-			  regexp = f.named('Regex', f.regex(RegExpUtil.regex)),
-			  characterClass = f.named('CharacterClass', f.regex(RegExpUtil.characterClass));
+			mixinDefaultRegexes(g);
 
 			//rules
-			var seq = f.sequence, label = f.labeled, opt = f.optional, choice = f.choice, list = f.list;
+			var str     = g.addRule('string', choice(call('singleQuoteString'), call('doubleQuoteString')));
+			var literal = g.addRule('literal', seq(str, opt(lit("i"))));
+			var ws = g.addRule('whitespace', choice(call('whitespacechar'), call('multilinecomment'), call('singlelinecomment')));
+			var identifier = call('identifier');
 
-			var str = g.addRule('string', choice(singleQuoteString, doubleQuoteString));
-			var literal = g.addRule('literal', seq(str, opt(f.literal("i"))));
-			g.addRule('whitespace', choice(whitespacechar, multilinecomment, singlelinecomment));
-
-			var paren = g.addRule('paren', seq(lparen, label('expression', f.rule('expression')), rparen));
-		    var call = g.addRule('call', seq(label('name', identifier), f.negativeLookAhead(seq(opt(str), equals))));
-		    var importRule = g.addRule('import', seq(f.literal('@import'), label('grammar', identifier), dot, label('rule', identifier)));
+			var paren   = g.addRule('paren', seq(lit('('), label('expression', call('expression')), lit(')')));
+			var callRule = g.addRule('call',
+				seq(label('name', identifier),
+				f.negativeLookAhead(seq(opt(str), lit('=')))));
+			var importRule = g.addRule('import', seq(f.literal('@import'), label('grammar', identifier), lit('.'), label('rule', identifier)));
 
 			var primary = g.addRule('primary', choice(
-			  call,
+			  callRule,
 			  literal,
-		      characterClass,
-			  dot,
+			  call('characterClass'),
+			  lit('.'),
 			  importRule,
-		      paren));
+			  paren));
 
-			//TODO: simplifiy prefix and suffix rule, to only choose in the postfix
-			var suffixed = g.addRule('suffixed', choice(
-			  seq(label('expression', primary), label('suffix', question)),
-			  seq(label('expression', primary), label('suffix', starquestion)),
-			  seq(label('expression', primary), label('suffix', star)),
-			  seq(label('expression', primary), label('suffix', plusquestion)),
-			  seq(label('expression', primary), label('suffix', plus)),
-			  seq(label('expression', primary), label('suffix', hash)),
-			  primary));
+			var suffixed = g.addRule('suffixed',
+			  seq(label('expression', primary), label('suffix', opt(choice(
+			    lit('?'), lit('*?'), lit('+?'), lit('*'), lit('+'), lit('#'))))));
 
-			var prefixed = g.addRule('prefixed', choice(
-			  seq(label('prefix', dollar), label('expression', suffixed)),
-			  seq(label('prefix', and), label('expression', suffixed)),
-			  seq(label('prefix', not), label('expression', suffixed)),
-			  suffixed));
+			var prefixed = g.addRule('prefixed', seq(
+			  label('prefix', opt(choice(lit('$'), lit('&'), lit('!')))),
+			  label('expression', suffixed)));
 
-			//TODO: simplify to opt(seq(label, colon)))
-			var labeled = g.addRule('labeled',
-			  choice(seq(label('label', identifier), colon, label('expression', prefixed)), prefixed));
+			var labeled = g.addRule('labeled', seq(
+			  label('label', opt(seq(identifier, lit(':')))),
+			  label('expression', prefixed)));
 
-			var sequence = g.addRule('sequence', choice(regexp, f.list(labeled, true)));
+			var sequence = g.addRule('sequence', choice(call('regexp'), f.list(labeled, true)));
 
-			var choicerule = g.addRule('choice', list(sequence, true, slash));
+			var choicerule = g.addRule('choice', list(sequence, true, lit('/')));
 
 			var expression = g.addRule('expression', choicerule);
 
 			var whitespaceflag = g.addRule('whitespaceflag', f.regex(/@whitespace-on|@whitespace-off/));
 
-			var rule = g.addRule('rule', seq(label('name', identifier), label('displayName', opt(str)), equals, label('whitespaceflag', opt(whitespaceflag)), label('expression', expression), opt(semicolon)));
-			g.addRule('grammar', label('rules', f.list(rule)));
+			var rule = g.addRule('rule',
+				seq(label('name', identifier),
+				label('displayName', opt(str)),
+				lit('='),
+				label('autoParseWhitespace', opt(whitespaceflag)),
+				label('expression', expression),
+				opt(lit(';'))));
+
+			g.addRule('grammar', label('rules', f.list(rule, true)));
 
 			g.startSymbol = "grammar";
 			return g;
@@ -519,7 +505,10 @@ module miniup {
 				var r = astToMatcher(ast.expression);
 				if (ast.displayName)
 					r.friendlyName = ast.displayName;
-				//TODO: ast.whitespaceFlag
+				if (ast.whitespaceFlag)
+					r.autoParseWhitespace = ast.autoParseWhitespace == '@whitespace-on'
+					//TODO: if there is at least one rule with a whitespace flag, the
+					//'whitespace' rule should exist!
 				g.addRule(ast.name, r);
 			});
 
@@ -530,22 +519,22 @@ module miniup {
 		static astToMatcher(ast: any): ParseFunction {
 			//TODO: this in a closure to remember literals
 			//TODO: remember all 'calls' to be later to check whether all rules can be resolved
-
+			//TODO: reuse member call matchers as well!
 			var f = MatcherFactory;
 			if (ast === null)
 				return null;
 			switch (ast.$rule) {
-				case "Identifier":
+				case "identifier":
 					return ast; //return the same string
-				case "SingleQuoteString":
-				case "DoubleQuoteString":
+				case "singleQuoteString":
+				case "doubleQuoteString":
 					return f.literal(RegExpUtil.unescapeQuotedString(ast)); //TODO: 'i' flag //TODO: if not already created, in that case, use from cache
-				case "Regex":
+				case "regex":
 					return f.regex(RegExpUtil.unescapeRegexString (ast)); //TODO: 'i' flag
-				case "CharacterClass":
+				case "characterClass":
 					return f.characterClass(RegExpUtil.unescapeRegexString(ast).source); //TODO: 'i' flag
 				case "call":
-					return f.rule(ast.name);
+					return f.call(ast.name);
 				case "suffixed":
 					switch (ast.postfix) {
 						case "?": return f.optional(astToMatcher(ast.expression));
@@ -557,9 +546,9 @@ module miniup {
 						case "+": return f.list(astToMatcher(ast.expression), true);
 						case "*?":
 						case "+?":
-						//TODO: throw exception if seq is not a sequence or size is smaller than 2. 
+						//TODO: throw exception if seq is not a sequence or size is smaller than 2.
 							var seq = astToMatcher(ast.expression);
-							var sep = seq.sequence && seq.sequence.length ? seq.sequence[seq.sequence.length] : null; 
+							var sep = seq.sequence && seq.sequence.length ? seq.sequence[seq.sequence.length] : null;
 							return f.list(f.sequence.apply(f, seq.sequence.slice(0, -1)), ast.postfix === "+?", sep);
 						default: throw new Error("Unimplemented postfix: " + ast.postfix);
 					}
@@ -587,7 +576,7 @@ module miniup {
 	export class RegExpUtil {
 		//TODO: check if all regexes do not backtrack!
 		public static identifier = /[a-zA-Z_][a-zA-Z_0-9]*/;
-		public static whitespace = /\s+/;
+		public static whitespaceChar = /\s+/;
 		public static regex = /\/([^\\\/]|(\\.))*\//; //TODO: unescape regex is remove the begin and end + double all backslashes
 		public static singleQuoteString = /'([^'\\]|(\\.))*'/; //TODO: or /(["'])(?:\\\1|[^\1])*?\1/g, faster?
 		public static doubleQuoteString = /"([^"\\]|(\\.))*"/;
@@ -596,8 +585,8 @@ module miniup {
 		public static characterClass = /\[([^\\\/]|(\\.))*\]/;
 		public static integer = /-?\d+/;
 		public static float = /-?\d+(\.\d+)?(e\d+)?/;
-		public static boolRegexp = /(true|false)\b/;
-		public static lineend = /\r?\n|\u2028|\u2029/;
+		public static boolean = /(true|false)\b/;
+		public static lineendChar = /\r?\n|\u2028|\u2029/;
 
 		public static quoteRegExp(str: string): string {
 			return (str + '').replace(/([.?*+^$[\]\\(){}|-])/g, "\\$1");
@@ -654,8 +643,8 @@ module miniup {
 		}
 
 		public static getCoords(input: string, pos: number): TextCoords {
-			var lines = input.substring(0, pos).split(RegExpUtil.lineend);
-			var curline = input.split(RegExpUtil.lineend)[lines.length -1];
+			var lines = input.substring(0, pos).split(RegExpUtil.lineendChar);
+			var curline = input.split(RegExpUtil.lineendChar)[lines.length -1];
 			lines.pop(); //remove curline
 			var col = pos - lines.join().length;
 
