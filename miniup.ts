@@ -14,7 +14,7 @@ module miniup {
 		isCharacterClass = false;
 		isTerminal = false;
 		sequence : ParseFunction[];
-		autoParseWhitespace: bool = undefined;
+		autoParseWhitespace: boolean = undefined;
 
 		constructor(private asString: string, public parse : (parser: Parser) => any, opts? : Object) {
 			if (opts)
@@ -49,8 +49,9 @@ module miniup {
 		}
 
 		private static regexMatcher(regex: RegExp);
-		private static regexMatcher(regex: string, ignoreCase: bool = false);
-		private static regexMatcher(regex: any, ignoreCase: bool = false): (p:Parser) => any {
+		private static regexMatcher(regex: string);
+		private static regexMatcher(regex: string, ignoreCase: boolean);
+		private static regexMatcher(regex: any, ignoreCase: boolean = false): (p:Parser) => any {
 			var r = new RegExp("^" + (regex.source || regex), regex.flags || (ignoreCase ? "i" : ""));
 			return (parser: Parser) : any => {
 				var match = parser.getRemainingInput().match(r);
@@ -63,29 +64,29 @@ module miniup {
 			}
 		}
 
-		public static regex(regex: RegExp, ignoreCase: bool = false): ParseFunction {
+		public static regex(regex: RegExp, ignoreCase: boolean = false): ParseFunction {
 			return new ParseFunction(
 				regex.toString(),
-				regexMatcher(regex),
+				MatcherFactory.regexMatcher(regex),
 				{ isTerminal: true });
 		}
 
-		public static characterClass(regexstr: string, ignoreCase: bool = false): ParseFunction {
+		public static characterClass(regexstr: string, ignoreCase: boolean = false): ParseFunction {
 			return new ParseFunction(
 				regexstr.toString(),
-				regexMatcher(regexstr, ignoreCase),
+				MatcherFactory.regexMatcher(regexstr, ignoreCase),
 				{ isCharacterClass: true, isTerminal: true });
 		}
 
-		public static literal(keyword: string, ignoreCase: bool = false): ParseFunction {
+		public static literal(keyword: string, ignoreCase: boolean = false): ParseFunction {
 			return new ParseFunction(
 				"'" + keyword + "'",
-				regexMatcher(RegExpUtil.quoteRegExp(keyword) + (keyword.match(/\w$/) ? "\\b" : ""), ignoreCase),
+				MatcherFactory.regexMatcher(RegExpUtil.quoteRegExp(keyword) + (keyword.match(/\w$/) ? "\\b" : ""), ignoreCase),
 				{ isLiteral: true, isTerminal: true });
 		}
 
 		public static dot(): ParseFunction {
-			return new ParseFunction(".", regexMatcher(/./), { isCharacterClass: true, isTerminal: true });
+			return new ParseFunction(".", MatcherFactory.regexMatcher(/./), { isCharacterClass: true, isTerminal: true });
 		}
 
 		public static dollar(matcher: ParseFunction): ParseFunction {
@@ -117,7 +118,7 @@ module miniup {
 			});
 		}
 
-		public static list(matcher: ParseFunction, atleastOne : bool = false, separator : ParseFunction = null): ParseFunction {
+		public static list(matcher: ParseFunction, atleastOne : boolean = false, separator : ParseFunction = null): ParseFunction {
 			return new ParseFunction(
 				"(" + matcher.toString() + (separator ? " " +separator.toString() : "") + ")" + (atleastOne ? "+" : "*") + (separator ? "?" : ""),
 				(parser: Parser): any => {
@@ -212,7 +213,7 @@ module miniup {
 		}
 
 		public static negativeLookAhead(predicate: ParseFunction): ParseFunction {
-			var ppm = positiveLookAhead(predicate);
+			var ppm = MatcherFactory.positiveLookAhead(predicate);
 			return new ParseFunction("!" + predicate.toString(), (parser: Parser): any => {
 				return parser.parse(ppm) === undefined ? null : undefined; //undefined == no match. null == match, so invert.
 			});
@@ -221,14 +222,14 @@ module miniup {
 
 	export class Grammar {
 
-		private rules = {};
+		private rules = new Map<ParseFunction>();
 		whitespaceMatcher: ParseFunction;
 		public startSymbol: string;
 
 		//TODO: add Grammar registery for import statements
 
-		public static load(grammarSource: string): Grammar {
-			return new GrammarReader(grammarSource).build();
+		public static load(grammarSource: string, inputName: string): Grammar {
+			return new GrammarReader(grammarSource, inputName).build();
 		}
 
 		public static get(grammarName: string): Grammar {
@@ -236,13 +237,14 @@ module miniup {
 		}
 
 		public static loadFromFile(filename: string): Grammar {
-			return load(CLI.readStringFromFile(filename));
+			return Grammar.load(CLI.readStringFromFile(filename), filename);
 		}
 
 		public addRule(rule: ParseFunction): ParseFunction;
-		public addRule(name: string, rule: ParseFunction, replace: bool = false): ParseFunction;
-		public addRule(arg1: any, arg2?: ParseFunction, replace: bool = false) : ParseFunction {
-			var rule: ParseFunction = arg2 ? MatcherFactory.named(arg1, arg2) : arg1;
+		public addRule(name: string, rule: ParseFunction): ParseFunction;
+		public addRule(name: string, rule: ParseFunction, replace: boolean): ParseFunction;
+		public addRule(arg1: any, arg2?: ParseFunction, replace: boolean = false) : ParseFunction {
+			var rule: ParseFunction = arg2 ? Util.extend(arg2, { ruleName: arg1 }) : arg1;
 			if (!rule.ruleName)
 				throw new Error("Anonymous rules cannot be registered in a grammar. ");
 			if (!replace && this.rules[rule.ruleName])
@@ -260,10 +262,14 @@ module miniup {
 			return this.addRule(name, rule, true);
 		}
 
+		public hasRule(name: string): boolean {
+			return name in this.rules;
+		}
+
 		public clone() : Grammar {
 			var res = new Grammar();
 			Util.extend(res, {
-				rules : [].concat(this.rules),
+				rules : Util.extend({}, this.rules),
 				whitespaceMatcher : this.whitespaceMatcher,
 				startSymbol: this.startSymbol
 			});
@@ -276,7 +282,7 @@ module miniup {
 			return this.rules[ruleName];
 		}
 
-		public parse(input: string, opts: { startSymbol?: string; inputName?: string; debug?: bool; } = {}): any {
+		public parse(input: string, opts: { startSymbol?: string; inputName?: string; debug?: boolean; } = {}): any {
 			//TODO: store inputName and show in exceptions
 			//TODO: use 'debug' for logging
 			return new Parser(this, input, opts).parseInput(MatcherFactory.call(opts.startSymbol || this.startSymbol));
@@ -309,7 +315,7 @@ module miniup {
 		expected = [];
 		//TODO: with-parse-information option (that generates $rule and $start and such..)
 
-		constructor(public grammar: Grammar, public input: string, opts: { inputName?: string; debug?: bool; } = {}) {
+		constructor(public grammar: Grammar, public input: string, opts: { inputName?: string; debug?: boolean; } = {}) {
 			Util.extend(this, opts);
 		}
 
@@ -372,7 +378,7 @@ module miniup {
 
 					//enrich result with match information
 					if (result !== null && result !== undefined && !result.$rule)
-						Util.extend(result, { $start : startpos, $text : this.getInputString().substring(startpos, currentPos), $rule : func.ruleName });
+						Util.extend(result, { $start : startpos, $text : this.getInput().substring(startpos, this.currentPos), $rule : func.ruleName });
 
 					//store memoization result
 					this.memoizedParseFunctions[func.memoizationId][startpos] = <MemoizeResult> {
@@ -400,7 +406,7 @@ module miniup {
 			}
 		}
 
-		isMemoized(func: ParseFunction): bool {
+		isMemoized(func: ParseFunction): boolean {
 			if (!func.memoizationId)
 				func.memoizationId = Parser.nextMemoizationId++;
 
@@ -431,7 +437,7 @@ module miniup {
 		public message : string;
 		public coords: TextCoords;
 
-		constructor(parser: Parser, message: string, highlightBestMatch : bool = true) {
+		constructor(parser: Parser, message: string, highlightBestMatch : boolean = true) {
 			var pos = highlightBestMatch ? parser.expected.length -1 : parser.currentPos;
 			this.coords = Util.getCoords(parser.input, pos);
 
@@ -450,9 +456,9 @@ module miniup {
 		private static miniupGrammar: Grammar = null;
 
 		public static getMiniupGrammar(): Grammar {
-			if (miniupGrammar == null)
-				miniupGrammar = bootstrap();
-			return miniupGrammar;
+			if (GrammarReader.miniupGrammar == null)
+				GrammarReader.miniupGrammar = GrammarReader.bootstrap();
+			return GrammarReader.miniupGrammar;
 		}
 
 		private static mixinDefaultRegexes(g: Grammar) {
@@ -463,19 +469,19 @@ module miniup {
 
 		private static bootstrap(): Grammar {
 			var g = new Grammar(), f = MatcherFactory;
-			var seq = f.sequence, label = f.labeled, opt = f.optional, choice = f.choice, list = f.list, lit = f.literal, call = f.call, si = MatcherFactory.sequenceItem;
-			mixinDefaultRegexes(g);
+			var seq = f.sequence, opt = f.optional, choice = f.choice, list = f.list, lit = f.literal, call = f.call, si = MatcherFactory.sequenceItem;
+			GrammarReader.mixinDefaultRegexes(g);
 
 			//rules
 			var str     = g.addRule('string', choice(call('SINGLEQUOTESTRING'), call('DOUBLEQUOTESTRING')));
-			var literal = g.addRule('literal', seq(str, opt(lit("i"))));
+			var literal = g.addRule('literal', seq(si(str), si(opt(lit("i")))));
 			var ws = g.addRule('whitespace', choice(call('WHITESPACECHAR'), call('MULTILINECOMMENT'), call('SINGLELINECOMMENT')));
 			var identifier = call('IDENTIFIER');
 
-			var paren   = g.addRule('paren', seq(lit('('), { label: 'expr', expr : call('expression')}, lit(')')));
+			var paren   = g.addRule('paren', seq(si(lit('(')), si('expr', call('expression')), si(lit(')'))));
 			var callRule = g.addRule('call', seq(
 			  si('name', identifier),
-			  si(negativeLookAhead(seq(opt(str), lit('='))))));
+			  si(MatcherFactory.negativeLookAhead(seq(si(opt(str)), si(lit('=')))))));
 			var importRule = g.addRule('import', seq(
 			  si(lit('@import')),
 			  si('grammar', identifier),
@@ -515,7 +521,7 @@ module miniup {
 			  si('displayName', opt(str)),
 			  si(lit('=')),
 			  si('autoParseWhitespace', opt(whitespaceflag)),
-			  si('expr', expr),
+			  si('expr', expression),
 			  si(opt(lit(';')))));
 
 			g.addRule('grammar', Util.extend(
@@ -526,54 +532,55 @@ module miniup {
 			return g;
 		}
 
-		private requiredRules : { ast: any; rule: string; }[] = [];
+		private requiredRules : Array<{ ast: any; name: string; }> = [];
 		private allMatchers : Object = {}; //rulestring -> matcher
 
 		constructor(private input: string, private inputName: string /*TODO: = "input" */){}
 
 		public build(): Grammar {
-			var ast = GrammarReader.bootstrap().parse(grammarSource);
+			var ast = GrammarReader.bootstrap().parse(this.input);
 			var g = new Grammar();
 
 			//auto load default tokens
-			mixinDefaultRegexes(g);
+			GrammarReader.mixinDefaultRegexes(g);
 
 			(<any[]>ast/*.rules*/).forEach((ast: any) => {
-				var r = astToMatcher(ast.expression);
+				var r = this.astToMatcher(ast.expression);
 				if (ast.displayName)
 					r.friendlyName = ast.displayName;
 				if (ast.whitespaceFlag) {
 					r.autoParseWhitespace = ast.autoParseWhitespace == '@whitespace-on'
 					//if there is at least one rule with a whitespace flag, the 'whitespace' rule should exist!
-					this.requiredRules.push({ ast: ast, rule :'whitespace'})
+					this.requiredRules.push({ ast: ast, name :'whitespace'})
 				}
 				g.addRule(ast.name, r);
 			});
 
-			this.consistencyCheck();
+			this.consistencyCheck(g);
 
 			return g;
 		}
 
-		consistencyCheck() {
+		consistencyCheck(g: Grammar) {
 			//check required rules
 			var errors : { msg:string; ast:any; }[] =[];
 			this.requiredRules.forEach(req => {
-				if (!g.rules[req.name])
+				if (!g.hasRule(req.name))
 					errors.push({ msg: "Undefined rule: '" + req.name + "'", ast: req.ast })
 			});
 
 			if (errors.length > 1)
 				throw errors.map(e => {
-					var coords = Util.getCoords(this.grammarSource, e.ast.$start)
+					var coords = Util.getCoords(this.input, e.ast.$start)
 					return Util.format("Error: {0} ({1},{2}): {3}", this.inputName, coords.line, coords.col, e.msg)
 				}).join("\n");
 		}
 
 		astToMatcher(ast: any): ParseFunction {
-			return cache(this.astToMatcherInner(ast));
+			return this.cache(this.astToMatcherInner(ast));
 		}
 
+		//TODO: move to grammar?
 		cache(f: ParseFunction) : ParseFunction {
 			var name = f.toString();
 			if (this.allMatchers[name])
@@ -596,21 +603,21 @@ module miniup {
 				case "CHARACTERCLASS":
 					return f.characterClass(RegExpUtil.unescapeRegexString(ast).source); //TODO: 'i' flag
 				case "call":
-					this.requiredRules.push({name : ast.name, asst: ast})
+					this.requiredRules.push({name : ast.name, ast: ast})
 					return f.call(ast.name);
 				case "suffixed":
 					switch (ast.postfix) {
-						case "?": return f.optional(astToMatcher(ast.expression));
+						case "?": return f.optional(this.astToMatcher(ast.expression));
 						case "#":
 						//TODO: assert sequence with size < 2
-							var seq = astToMatcherInner(ast.expression);
+							var seq = this.astToMatcherInner(ast.expression);
 							return f.set.apply(f, seq.sequence ? seq.sequence : [seq]);
-						case "*": return f.list(astToMatcher(ast.expression), false);
-						case "+": return f.list(astToMatcher(ast.expression), true);
+						case "*": return f.list(this.astToMatcher(ast.expression), false);
+						case "+": return f.list(this.astToMatcher(ast.expression), true);
 						case "*?":
 						case "+?":
 						//TODO: throw exception if seq is not a sequence or size is smaller than 2.
-							var seq = astToMatcherInner(ast.expression);
+							var seq = this.astToMatcherInner(ast.expression);
 							var sep = seq.sequence && seq.sequence.length ? seq.sequence[seq.sequence.length] : null;
 							seq = f.sequence.apply(f, seq.sequence.slice(0, -1));
 							return f.list(this.cache(seq), ast.postfix === "+?", this.cache(sep));
@@ -619,17 +626,15 @@ module miniup {
 				case "prefixed":
 					switch (ast.prefix) {
 					//TODO:	case "$": return f.dollar(astToMatcher(ast.expression));
-						case "&": return f.positiveLookAhead(astToMatcher(ast.expression));
-						case "!": return f.negativeLookAhead(astToMatcher(ast.expression));
+						case "&": return f.positiveLookAhead(this.astToMatcher(ast.expression));
+						case "!": return f.negativeLookAhead(this.astToMatcher(ast.expression));
 						default: throw new Error("Unimplemented prefix: " + ast.prefix);
 					}
-				case "labeled":
-					return f.labeled(ast.label, astToMatcher(ast.expression));
 				case "sequence":
-					return f.sequence.apply(f, ast.map(astToMatcher));
+					return f.sequence.apply(f, ast.map(this.astToMatcher)); //TODO: something with label and f.sequenceItem
 				case "expression": //TODO: should be either of them,  not both
 				case "choice":
-					return f.choice.apply(f, ast.map(astToMatcher));
+					return f.choice.apply(f, ast.map(this.astToMatcher));
 
 				default:
 					throw new Error("Unimplemented ruletype: " + ast.$rule);
@@ -681,8 +686,8 @@ module miniup {
 				.replace(/\\0/g, "\0")
 				//http://stackoverflow.com/questions/7885096/how-do-i-decode-a-string-with-escaped-unicode
 				.replace(/\\u(d){4}/, (m,code) => String.fromCharCode(parseInt(code, 16)))
-				.replace(/\\x(d){2}/, (m,code) => parseInt(code, 16))
-				.replace(/\\0(d){2}/, (m,code) => parseInt(code, 8))
+				.replace(/\\x(d){2}/, (m,code) => "" + parseInt(code, 16))
+				.replace(/\\0(d){2}/, (m,code) => "" + parseInt(code, 8))
 		}
 	}
 
@@ -694,13 +699,21 @@ module miniup {
 		linehighlight: string;
 	}
 
+	export class Map<U> {
+		[index: string] : U;
+/* TODO: not possible :-(		public static clone<T>(map: map<T>) : Map<T> {
+			return Util.extend(new Map<T>(), this);
+		}
+*/
+	}
+
 	export class Util {
 
 		public static format(str: string, ...args: any[]) {
 			return str.replace(/{(\d+)}/g, (match, nr) => "" + args[nr]);
 		}
 
-		public static extend(thing: any, extendWith: Object): any {
+		public static extend<T>(thing: T, extendWith: Object): T {
 			for (var key in extendWith)
 				thing[key] = extendWith[key];
 			return thing;
@@ -727,7 +740,7 @@ module miniup {
 		}
 
 		public static debug(msg: string, ...args: string[]) {
-			console && console.log(format.apply(null, [msg].concat(args)));
+			console && console.log(Util.format.apply(null, [msg].concat(args)));
 		}
 	}
 
@@ -765,7 +778,7 @@ module miniup {
 			if (argv.s)
 				grammar = Grammar.loadFromFile(argv.s)
 			else if (argv.g)
-				grammar = miniup.Grammar.load(argv.g)
+				grammar = miniup.Grammar.load(argv.g, "input")
 			else
 				grammar = miniup.GrammarReader.getMiniupGrammar();
 
@@ -779,7 +792,7 @@ module miniup {
 
 					//store
 					if (argv.o)
-						writeStringToFile(argv.o, JSON.stringify(res))
+						CLI.writeStringToFile(argv.o, JSON.stringify(res))
 					else
 						console.log(JSON.stringify(res, null, 2));
 				}
@@ -795,11 +808,11 @@ module miniup {
 
 			//get the input
 			if (argv.i)
-				processInput(readStringFromFile(argv.i))
+				processInput(CLI.readStringFromFile(argv.i))
 			else if (argv._.length)
 				processInput(argv._.join(" "))
 			else
-				readStringFromStdin(processInput);
+				CLI.readStringFromStdin(processInput);
 		}
 
 		public static readStringFromFile(filename: string): string {
