@@ -3,14 +3,14 @@
 function parse(grammar, input, expected) {
     var g = miniup.Grammar.load(grammar);
     try {
-        var res = g.parse(input);
-        if (expected.fail)
+        var res = g.parse(input, {debug: false});
+        if (expected && expected.fail)
             assert.ok(false, "Expected exception")
-        assert.deepEquals(expected, res);
+        assert.deepEqual(expected, res);
         return res;
     }
     catch(e) {
-        if (expected.fail)
+        if (expected && expected.fail)
             assert.equals(expected.col, e.getColumn());
         else
             assert.ok(false, "Didn't expect exception:" + e.toString())
@@ -33,7 +33,7 @@ exports.test2 = function(test) {
 };
 
 exports.test3 = function(test) {
-    parse("x = 'x'", 'x', null);
+    parse("x = 'x'", 'x', 'x');
     parse("x = y:'x'", 'x', { y: 'x'});
     parse("x = 'x'", ' x', fail(1));
     parse("x = 'x'", ' x', '');

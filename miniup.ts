@@ -308,7 +308,7 @@ module miniup {
 	}
 
 	export class Parser {
-		debug: boolean = true;
+		debug: boolean = false;
 		inputName: string = "input";
 		cleanAST: boolean = false;
 
@@ -482,7 +482,7 @@ module miniup {
 
 			//rules
 			var str     = g.addRule('string', choice(call('SINGLEQUOTESTRING'), call('DOUBLEQUOTESTRING')));
-			var literal = g.addRule('literal', seq(si(str), si(opt(lit("i")))));
+			var literal = g.addRule('literal', seq(si('text', str), si('ignorecase', opt(lit("i")))));
 			var ws = g.addRule('whitespace', choice(call('WHITESPACECHAR'), call('MULTILINECOMMENT'), call('SINGLELINECOMMENT')));
 			var identifier = call('IDENTIFIER');
 
@@ -553,7 +553,7 @@ module miniup {
 			GrammarReader.mixinDefaultRegexes(g);
 
 			(<any[]>ast.rules).forEach((ast: any) => {
-				var r = this.astToMatcher(ast.expression);
+				var r = this.astToMatcher(ast.expr);
 				if (ast.displayName)
 					r.friendlyName = ast.displayName;
 				if (ast.whitespaceFlag) {
@@ -603,9 +603,8 @@ module miniup {
 			switch (ast.$rule) {
 				case "IDENTIFIER":
 					return ast; //return the same string
-				case "SINGLEQUOTESTRING":
-				case "DOUBLEQUOTESTRING":
-					return f.literal(RegExpUtil.unescapeQuotedString(ast)); //TODO: 'i' flag //TODO: if not already created, in that case, use from cache
+				case "literal":
+					return f.literal(RegExpUtil.unescapeQuotedString(ast.text)); //TODO:ast.ignorecase for 'i' flag //TODO: if not already created, in that case, use from cache
 				case "REGEX":
 					return f.regex(RegExpUtil.unescapeRegexString (ast)); //TODO: 'i' flag
 				case "CHARACTERCLASS":
@@ -615,17 +614,20 @@ module miniup {
 					return f.call(ast.name);
 				case "suffixed":
 					switch (ast.postfix) {
-						case "?": return f.optional(this.astToMatcher(ast.expression));
+						case undefined :
+						case null:
+							return this.astToMatcher(ast.expr);
+						case "?": return f.optional(this.astToMatcher(ast.expr));
 						case "#":
 						//TODO: assert sequence with size < 2
-							var seq = this.astToMatcherInner(ast.expression);
+							var seq = this.astToMatcherInner(ast.expr);
 							return f.set.apply(f, seq.sequence ? seq.sequence : [seq]);
-						case "*": return f.list(this.astToMatcher(ast.expression), false);
-						case "+": return f.list(this.astToMatcher(ast.expression), true);
+						case "*": return f.list(this.astToMatcher(ast.expr), false);
+						case "+": return f.list(this.astToMatcher(ast.expr), true);
 						case "*?":
 						case "+?":
 						//TODO: throw exception if seq is not a sequence or size is smaller than 2.
-							var seq = this.astToMatcherInner(ast.expression);
+							var seq = this.astToMatcherInner(ast.expr);
 							var sep = seq.sequence && seq.sequence.length ? seq.sequence[seq.sequence.length] : null;
 							seq = f.sequence.apply(f, seq.sequence.slice(0, -1));
 							return f.list(this.cache(seq), ast.postfix === "+?", this.cache(sep));
@@ -633,16 +635,19 @@ module miniup {
 					}
 				case "prefixed":
 					switch (ast.prefix) {
-					//TODO:	case "$": return f.dollar(astToMatcher(ast.expression));
-						case "&": return f.positiveLookAhead(this.astToMatcher(ast.expression));
-						case "!": return f.negativeLookAhead(this.astToMatcher(ast.expression));
+						case undefined :
+						case null:
+							return this.astToMatcher(ast.expr);
+						case "$": return f.dollar(this.astToMatcher(ast.expr));
+						case "&": return f.positiveLookAhead(this.astToMatcher(ast.expr));
+						case "!": return f.negativeLookAhead(this.astToMatcher(ast.expr));
 						default: throw new Error("Unimplemented prefix: " + ast.prefix);
 					}
 				case "sequence":
-					return f.sequence.apply(f, ast.map(this.astToMatcher)); //TODO: something with label and f.sequenceItem
+					return f.sequence.apply(f, ast.map(item => f.sequenceItem(item.label, this.astToMatcher(item.expr))));
 				case "expression": //TODO: should be either of them,  not both
 				case "choice":
-					return f.choice.apply(f, ast.map(this.astToMatcher));
+					return f.choice.apply(f, ast.map(this.astToMatcher, this));
 
 				default:
 					throw new Error("Unimplemented ruletype: " + ast.$rule);
@@ -826,7 +831,7 @@ module miniup {
 				CLI.readStringFromStdin(processInput);
 			}
 			else if (argv._.length)
-				processInput(argv._.join(" "))
+				processInput(argv[0])
 			else {
 				console.error("Error: No input provided\n\n");
 				optimist.showHelp();
