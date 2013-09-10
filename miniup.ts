@@ -552,7 +552,7 @@ module miniup {
 			//auto load default tokens
 			GrammarReader.mixinDefaultRegexes(g);
 
-			(<any[]>ast/*.rules*/).forEach((ast: any) => {
+			(<any[]>ast.rules).forEach((ast: any) => {
 				var r = this.astToMatcher(ast.expression);
 				if (ast.displayName)
 					r.friendlyName = ast.displayName;
