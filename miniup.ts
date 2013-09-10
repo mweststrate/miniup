@@ -700,7 +700,7 @@ module miniup {
 	}
 
 	export class Map<U> {
-		[index: string] : U;
+		[name: string] : U
 /* TODO: not possible :-(		public static clone<T>(map: map<T>) : Map<T> {
 			return Util.extend(new Map<T>(), this);
 		}
@@ -747,30 +747,29 @@ module miniup {
 	export class CLI {
 		public static main() {
 			//CLI definition. Thank you, optimist :)
-			var argv = require('optimist')
-				.usage("Miniup parser. Given a Programmable Expression Grammar (PEG), transforms input into a JSON based Abstract Syntax Tree."
+			var optimist = require('optimist')
+				.usage("Miniup parser. Given a Programmable Expression Grammar (PEG), transforms input into a JSON based Abstract Syntax Tree.\n"
 					+ "\nUsage: miniup <input>"
-					+ "\nUsage: stdin | miniup"
+					+ "\nUsage: stdin | miniup -r"
 					+ "\nUsage: miniup -i <input file>"
 					+ "\nUsage: miniup -g <grammar string> <input>"
 					+ "\nUsage: miniup -[vc] -s <grammar file> -i <input file> -o <output file>"
 					+ "\nUsage: miniup -h")
 				.describe('g', 'Grammar definition (defaults to Miniup grammar)').alias('g', 'grammar')
 				.describe('i', 'Input file').alias('i', 'input')
+				.describe('r', 'Read input from <stdin>')
 				.describe('s', 'Read grammar from file')
 				.describe('o', 'Output file').alias('o', 'output')
 				.describe('v', 'Verbose')
 				.describe('c', 'Clean AST. Do not enrich the AST with parse information').alias("c", "clean")
-				.describe('h', 'Print this help').alias('help')
-				.default({ c: false, v: false })
-				.boolean('vch'.split(''))
+				.describe('h', 'Print this help').alias('h', 'help')
+				.boolean('rvch'.split(''))
 				.string("giso".split(''))
-				.argv;
 
 			//help
-			var args = argv._, grammar: Grammar;
+			var argv = optimist.argv, args = argv._, grammar: Grammar;
 			if (argv.h) {
-				argv.help();
+				optimist.showHelp();
 				process.exit(0);
 			}
 
@@ -809,10 +808,14 @@ module miniup {
 			//get the input
 			if (argv.i)
 				processInput(CLI.readStringFromFile(argv.i))
+			else if (argv.r)
+				CLI.readStringFromStdin(processInput);
 			else if (argv._.length)
 				processInput(argv._.join(" "))
-			else
-				CLI.readStringFromStdin(processInput);
+			else {
+				console.error("Error: No input provided\n\n");
+				optimist.showHelp();
+			}
 		}
 
 		public static readStringFromFile(filename: string): string {
