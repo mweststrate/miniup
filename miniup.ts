@@ -282,7 +282,7 @@ module miniup {
 			return this.rules[ruleName];
 		}
 
-		public parse(input: string, opts: { startSymbol?: string; inputName?: string; debug?: boolean; } = {}): any {
+		public parse(input: string, opts: IParseArgs = {}): any {
 			//TODO: store inputName and show in exceptions
 			//TODO: use 'debug' for logging
 			return new Parser(this, input, opts).parseInput(MatcherFactory.call(opts.startSymbol || this.startSymbol));
@@ -290,7 +290,7 @@ module miniup {
 
 	}
 
-	export interface StackItem {
+	export interface StackItem { //TODO: remove
 		func: ParseFunction;
 		startPos: number;
 	}
@@ -300,22 +300,28 @@ module miniup {
 		endPos: number;
 	}
 
-	export class Parser {
+	export interface IParseArgs {
+		startSymbol?: string;
+		inputName?: string;
+		debug?: boolean;
+		cleanAST?: boolean
+	}
 
-		private static nextMemoizationId = 1;
+	export class Parser {
+		debug: boolean = true;
+		inputName: string = "input";
+		cleanAST: boolean = false;
+
+		private static nextMemoizationId = 1; //TODO: remove for to string
 
 		currentPos: number = 0;
-		memoizedParseFunctions = {};
-		inputName: string; //TODO: filename and such
-		public debug = true;
-		private previousIsCharacterClass = false;
+		private memoizedParseFunctions = {}; //position-> parseFunction -> MemoizeResult
 		private isParsingWhitespace = false;
 		autoParseWhitespace = false;
 		private stack: StackItem[] = []; //TODO: is stack required anywhere?
-		expected = [];
-		//TODO: with-parse-information option (that generates $rule and $start and such..)
+		expected = []; //pos -> [ expecteditems ]
 
-		constructor(public grammar: Grammar, public input: string, opts: { inputName?: string; debug?: boolean; } = {}) {
+		constructor(public grammar: Grammar, public input: string, opts: IParseArgs = {}) {
 			Util.extend(this, opts);
 		}
 
@@ -329,7 +335,7 @@ module miniup {
 			var res = this.parse(func);
 			if (res === undefined) {
 				if (this.expected.length >= this.input.length)
-					throw new ParseException(this, "Unexpected end of input. ");
+					throw new ParseException(this, "Unexpected end of input");
 				throw new ParseException(this, "Failed to parse");
 			}
 			else {
@@ -377,7 +383,7 @@ module miniup {
 					result = func.parse(this);
 
 					//enrich result with match information
-					if (result !== null && result !== undefined && !result.$rule)
+					if (!this.cleanAST && result !== null && result !== undefined && !result.$rule)
 						Util.extend(result, { $start : startpos, $text : this.getInput().substring(startpos, this.currentPos), $rule : func.ruleName });
 
 					//store memoization result
@@ -441,8 +447,10 @@ module miniup {
 			var pos = highlightBestMatch ? parser.expected.length -1 : parser.currentPos;
 			this.coords = Util.getCoords(parser.input, pos);
 
-			this.message = Util.format("{0} at {1} line {2}:{3}\n\n{4}\n{5}\nExpected: {6}",
-				message, parser.inputName, this.coords.line, this.coords.col,
+			this.message = Util.format("{1}({2},{3}): {0}\n{4}\n{5}\nExpected: {6}",
+				message,
+				parser.inputName,
+				this.coords.line, this.coords.col,
 				this.coords.linetrimmed,
 				this.coords.linehighlight,
 				parser.expected[pos].join(" or ")
@@ -768,6 +776,8 @@ module miniup {
 
 			//help
 			var argv = optimist.argv, args = argv._, grammar: Grammar;
+			var inputName = "input";
+
 			if (argv.h) {
 				optimist.showHelp();
 				process.exit(0);
@@ -786,7 +796,8 @@ module miniup {
 					//parse
 					var res = grammar.parse(input, {
 						debug: argv.v,
-						cleanAST: argv.c
+						cleanAST: argv.c,
+						inputName : inputName
 					});
 
 					//store
@@ -806,10 +817,14 @@ module miniup {
 			}
 
 			//get the input
-			if (argv.i)
+			if (argv.i) {
+				inputName = argv.i;
 				processInput(CLI.readStringFromFile(argv.i))
-			else if (argv.r)
+			}
+			else if (argv.r) {
+				inputName = "<stdin>";
 				CLI.readStringFromStdin(processInput);
+			}
 			else if (argv._.length)
 				processInput(argv._.join(" "))
 			else {
