@@ -48,8 +48,8 @@ exports.test3 = function(test) {
 }
 
 
-//if ((typeof(module) !== "undefined" && !module.parent) || typeof(window) !== "undefined")
- //   NOA.Util.runtests(exports);
+if ((typeof(module) !== "undefined" && !module.parent) || typeof(window) !== "undefined")
+    runtests(exports);
 
 })(
     typeof(exports) != "undefined" ? exports : {},
