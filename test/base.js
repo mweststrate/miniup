@@ -3,22 +3,21 @@
 function parse(grammar, input, expected) {
     var g = miniup.Grammar.load(grammar);
     try {
-        var res = g.parse(input, {debug: false});
+        var res = g.parse(input, {debug: false, cleanAST: true});
         if (expected && expected.fail)
             assert.ok(false, "Expected exception")
-        assert.deepEqual(expected, res);
+        if (expected instanceof Object && res instanceof Object) //either object or array
+            assert.deepEqual(res, expected);
+        else
+            assert.equal(res, expected);
         return res;
     }
     catch(e) {
         if (expected && expected.fail)
-            assert.equals(expected.col, e.getColumn());
+            assert.equals(e.getColumn(), expected.col);
         else
             throw new assert.AssertionError({ message : "Didn't expect exception:" + e.toString()})
     }
-}
-
-function fail(result){
-    assert.equals(undefined, result)
 }
 
 exports.test1 = function(test) {

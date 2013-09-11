@@ -170,6 +170,9 @@ module miniup {
 		}
 
 		public static choice(...choices: ParseFunction[]): ParseFunction {
+			if (choices.length === 1)
+				return choices[0];
+
 			return new ParseFunction(
 				"(" + choices.map(x => x.toString()).join(" | ") + ")",
 				(parser: Parser): any => {
@@ -458,6 +461,9 @@ module miniup {
 		}
 
 		public toString():string { return this.name + ": " + this.message }
+
+		public getColumn():number { return this.coords.col; }
+		public getLineNr():number { return this.coords.line;}
 	}
 
 	export class GrammarReader {
@@ -514,9 +520,9 @@ module miniup {
 			  si('expr', suffixed)),
 			  suffixed));
 
-			var labeled = g.addRule('labeled', seq(
-			  si('label', opt(seq(si('label', identifier), si(lit(':'))))),
-			  si('expr', prefixed)));
+			var labeled = g.addRule('labeled', choice(
+			  seq(si('label', identifier), si(lit(':')), si('expr', prefixed)),
+			  seq(si('expr', prefixed))));
 
 			var sequence = g.addRule('sequence', choice(call('REGEX'), f.list(labeled, true)));
 
@@ -551,9 +557,6 @@ module miniup {
 			var ast = GrammarReader.bootstrap().parse(this.input);
 			var g = new Grammar();
 
-			//auto load default tokens
-			GrammarReader.mixinDefaultRegexes(g);
-
 			(<any[]>ast.rules).forEach((ast: any) => {
 				var r = this.astToMatcher(ast.expr);
 				if (ast.displayName)
@@ -565,6 +568,9 @@ module miniup {
 				}
 				g.addRule(ast.name, r);
 			});
+
+			//auto load default tokens. Do not do this up front, since the first declared rules is the start symbol
+			GrammarReader.mixinDefaultRegexes(g);
 
 			this.consistencyCheck(g);
 
@@ -675,7 +681,7 @@ module miniup {
 			transforms it to a RegExp
 		*/
 		public static unescapeRegexString(str: string): RegExp {
-			return new RegExp(str.substring(1, str.length - 2).replace(/\\/g, "\\"));
+			return new RegExp(str.substring(1, str.length - 1).replace(/\\/g, "\\"));
 		}
 
 		/**
@@ -683,7 +689,7 @@ module miniup {
 			transforms it to a string
 		*/
 		public static unescapeQuotedString(str: string) {
-			return str.substring(1, str.length - 2)
+			return str.substring(1, str.length - 1)
 				.replace(/\\\\/g, "\\")
 				.replace(/\\n/g, "\n")
 				.replace(/\\r/g, "\r")
