@@ -13,7 +13,7 @@ function parse(grammar, input, expected) {
         if (expected && expected.fail)
             assert.equals(expected.col, e.getColumn());
         else
-            assert.ok(false, "Didn't expect exception:" + e.toString())
+            throw new assert.AssertionError({ message : "Didn't expect exception:" + e.toString()})
     }
 }
 

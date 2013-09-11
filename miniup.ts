@@ -504,16 +504,18 @@ module miniup {
 			  importRule,
 			  paren));
 
-			var suffixed = g.addRule('suffixed', seq(
+			var suffixed = g.addRule('suffixed', choice(seq(
 			  si('expr', primary),
-			  si('suffix', opt(choice(lit('?'), lit('*?'), lit('+?'), lit('*'), lit('+'), lit('#'))))));
+			  si('suffix', choice(lit('?'), lit('*?'), lit('+?'), lit('*'), lit('+'), lit('#')))),
+			  primary));
 
-			var prefixed = g.addRule('prefixed', seq(
-			  si('prefix', opt(choice(lit('$'), lit('&'), lit('!')))),
-			  si('expr', suffixed)));
+			var prefixed = g.addRule('prefixed', choice(seq(
+			  si('prefix', choice(lit('$'), lit('&'), lit('!'))),
+			  si('expr', suffixed)),
+			  suffixed));
 
 			var labeled = g.addRule('labeled', seq(
-			  si('label', opt(seq(si('identifier', identifier), si(lit(':'))))),
+			  si('label', opt(seq(si('label', identifier), si(lit(':'))))),
 			  si('expr', prefixed)));
 
 			var sequence = g.addRule('sequence', choice(call('REGEX'), f.list(labeled, true)));
@@ -614,9 +616,6 @@ module miniup {
 					return f.call(ast.name);
 				case "suffixed":
 					switch (ast.postfix) {
-						case undefined :
-						case null:
-							return this.astToMatcher(ast.expr);
 						case "?": return f.optional(this.astToMatcher(ast.expr));
 						case "#":
 						//TODO: assert sequence with size < 2
@@ -634,10 +633,7 @@ module miniup {
 						default: throw new Error("Unimplemented postfix: " + ast.postfix);
 					}
 				case "prefixed":
-					switch (ast.prefix) {
-						case undefined :
-						case null:
-							return this.astToMatcher(ast.expr);
+					switch(ast.prefix) {
 						case "$": return f.dollar(this.astToMatcher(ast.expr));
 						case "&": return f.positiveLookAhead(this.astToMatcher(ast.expr));
 						case "!": return f.negativeLookAhead(this.astToMatcher(ast.expr));
@@ -831,7 +827,7 @@ module miniup {
 				CLI.readStringFromStdin(processInput);
 			}
 			else if (argv._.length)
-				processInput(argv[0])
+				processInput(argv._[0])
 			else {
 				console.error("Error: No input provided\n\n");
 				optimist.showHelp();
