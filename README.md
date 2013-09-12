@@ -1,4 +1,4 @@
-<img src="res/miniup.png">
+![Miniup logo](res/miniup.png)
 # Miniup - the pragmatic parsing library
 [Try now!](TODO link to test page)
 ## A short introduction to miniup
@@ -24,6 +24,7 @@ Left recursion
 1 Kloc
 Test page
 Built in tokens
+PEGJS compatibility.
 
 Extended and meta AST information
 
@@ -31,7 +32,7 @@ Extended and meta AST information
 
 Construction a grammar file:
 
-## /* comment */
+## /\* comment \*/
 Java style multi-line comment
 
 ## // comment <sub>END OF LINE</sub>
@@ -45,7 +46,7 @@ Searches for a rule named `rulename` and tries to match it. Rules can be used be
 
 Example:
 
-(all examples are in the format `grammar` x `input` &raquo; `output`)
+All examples in this section are in the format `grammar` x `input` &raquo; `output`. The examples can be verified by running the command `miniup -c -g "grammar" "input"` which should produce the mentioned output.
 
 `phone = number; number = [0-9]+;` x `45` &raquo; `"45"`
 
@@ -84,22 +85,22 @@ Example (extendedAST): `abc = a:'a' 'b' c:'c'` x `abc` &raquo; `{ a: "a", c: "c"
 
 # ?
 
-# *
+# \*
 
-# +
+# \+
 
 
 # &
 
-# !
+# \!
 
 ### PEG extensions
 
-(stuff separator)+?
+(stuff separator)\+?
 
-(stuff separator)*?
+(stuff separator)\*?
 
-(stuf)# match a set
+(stuf)\# match a set
 
 @import module.name
 
