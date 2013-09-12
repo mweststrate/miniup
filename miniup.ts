@@ -161,6 +161,8 @@ module miniup {
 						var itemres = parser.parse(item.expr);
 						if (item.label) //we are interested in the result
 							result[item.label] = itemres;
+						if (parser.extendedAST)
+							result[-1 + ((<any>result).length = ((<any>result).length || 0) + 1)] = itemres;
 						return itemres !== undefined;
 					});
 
@@ -307,13 +309,15 @@ module miniup {
 		startSymbol?: string;
 		inputName?: string;
 		debug?: boolean;
-		cleanAST?: boolean
+		cleanAST?: boolean;
+		extendedAST?: boolean;
 	}
 
 	export class Parser {
 		debug: boolean = false;
 		inputName: string = "input";
 		cleanAST: boolean = false;
+		extendedAST: boolean =false;
 
 		private static nextMemoizationId = 1; //TODO: remove for to string
 
@@ -777,8 +781,10 @@ module miniup {
 				.describe('o', 'Output file').alias('o', 'output')
 				.describe('v', 'Verbose')
 				.describe('c', 'Clean AST. Do not enrich the AST with parse information').alias("c", "clean")
+				.describe('e', 'Extended AST. Item without label will be added to the AST as well').alias("e", "extended")
 				.describe('h', 'Print this help').alias('h', 'help')
-				.boolean('rvch'.split(''))
+				//TODO: add item to print the bootstrap grammar
+				.boolean('rvceh'.split(''))
 				.string("giso".split(''))
 
 			//help
@@ -804,6 +810,7 @@ module miniup {
 					var res = grammar.parse(input, {
 						debug: argv.v,
 						cleanAST: argv.c,
+						extendedAST: argv.e,
 						inputName : inputName
 					});
 
