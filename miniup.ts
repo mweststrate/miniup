@@ -534,6 +534,7 @@ module miniup {
 
 			var expression = g.addRule('expression', choicerule);
 
+			//TODO: parse and ignore actions { ... } as whitespace?
 			var whitespaceflag = g.addRule('whitespaceflag', f.regex(/@whitespace-on|@whitespace-off/));
 
 			var rule = g.addRule('rule', seq(
