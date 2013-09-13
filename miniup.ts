@@ -540,7 +540,7 @@ module miniup {
 			var rule = g.addRule('rule', seq(
 			  si('name', identifier),
 			  si('displayName', opt(str)),
-			  si(lit('=')),
+			  si(lit('=')), //TODO: allow '<-' as rule definer as well.
 			  si('autoParseWhitespace', opt(whitespaceflag)),
 			  si('expr', expression),
 			  si(opt(lit(';')))));

@@ -3,6 +3,12 @@
   "version": "0.0.1",
   "description": "Miniup pragmatic parsing library",
   "main": "miniup.js",
+  "bin": "miniup",
+  "author":          {
+    "name":  "Michel Weststrate",
+    "email": "mweststrate@gmail.com",
+    "url":   "https://github.com/mweststrate/miniup"
+  },
   "directories": {
     "test": "test"
   },
@@ -25,7 +31,7 @@
   "devDependencies": {
     "jake": "latest",
     "nodeunit": "latest",
-    "typescript" : "0.8.3"
+    "typescript" : "~0.9.1.1"
   },
   "dependencies": {
     "optimist": "~0.6.0"

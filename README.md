@@ -23,10 +23,12 @@ In contrast to LL or LR based parsing algorithms, rules in Miniup are not define
 Left recursion
 1 Kloc
 Test page
-Built in tokens
+Built in tokens + conversion functions
+Build instructions
 PEGJS compatibility.
 
 Extended and meta AST information
+TODO: convert every example in a unit test.
 
 # PEG grammar constructions
 
@@ -50,55 +52,80 @@ All examples in this section are in the format `grammar` x `input` &raquo; `outp
 
 `phone = number; number = [0-9]+;` x `45` &raquo; `"45"`
 
-# 'literal'
+## 'literal'
 Tries to match `literal` literally in the input. Both single- and double quotes are allowed to define the literal. Normal java(script) escaping is allowed within the literal (e.g. `'quote\' and newline\n'`). Unicode, hexadecimal and octal escape sequences are allowed as well. The `i` flag can be added after the closing quote to perform the match case-insensitive.
 
 Example:`foo = "baR"i` x `BAr` &raquo; `"BAr"`
 
-# [characterset]
-Tries to match exactly one character from the given characterset. Ranges and negations can be used, similar to regular expressions. For example `[^0-9 ]` matches everything but a digit or a space. The `i` flag can be added after the closing bracket to perform the match case-insensitive.
+## [characterset]
+Tries to match exactly one character from the given characterset. Ranges and negations can be used, similar to regular expressions. For example `[^0-9 ]` matches everything but a digit or a space. The `i` flag can be added after the closing bracket to perform the match case-insensitive. Within the characterset, the slash (`\`) can be used as escape character.
 
 Example: `foo = [^bar]` x `R` &raquo; `"R"`
 
-# expr<sub>1</sub> expr<sub>2</sub> ... expr<sub>n</sub>
+## expr<sub>1</sub> expr<sub>2</sub> ... expr<sub>n</sub>
 Tries to match all the expressions or fails. Returns an object containing all submatches. If the `extendedAST` option is enabled, each submatch is available under its (zero-based) index. Otherwise only labeled items are available (see `label`)
 
 Example: `foo = 'bar' name:'baz'` x `barbaz` &raquo; `{ name: "baz" }`
 
-# expr<sub>1</sub> / expr<sub>2</sub> ... / expr<sub>n</sub>
+## expr<sub>1</sub> / expr<sub>2</sub> ... / expr<sub>n</sub>
 Tries to match either `expr1`, `expr2` or `expr-n`. The choice rule returns the first successful matches and does not attempt to match any subsequent choices. This is unlike the behavior of the `|` operator in context free grammars.
 
-Example: `foo = 'a' / 'b' / 'b' / 'c'` x 'b' &raquo; `"b"`
+Example: `foo = 'a' / 'b' / 'b' / 'c'` x `'b'` &raquo; `"b"`
 
-# ( expr<sub>1</sub> expr<sub>2</sub> ... expr<sub>n</sub> )
+## (expr<sub>1</sub> expr<sub>2</sub> ... expr<sub>n</sub>)
 Groups the list of expressions. Behavior is identical to not using parentheses. But parentheses are very useful to make quantifiers or predicates match multiple expressions at the same time.
 
-Example: `decl = @whitespace-on modifiers:(pub:'public'? stat:'static'?) name: IDENTIFIER '(' ')'` x `static foo()` &raquo; `{ modifiers : { pub : null, stat: 'static' }, name: "foo" }`
+Example:
 
-# label: expr
+    decl = @whitespace-on modifiers:(pub:'public'? stat:'static'?) name: IDENTIFIER '(' ')'
+
+x `static foo()` &raquo; `{ modifiers : { pub : null, stat: 'static' }, name: "foo" }`
+
+## label: expr
 Matches `expr` and stores it under `label` in the resulting AST.
 
 Items will not be available in the result AST unless they are either labeled or matched by a Regex or Characterclass (todo: verify:) or Literal matcher. If the `extendedAST` parse option (`--extended`) is used, all items are available in the resulting AST.
 
 Example: `abc = a:'a' 'b' c:'c'` x `abc` &raquo; `{ a: "a", c: "c"}`
-Example (extendedAST): `abc = a:'a' 'b' c:'c'` x `abc` &raquo; `{ a: "a", c: "c", 0: "a", 1: "b", 2: "c", length: 3 }`
 
-# ?
+Example (with extended AST enabled): `abc = a:'a' 'b' c:'c'` x `abc` &raquo; `{ a: "a", c: "c", 0: "a", 1: "b", 2: "c", length: 3 }`
 
-# \*
+## expr?
+Optionally matches `expr`. If `expr` is not found, the parse is still considered to be successful.
 
-# \+
+Example: `foo = bar:'bar'? baz:baz` x `baz` &raquo; `{ bar: null, baz: 'baz'}`
 
+## expr\*
+Matches `expr` as many times as possible, but no matches are fine as well. The match will always be performed greedy. The matches will be returned as array.
 
-# &
+Example: `foo = 'a'*` x `aaaa` &raquo; `['a', 'a', 'a', 'a']`
 
-# \!
+## expr\+
+Matches `expr` as many times as possible, but at least once. The match will always be performed greedy. The matches will be returned as array.
 
-### PEG extensions
+Example: `foo = 'a'+` x `aaaa` &raquo; `['a', 'a', 'a', 'a']`
 
-(stuff separator)\+?
+## &expr
+Positive predicate. Tries to match `expr`. If `expr` is found, the match is considered successful, but the rule does not match anything. Can be used as 'lookahead'.
 
-(stuff separator)\*?
+Example: `foo = &'0' [0-9]+` x `017` &raquo; `"017"`. But, this rule will fail on the input `117`.
+
+## \!expr
+Negative predicate. Tries to match `expr`. If `expr` is *not* found, the match is considered successful and parsing will continue. But fails if `expr` is found.
+
+Example: `foo = 'idontlike ' !'coffee' what:[a-z]*` x `idontlike tea` &raquo; `{ what: tea }`. But, this rule will fail on `idontlike coffee`. And rightfully so.
+
+# Miniup PEG extensions
+
+## (expr<sub>1</sub> ... expr<sub>n</sub> separator)\*?
+Matches all items between the parentheses zero or more times. However, the last item of the sequence is used as separator to initiate the repitition.
+
+Example: `expr = 'dummy'; args = args:(expr ',')*?` x `dummy,dummy,dummy` &raquo; `{ args: ["dummy", "dummy", "dummy"] }`
+
+## (expr<sub>1</sub> ... expr<sub>n</sub> separator)\*?
+Behavios the same as the `*?` operator, but requires at least one match.
+
+Example: `expr = 'dummy'; args = args:(expr ',')*?` x `dummy` &raquo; `{ args: ["dummy"] }`
 
 (stuf)\# match a set
 
@@ -188,6 +215,7 @@ The following options can be provided to the parse function:
 	{
 		debug: true, /* default: false, prints the complete parse strategy*/
 		cleanAST: true, /* default: false, does not include additional match information such as $text, $rule and $pos*/
+		extendedAST: true, /* default: false, if true, unlabeled items are added to the resulting AST as well */
 		startSymbol: 'rulename', /* use alternative start symbol. Default: first rule that is defined in the grammar */
 		inputName: 'string' /* default: 'input', name of the input to use in error reporting, such as a filename */
 	}
