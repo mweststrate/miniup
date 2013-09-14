@@ -123,22 +123,34 @@ Matches all items between the parentheses zero or more times. However, the last 
 Example: `expr = 'dummy'; args = args:(expr ',')*?` x `dummy,dummy,dummy` &raquo; `{ args: ["dummy", "dummy", "dummy"] }`
 
 ## (expr<sub>1</sub> ... expr<sub>n</sub> separator)\*?
-Behavios the same as the `*?` operator, but requires at least one match.
+Behaves the same as the `*?` operator, but requires at least one match.
 
 Example: `expr = 'dummy'; args = args:(expr ',')*?` x `dummy` &raquo; `{ args: ["dummy"] }`
 
-(stuf)\# match a set
+## (expr<sub>1</sub> ... expr<sub>n</sub> separator)\#
+Matches any subset of the provided expressions, but none are required. 
 
-@import module.name
-
+Example: `modifiers = (public:'public' static:'static' final: 'final')#` x `final public` &raquo; `{public:"public", static: null, final: "final"}`
 @whitespace-on itemx itemy itemz
 @whitespace-off itemx itemy itemz
 
+## @import grammar.name
+TODO: @import "filename.peg".rule
+
+Behaves similar to `call`, but, with using `@import` rules from other grammars can be imported and applied. This import statement applies the rule `name` from the grammar with name `grammar`. Note that the grammar has to be registered first. 
+
+Example:
+
+	var coffeeGrammar = miniup.Grammar.load("coffee = flavor : ('coffee' /  'cappucino')");
+	miniup.Grammar.register('CoffeeGrammar', coffeeGrammar);
+	var fooGrammar = miniup.Grammar.load("foo = @import CoffeeGrammar.coffee");
+	fooGrammar.parse("cappucino");
+	//returns: { flavor : "cappucino" }
+
+TODO:
 @left-associative operand operator operand
 
 @right-associative operand operator operand
-
-
 
 # built-in tokens
 
