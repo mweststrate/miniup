@@ -240,3 +240,88 @@ The following options can be provided to the parse function:
 	}
 
 
+# Built-in tokens
+
+The following tokens are available by default in every grammar and can be called by any rule. The *unescape function* is a function that can convert the string matched by the regular expression to a native javascript object. These regexes are all available in the `miniup.RegExpUtil` namespace. 
+
+<table>
+<tr><th>Name</th><th>Description</th><th>Regular Expression**</th><th>Unescape function</th></tr>
+
+<tr><td>IDENTIFIER
+</td><td>Matches common identifiers or words. These are valid variable or function names in most languages
+</td><td><pre>[a-zA-Z_][a-zA-Z_0-9]*</pre>
+</td><td>
+</td></tr>
+
+<tr><td>WHITESPACE*
+</td><td>Whitespace; tabs, returns and spaces. 
+</td><td>
+<pre>\s+</pre>
+</td><td>
+</td></tr>
+
+<tr><td>INTEGER
+</td><td>Positive or negative natural numbers. 
+</td><td><pre>(-|\+)?\d+</pre>
+</td>`parseInt(input, 10)`<td>
+</td></tr>
+
+<tr><td>FLOAT
+</td><td>Positive or negative floating point numbers, with optional mantissa
+</td><td>
+<pre>[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?</pre>
+</td>`parseFloat(input, 10)`<td>
+</td></tr>
+
+<tr><td>SINGLEQUOTEDSTRING
+</td><td>An arbitrarily long string of tokens, between single quotes ('). Single quotes, double quotes and backslashes need to be escaped using a backslash inside the string. 
+</td><td><pre>'([^'\]|(\.))*'</pre>
+</td>`miniup.RegExpUtil.unescapeQuotedString(input)`<td>
+</td></tr>
+
+<tr><td>DOUBLEQUOTEDSTRING
+</td><td>An arbitrarily long string of tokens, between double quotes ("). Single quotes, double quotes and backslashes need to be escaped using a backslash inside the string. 
+</td><td><pre>"([^"\]|(\.))*"</pre>
+</td>`miniup.RegExpUtil.unescapeQuotedString(input)`<td>
+</td></tr>
+
+<tr><td>SINGLELINECOMMENT*
+</td><td>Single line comment, everything between a double backslash and a linefeed is considered whitespace by the parser
+</td><td><pre>//.*(\n|$)</pre>
+</td><td>
+</td></tr>
+
+<tr><td>MULTILINECOMMENT*
+</td><td>Mulit line comment, everything between \/\* .. and .. \/\* is considered whitespace
+</td><td><pre>/\*(?:[^*]|\*(?!/))*?\*/</pre>
+</td><td>
+</td></tr>
+
+<tr><td>BOOLEAN
+</td><td>Parses the literals 'true' or 'false'
+</td><td><pre>(true|false)\b</pre>
+</td><td>`input == "true"`
+</td></tr>
+
+<tr><td>REGEX
+</td><td>Parses a JavaScript style regular expression (except that flags are not supported). 
+</td><td><pre>/([^\/]|(\.))*/</pre>
+</td><td>`miniup.RegExpUtil.unescapeRegexString(input)`
+</td></tr>
+
+<tr><td>CHARACTERCLASS
+</td><td>Parses a characterclass as defined above.  
+</td><td><pre>\[([^\/]|(\.))*\]</pre>
+</td><td>`miniup.RegExpUtil.unescapeRegexString(input)`
+</td></tr>
+
+<tr><td>LINEENDCHAR
+</td><td>Matches a line ending
+</td><td><pre>\r?\n|\u2028|\u2029</pre>
+</td><td>
+</td></tr>
+</table>
+
+\* <small>Interpreted as whitespace</small>
+
+\** <small>These regular expressions are in unescaped form. To use them in a Miniup grammar file, apply javascript style escaping: First prepend each forwardslash or backward slash with a backward slash, second, wrap the whole regular expression in forward slashes. Or, take a look at the [miniup.txt](miniup.txt) file, which contains the miniup grammar described in miniup.</small>

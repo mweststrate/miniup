@@ -672,8 +672,8 @@ module miniup {
 		public static SINGLELINECOMMENT = /\/\/.*(\n|$)/;
 		public static MULTILINECOMMENT = /\/\*(?:[^*]|\*(?!\/))*?\*\//;
 		public static CHARACTERCLASS = /\[([^\\\/]|(\\.))*\]/;
-		public static INTEGER = /-?\d+/;
-		public static FLOAT = /-?\d+(\.\d+)?(e\d+)?/;
+		public static INTEGER = /(-|\+)?\d+/;
+		public static FLOAT =  /[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?/;
 		public static BOOLEAN = /(true|false)\b/;
 		public static LINEENDCHAR = /\r?\n|\u2028|\u2029/;
 
