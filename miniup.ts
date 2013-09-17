@@ -454,7 +454,7 @@ module miniup {
 			var pos = Math.max(parser.currentPos, parser.expected.length - 1);
 			this.coords = Util.getCoords(parser.input, pos);
 
-			this.message = Util.format("{1}({2},{3}): {0}\n{4}\n{5}\nExpected: {6}",
+			this.message = Util.format("{1}({2},{3}): {0}\n{4}\n{5}\nExpected {6}",
 				message,
 				parser.inputName,
 				this.coords.line, this.coords.col,
@@ -617,9 +617,9 @@ module miniup {
 				case "IDENTIFIER":
 					return ast; //return the same string
 				case "literal":
-					return f.literal(RegExpUtil.unescapeQuotedString(ast.text)); //TODO:ast.ignorecase for 'i' flag //TODO: if not already created, in that case, use from cache
+					return f.literal(RegExpUtil.unescapeQuotedString(ast.text), ast.ignorecase === "i"); //TODO:ast.ignorecase for 'i' flag //TODO: if not already created, in that case, use from cache
 				case "REGEX":
-					return f.regex(RegExpUtil.unescapeRegexString (ast)); //TODO: 'i' flag
+					return f.regex(RegExpUtil.unescapeRegexString(ast));
 				case "CHARACTERCLASS":
 					return f.characterClass(RegExpUtil.unescapeRegexString(ast).source); //TODO: 'i' flag
 				case "call":
@@ -666,7 +666,7 @@ module miniup {
 		//TODO: check if all regexes do not backtrack!
 		public static IDENTIFIER = /[a-zA-Z_][a-zA-Z_0-9]*/;
 		public static WHITESPACECHARS = /\s+/;
-		public static REGEX = /\/([^\\\/]|(\\.))*\//;
+		public static REGEX = /\/([^\\\/]|(\\.))*\/i?/;
 		public static SINGLEQUOTESTRING = /'([^'\\]|(\\.))*'/; //TODO: or /(["'])(?:\\\1|[^\1])*?\1/g, faster?
 		public static DOUBLEQUOTESTRING = /"([^"\\]|(\\.))*"/;
 		public static SINGLELINECOMMENT = /\/\/.*(\n|$)/;
@@ -686,7 +686,7 @@ module miniup {
 			transforms it to a RegExp
 		*/
 		public static unescapeRegexString(str: string): RegExp {
-			return new RegExp(str.substring(1, str.length - 1).replace(/\\/g, "\\"));
+			return new RegExp(str.substring(1, str.length - 1).replace(/\\/g, "\\"), str.substring(str.lastIndexOf("/")));
 		}
 
 		/**
