@@ -139,7 +139,9 @@ Example: `modifiers = (public:'public' static:'static' final: 'final')#` x `fina
 ## @whitespace-on (or off) expr<sub>1</sub> .. expr<sub>n</sub>
 Enables or disables automatic whitespace parsing for this rule. Enabling automatic whitespace parsing avoids the need to explicitly match whitespace between tokens. This is very useful in many grammar. Automatic whitespace matching is by default turned off for compatibility with existing PEG grammars. Enabling whitespace enables it for the rest of this rule, and all rules called by it. After completing (or failing) the match, the whitespace status will be reset to its original value. 
 
-Example: `numbers = @whitespace-on number+; number = @whitespace-off '-'? [0-9] + ('.' [0-9]+)?; ` x `42  3.16  -12` &raquo; `["42", "3.16", "-12"]`
+Note that using this construction requires a rule with the name 'whitespace' to be defined. 
+
+Example: `numbers = @whitespace-on number+; number = @whitespace-off '-'? [0-9] + ('.' [0-9]+)?; whitespace = WHITESPACECHARS ` x `42  3.16  -12` &raquo; `["42", "3.16", "-12"]`
 
 ## @import grammar.name
 TODO: @import "filename.peg".rule
@@ -253,7 +255,7 @@ The following tokens are available by default in every grammar and can be called
 </td><td>
 </td></tr>
 
-<tr><td>WHITESPACE*
+<tr><td>WHITESPACECHARS
 </td><td>Whitespace; tabs, returns and spaces. 
 </td><td>
 <pre>\s+</pre>
@@ -285,13 +287,13 @@ The following tokens are available by default in every grammar and can be called
 </td>`miniup.RegExpUtil.unescapeQuotedString(input)`<td>
 </td></tr>
 
-<tr><td>SINGLELINECOMMENT*
+<tr><td>SINGLELINECOMMENT
 </td><td>Single line comment, everything between a double backslash and a linefeed is considered whitespace by the parser
 </td><td><pre>//.*(\n|$)</pre>
 </td><td>
 </td></tr>
 
-<tr><td>MULTILINECOMMENT*
+<tr><td>MULTILINECOMMENT
 </td><td>Mulit line comment, everything between \/\* .. and .. \/\* is considered whitespace
 </td><td><pre>/\*(?:[^*]|\*(?!/))*?\*/</pre>
 </td><td>

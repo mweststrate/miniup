@@ -14,7 +14,7 @@ function parse(grammar, input, expected) {
     }
     catch(e) {
         if (expected && expected.fail)
-            assert.equals(e.getColumn(), expected.col);
+            assert.equal(e.getColumn(), expected.col);
         else
             throw new assert.AssertionError({ message : "Didn't expect exception:" + e.toString()})
     }
@@ -37,8 +37,11 @@ exports.test3 = function(test) {
     parse("x = 'x'", ' x', fail(1));
     parse("x = 'x'", ' x', '');
     parse("x = 'x'", 'xx', fail(2));
+    parse("x = 'x'", 'x x', fail(2));
     parse("x = 'x'", 'x ', fail(2));
+
     parse("x = @whitespace-on 'x'", ' x ', 'x');
+    parse("x = @whitespace-on 'x'", '\t\t\ty ', fail(4));
     parse("x = 'x'+", 'xx', fail(2)); //literal matcher always include word boundary!
     parse("x = @whitespace-on 'x'+", 'x x', ['x', 'x']);
     parse("x = 'x' '-' 'x', 'x-x'", ['x', '-', 'x']);

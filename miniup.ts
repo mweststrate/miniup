@@ -450,8 +450,8 @@ module miniup {
 		public message : string;
 		public coords: TextCoords;
 
-		constructor(parser: Parser, message: string, highlightBestMatch : boolean = true) {
-			var pos = highlightBestMatch ? parser.expected.length -1 : parser.currentPos;
+		constructor(parser: Parser, message: string) {
+			var pos = Math.max(parser.currentPos, parser.expected.length - 1);
 			this.coords = Util.getCoords(parser.input, pos);
 
 			this.message = Util.format("{1}({2},{3}): {0}\n{4}\n{5}\nExpected: {6}",
@@ -460,7 +460,7 @@ module miniup {
 				this.coords.line, this.coords.col,
 				this.coords.linetrimmed,
 				this.coords.linehighlight,
-				parser.expected[pos].join(" or ")
+				parser.expected[pos] ? parser.expected[pos].join(" or ") : "<nothing>"
 			);
 		}
 
@@ -493,7 +493,7 @@ module miniup {
 			//rules
 			var str     = g.addRule('string', choice(call('SINGLEQUOTESTRING'), call('DOUBLEQUOTESTRING')));
 			var literal = g.addRule('literal', seq(si('text', str), si('ignorecase', opt(lit("i")))));
-			var ws = g.addRule('whitespace', choice(call('WHITESPACECHAR'), call('MULTILINECOMMENT'), call('SINGLELINECOMMENT')));
+			var ws = g.addRule('whitespace', choice(call('WHITESPACECHARS'), call('MULTILINECOMMENT'), call('SINGLELINECOMMENT')));
 			var identifier = call('IDENTIFIER');
 
 			var paren   = g.addRule('paren', seq(si(lit('(')), si('expr', call('expression')), si(lit(')'))));
@@ -665,8 +665,8 @@ module miniup {
 	export class RegExpUtil {
 		//TODO: check if all regexes do not backtrack!
 		public static IDENTIFIER = /[a-zA-Z_][a-zA-Z_0-9]*/;
-		public static WHITESPACECHAR = /\s+/;
-		public static REGEX = /\/([^\\\/]|(\\.))*\//; //TODO: unescape regex is remove the begin and end + double all backslashes
+		public static WHITESPACECHARS = /\s+/;
+		public static REGEX = /\/([^\\\/]|(\\.))*\//;
 		public static SINGLEQUOTESTRING = /'([^'\\]|(\\.))*'/; //TODO: or /(["'])(?:\\\1|[^\1])*?\1/g, faster?
 		public static DOUBLEQUOTESTRING = /"([^"\\]|(\\.))*"/;
 		public static SINGLELINECOMMENT = /\/\/.*(\n|$)/;
@@ -747,10 +747,10 @@ module miniup {
 
 			return {
 				line : lines.length + 1,
-				col : col,
+				col : col + 1, //do not use zero-indexes in messages
 				linetext : curline,
-				linetrimmed: curline.replace(/(^\s+)|(\s+$)/g,"").replace(/\t/," "), //trim and replace tabs
-				linehighlight : Util.leftPad("^", col - (curline.length - curline.replace(/^\s+/,"").length) - 1 , "-") //correct padding for trimmed whitespacse
+				linetrimmed: curline.replace(/\t/," "), //trim and replace tabs
+				linehighlight : Util.leftPad("^", col , "-") //correct padding for trimmed whitespacse
 			}
 		}
 
