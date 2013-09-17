@@ -110,7 +110,8 @@ module miniup {
 				try { //Optimization: only put in try..finally if parseWhitespace will be changed by this rule
 					if (rule.autoParseWhitespace !== undefined)
 						p.autoParseWhitespace = rule.autoParseWhitespace;
-					return p.parse(p.grammar.rule(ruleName))
+
+					return p.parse(rule);
 				}
 				finally {
 					p.autoParseWhitespace = prevWhitespace;
@@ -437,11 +438,11 @@ module miniup {
 		}
 
 		consumeWhitespace() {
-			if (this.grammar.whitespaceMatcher) {
-				this.isParsingWhitespace = true;
-				this.parse(this.grammar.whitespaceMatcher);
-				this.isParsingWhitespace = false;
-			}
+			if (!this.grammar.whitespaceMatcher)
+				throw "Whitespace matcher has not been defined!";
+			this.isParsingWhitespace = true;
+			this.parse(this.grammar.whitespaceMatcher);
+			this.isParsingWhitespace = false;
 		}
 	}
 
@@ -556,7 +557,7 @@ module miniup {
 		private requiredRules : Array<{ ast: any; name: string; }> = [];
 		private allMatchers : Object = {}; //rulestring -> matcher
 
-		constructor(private input: string, private inputName: string /*TODO: = "input" */){}
+		constructor(private input: string, private inputName: string = "grammar source"){}
 
 		public build(): Grammar {
 			var ast = GrammarReader.bootstrap().parse(this.input);
@@ -566,16 +567,16 @@ module miniup {
 				var r = this.astToMatcher(ast.expr);
 				if (ast.displayName)
 					r.friendlyName = ast.displayName;
-				if (ast.whitespaceFlag) {
+				if (ast.autoParseWhitespace)
 					r.autoParseWhitespace = ast.autoParseWhitespace == '@whitespace-on'
-					//if there is at least one rule with a whitespace flag, the 'whitespace' rule should exist!
-					this.requiredRules.push({ ast: ast, name :'whitespace'})
-				}
 				g.addRule(ast.name, r);
 			});
 
 			//auto load default tokens. Do not do this up front, since the first declared rules is the start symbol
 			GrammarReader.mixinDefaultRegexes(g);
+
+			if (!g.hasRule("whitespace"))
+				g.addRule("whitespace", MatcherFactory.call("WHITESPACECHARS"));
 
 			this.consistencyCheck(g);
 
@@ -590,10 +591,10 @@ module miniup {
 					errors.push({ msg: "Undefined rule: '" + req.name + "'", ast: req.ast })
 			});
 
-			if (errors.length > 1)
+			if (errors.length > 0)
 				throw errors.map(e => {
 					var coords = Util.getCoords(this.input, e.ast.$start)
-					return Util.format("Error: {0} ({1},{2}): {3}", this.inputName, coords.line, coords.col, e.msg)
+					return Util.format("Invalid grammar: at {0} ({1},{2}): {3}", this.inputName, coords.line, coords.col, e.msg)
 				}).join("\n");
 		}
 
@@ -622,11 +623,13 @@ module miniup {
 					return f.regex(RegExpUtil.unescapeRegexString(ast));
 				case "CHARACTERCLASS":
 					return f.characterClass(RegExpUtil.unescapeRegexString(ast).source); //TODO: 'i' flag
+				case "paren":
+					return this.astToMatcher(ast.expr);
 				case "call":
 					this.requiredRules.push({name : ast.name, ast: ast})
 					return f.call(ast.name);
 				case "suffixed":
-					switch (ast.postfix) {
+					switch (ast.suffix) {
 						case "?": return f.optional(this.astToMatcher(ast.expr));
 						case "#":
 						//TODO: assert sequence with size < 2
@@ -640,8 +643,8 @@ module miniup {
 							var seq = this.astToMatcherInner(ast.expr);
 							var sep = seq.sequence && seq.sequence.length ? seq.sequence[seq.sequence.length] : null;
 							seq = f.sequence.apply(f, seq.sequence.slice(0, -1));
-							return f.list(this.cache(seq), ast.postfix === "+?", this.cache(sep));
-						default: throw new Error("Unimplemented postfix: " + ast.postfix);
+							return f.list(this.cache(seq), ast.suffix === "+?", this.cache(sep));
+						default: throw new Error("Unimplemented suffix: " + ast.suffix);
 					}
 				case "prefixed":
 					switch(ast.prefix) {
