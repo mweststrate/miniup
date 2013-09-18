@@ -55,6 +55,8 @@ All examples in this section are in the format `grammar` x `input` &raquo; `outp
 ## 'literal'
 Tries to match `literal` literally in the input. Both single- and double quotes are allowed to define the literal. Normal java(script) escaping is allowed within the literal (e.g. `'quote\' and newline\n'`). Unicode, hexadecimal and octal escape sequences are allowed as well. The `i` flag can be added after the closing quote to perform the match case-insensitive.
 
+TODO: mention automatic word boundaries.
+
 Example:`foo = "baR"i` x `BAr` &raquo; `"BAr"`
 
 ## [characterset]
@@ -133,20 +135,20 @@ Behaves the same as the `*?` operator, but requires at least one match.
 Example: `expr = 'dummy'; args = args:(expr ',')*?` x `dummy` &raquo; `{ args: ["dummy"] }`
 
 ## (expr<sub>1</sub> ... expr<sub>n</sub> separator)\#
-Matches any subset of the provided expressions, but none are required. 
+Matches any subset of the provided expressions, but none are required.
 
 Example: `modifiers = (public:'public' static:'static' final: 'final')#` x `final public` &raquo; `{public:"public", static: null, final: "final"}`
 ## @whitespace-on (or off) expr<sub>1</sub> .. expr<sub>n</sub>
-Enables or disables automatic whitespace parsing for this rule. Enabling automatic whitespace parsing avoids the need to explicitly match whitespace between tokens. This is very useful in many grammar. Automatic whitespace matching is by default turned off for compatibility with existing PEG grammars. Enabling whitespace enables it for the rest of this rule, and all rules called by it. After completing (or failing) the match, the whitespace status will be reset to its original value. 
+Enables or disables automatic whitespace parsing for this rule. Enabling automatic whitespace parsing avoids the need to explicitly match whitespace between tokens. This is very useful in many grammar. Automatic whitespace matching is by default turned off for compatibility with existing PEG grammars. Enabling whitespace enables it for the rest of this rule, and all rules called by it. After completing (or failing) the match, the whitespace status will be reset to its original value.
 
-Note that using this construction requires a rule with the name 'whitespace' to be defined. 
+Note that using this construction requires a rule with the name 'whitespace' to be defined.
 
 Example: `numbers = @whitespace-on number+; number = @whitespace-off '-'? [0-9] + ('.' [0-9]+)?; whitespace = WHITESPACECHARS ` x `42  3.16  -12` &raquo; `["42", "3.16", "-12"]`
 
 ## @import grammar.name
 TODO: @import "filename.peg".rule
 
-Behaves similar to `call`, but, with using `@import` rules from other grammars can be imported and applied. This import statement applies the rule `name` from the grammar with name `grammar`. Note that the grammar has to be registered first. 
+Behaves similar to `call`, but, with using `@import` rules from other grammars can be imported and applied. This import statement applies the rule `name` from the grammar with name `grammar`. Note that the grammar has to be registered first.
 
 Example:
 
@@ -244,7 +246,20 @@ The following options can be provided to the parse function:
 
 # Built-in tokens
 
-The following tokens are available by default in every grammar and can be called by any rule. The *unescape function* is a function that can convert the string matched by the regular expression to a native javascript object. These regexes are all available in the `miniup.RegExpUtil` namespace. 
+The following tokens are available by default in every grammar and can be called by any rule. The *unescape function* is a function that can convert the string matched by the regular expression to a native javascript object. These regexes are all available in the `miniup.RegExpUtil` namespace.
+
+IDENTIFIER /[a-zA-Z_][a-zA-Z_0-9]*/
+WHITESPACECHARS /\s+/
+REGEX /\/([^\\\/]|(\\.))*\/i?/
+SINGLEQUOTESTRING /'([^'\\]|(\\.))*'/
+DOUBLEQUOTESTRING /"([^"\\]|(\\.))*"/
+SINGLELINECOMMENT /\/\/.*(\n|$)/
+MULTILINECOMMENT /\/\*(?:[^*]|\*(?!\/))*?\*\//
+CHARACTERCLASS /\[([^\\\/]|(\\.))*\]/
+INTEGER /(-|\+)?\d+/
+FLOAT /[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?/
+BOOLEAN /(true|false)\b/
+LINEENDCHAR /\r?\n|\u2028|\u2029/
 
 <table>
 <tr><th>Name</th><th>Description</th><th>Regular Expression**</th><th>Unescape function</th></tr>
@@ -256,14 +271,14 @@ The following tokens are available by default in every grammar and can be called
 </td></tr>
 
 <tr><td>WHITESPACECHARS
-</td><td>Whitespace; tabs, returns and spaces. 
+</td><td>Whitespace; tabs, returns and spaces.
 </td><td>
 <pre>\s+</pre>
 </td><td>
 </td></tr>
 
 <tr><td>INTEGER
-</td><td>Positive or negative natural numbers. 
+</td><td>Positive or negative natural numbers.
 </td><td><pre>(-|\+)?\d+</pre>
 </td>`parseInt(input, 10)`<td>
 </td></tr>
@@ -276,13 +291,13 @@ The following tokens are available by default in every grammar and can be called
 </td></tr>
 
 <tr><td>SINGLEQUOTEDSTRING
-</td><td>An arbitrarily long string of tokens, between single quotes ('). Single quotes, double quotes and backslashes need to be escaped using a backslash inside the string. 
+</td><td>An arbitrarily long string of tokens, between single quotes ('). Single quotes, double quotes and backslashes need to be escaped using a backslash inside the string.
 </td><td><pre>'([^'\]|(\.))*'</pre>
 </td>`miniup.RegExpUtil.unescapeQuotedString(input)`<td>
 </td></tr>
 
 <tr><td>DOUBLEQUOTEDSTRING
-</td><td>An arbitrarily long string of tokens, between double quotes ("). Single quotes, double quotes and backslashes need to be escaped using a backslash inside the string. 
+</td><td>An arbitrarily long string of tokens, between double quotes ("). Single quotes, double quotes and backslashes need to be escaped using a backslash inside the string.
 </td><td><pre>"([^"\]|(\.))*"</pre>
 </td>`miniup.RegExpUtil.unescapeQuotedString(input)`<td>
 </td></tr>
@@ -306,13 +321,13 @@ The following tokens are available by default in every grammar and can be called
 </td></tr>
 
 <tr><td>REGEX
-</td><td>Parses a JavaScript style regular expression (except that flags are not supported). 
+</td><td>Parses a JavaScript style regular expression (except that flags are not supported).
 </td><td><pre>/([^\/]|(\.))*/</pre>
 </td><td>`miniup.RegExpUtil.unescapeRegexString(input)`
 </td></tr>
 
 <tr><td>CHARACTERCLASS
-</td><td>Parses a characterclass as defined above.  
+</td><td>Parses a characterclass as defined above.
 </td><td><pre>\[([^\/]|(\.))*\]</pre>
 </td><td>`miniup.RegExpUtil.unescapeRegexString(input)`
 </td></tr>
