@@ -79,6 +79,7 @@ module miniup {
 		}
 
 		public static literal(keyword: string, ignoreCase: boolean = false): ParseFunction {
+			//TODO: only apply word boundary if whitespace parsing is on.
 			return new ParseFunction(
 				"'" + keyword + "'",
 				MatcherFactory.regexMatcher(RegExpUtil.quoteRegExp(keyword) + (keyword.match(/\w$/) ? "\\b" : ""), ignoreCase),
@@ -510,7 +511,7 @@ module miniup {
 			var primary = g.addRule('primary', choice(
 			  callRule,
 			  literal,
-			  call('CHARACTERCLASS'),
+			  g.addRule('characters', seq(si('text', call('CHARACTERCLASS')), si("ignorecase", opt(lit("i"))))),
 			  lit('.'),
 			  importRule,
 			  paren));
@@ -621,8 +622,9 @@ module miniup {
 					return f.literal(RegExpUtil.unescapeQuotedString(ast.text), ast.ignorecase === "i"); //TODO:ast.ignorecase for 'i' flag //TODO: if not already created, in that case, use from cache
 				case "REGEX":
 					return f.regex(RegExpUtil.unescapeRegexString(ast));
-				case "CHARACTERCLASS":
-					return f.characterClass(RegExpUtil.unescapeRegexString(ast).source); //TODO: 'i' flag
+				case "characters":
+					var regexstr = "/" + ast.text + "/" + (ast.ignorecase == "i" ? "i " : "");
+					return f.characterClass(RegExpUtil.unescapeRegexString(regexstr).source);
 				case "paren":
 					return this.astToMatcher(ast.expr);
 				case "call":
@@ -689,7 +691,7 @@ module miniup {
 			transforms it to a RegExp
 		*/
 		public static unescapeRegexString(str: string): RegExp {
-			return new RegExp(str.substring(1, str.length - 1).replace(/\\/g, "\\"), str.substring(str.lastIndexOf("/")));
+			return new RegExp(str.substring(1, str.length - 1).replace(/\\/g, "\\"), str.substring(1 + str.lastIndexOf("/")));
 		}
 
 		/**
