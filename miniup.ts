@@ -57,8 +57,7 @@ module miniup {
 				var match = parser.getRemainingInput().match(r);
 				if (match) {
 					parser.currentPos += match[0].length;
-					return match[0]; //TODO: return a new String(match[0]) so that meta information can be stored on it?
-					//TODO: return complex object with raw and unquoted values?
+					return match[0];
 				}
 				return undefined;
 			}
@@ -79,10 +78,15 @@ module miniup {
 		}
 
 		public static literal(keyword: string, ignoreCase: boolean = false): ParseFunction {
-			//TODO: only apply word boundary if whitespace parsing is on.
+			var regexmatcher = MatcherFactory.regex(new RegExp(RegExpUtil.quoteRegExp(keyword)), ignoreCase);
 			return new ParseFunction(
 				"'" + keyword + "'",
-				MatcherFactory.regexMatcher(RegExpUtil.quoteRegExp(keyword) + (keyword.match(/\w$/) ? "\\b" : ""), ignoreCase),
+				p => {
+					var res = p.parse(regexmatcher);
+					if (res && p.autoParseWhitespace && res.match(/\w$/) && p.getRemainingInput().match(/^\w/))
+						return undefined; //fail if auto parse whitespace is enabled and we end in the middle of a word
+					return res;
+				},
 				{ isLiteral: true, isTerminal: true });
 		}
 
@@ -155,7 +159,7 @@ module miniup {
 			if (items.length == 1 && !items[0].label)
 				return items[0].expr;
 
-			return Util.extend(new ParseFunction(
+			return new ParseFunction(
 				"(" + items.map(i => (i.label ? i.label + ":" : "") + i.expr.toString()).join(" ") + ")",
 				(parser: Parser): any => {
 					var result = {};
@@ -169,7 +173,7 @@ module miniup {
 					});
 
 					return success ? result : undefined;
-				}),
+				},
 				{ sequence : items});
 		}
 
