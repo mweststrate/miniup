@@ -1,4 +1,5 @@
 // Some global environment stuff we use..
+//TODO: error handling, friendly  name instead of characterclasses for example. Do not show regexes?
 declare var exports : any;
 declare var module: any;
 declare var require: any;
@@ -79,11 +80,11 @@ module miniup {
 
 		public static literal(keyword: string, ignoreCase: boolean = false): ParseFunction {
 			//TODO: clanup all this regex construction stuff and parsing / unparsing
-			var regexmatcher = MatcherFactory.regex(new RegExp(RegExpUtil.quoteRegExp(keyword), ignoreCase ? "i" : ""));
+			var regexmatcher = MatcherFactory.regexMatcher(new RegExp(RegExpUtil.quoteRegExp(keyword), ignoreCase ? "i" : ""));
 			return new ParseFunction(
 				"'" + keyword + "'",
 				p => {
-					var res = p.parse(regexmatcher);
+					var res = regexmatcher(p);
 					if (res && p.autoParseWhitespace && res.match(/\w$/) && p.getRemainingInput().match(/^\w/))
 						return undefined; //fail if auto parse whitespace is enabled and we end in the middle of a word
 					return res;

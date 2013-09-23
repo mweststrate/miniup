@@ -55,7 +55,7 @@ All examples in this section are in the format `grammar` x `input` &raquo; `outp
 ## 'literal'
 Tries to match `literal` literally in the input. Both single- and double quotes are allowed to define the literal. Normal java(script) escaping is allowed within the literal (e.g. `'quote\' and newline\n'`). Unicode, hexadecimal and octal escape sequences are allowed as well. The `i` flag can be added after the closing quote to perform the match case-insensitive.
 
-TODO: mention automatic word boundaries.
+TODO: mention automatic word boundaries if auto whitespace.
 
 Example:`foo = "baR"i` x `BAr` &raquo; `"BAr"`
 
