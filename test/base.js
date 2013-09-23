@@ -1,10 +1,10 @@
 (function(exports, miniup, assert, fail) {
 
 function parse(grammar, input, expected) {
-    var g = miniup.Grammar.load(grammar);
     var catched = false;
 
     try {
+        var g = miniup.Grammar.load(grammar);
         var res = g.parse(input, {debug: false, cleanAST: true});
     }
 

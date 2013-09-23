@@ -52,7 +52,7 @@ module miniup {
 		private static regexMatcher(regex: string);
 		private static regexMatcher(regex: string, ignoreCase: boolean);
 		private static regexMatcher(regex: any, ignoreCase: boolean = false): (p:Parser) => any {
-			var r = new RegExp("^" + (regex.source || regex), regex.flags || (ignoreCase ? "i" : ""));
+			var r = new RegExp("^" + (regex.source || regex), regex.ignoreCase || ignoreCase ? "i" : "");
 			return (parser: Parser) : any => {
 				var match = parser.getRemainingInput().match(r);
 				if (match) {
@@ -78,7 +78,8 @@ module miniup {
 		}
 
 		public static literal(keyword: string, ignoreCase: boolean = false): ParseFunction {
-			var regexmatcher = MatcherFactory.regex(new RegExp(RegExpUtil.quoteRegExp(keyword)), ignoreCase);
+			//TODO: clanup all this regex construction stuff and parsing / unparsing
+			var regexmatcher = MatcherFactory.regex(new RegExp(RegExpUtil.quoteRegExp(keyword), ignoreCase ? "i" : ""));
 			return new ParseFunction(
 				"'" + keyword + "'",
 				p => {
