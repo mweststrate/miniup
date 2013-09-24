@@ -1,5 +1,7 @@
 // Some global environment stuff we use..
 //TODO: error handling, friendly  name instead of characterclasses for example. Do not show regexes?
+//TODO: make a list of characterclasses construct a single string, instead of [ '0', '1', '7' ]?
+//TODO: make a sequence of non labeled items return the only truthy value if applicable?
 declare var exports : any;
 declare var module: any;
 declare var require: any;
@@ -321,7 +323,7 @@ module miniup {
 		extendedAST?: boolean;
 	}
 
-	export class Parser {
+	export class Parser implements IParseArgs {
 		debug: boolean = false;
 		inputName: string = "input";
 		cleanAST: boolean = false;
@@ -503,6 +505,7 @@ module miniup {
 			var literal = g.addRule('literal', seq(si('text', str), si('ignorecase', opt(lit("i")))));
 			var ws = g.addRule('whitespace', choice(call('WHITESPACECHARS'), call('MULTILINECOMMENT'), call('SINGLELINECOMMENT')));
 			var identifier = call('IDENTIFIER');
+			var regex = g.addRule('regex', seq(si('text', call('REGEX'))));
 
 			var paren   = g.addRule('paren', seq(si(lit('(')), si('expr', call('expression')), si(lit(')'))));
 			var callRule = g.addRule('call', seq(
@@ -533,12 +536,12 @@ module miniup {
 			  suffixed));
 
 			var labeled = g.addRule('labeled', choice(
-			  seq(si('label', identifier), si(lit(':')), si('expr', prefixed)),
+			  seq(si('label', identifier), si(lit(':')), si('expr', choice(regex, prefixed))),
 			  seq(si('expr', prefixed))));
 
-			var sequence = g.addRule('sequence', choice(call('REGEX'), f.list(labeled, true)));
+			var sequence = g.addRule('sequence', f.list(labeled, true));
 
-			var choicerule = g.addRule('choice', list(sequence, true, lit('/')));
+			var choicerule = g.addRule('choice', list(choice(regex, sequence), true, lit('/')));
 
 			var expression = g.addRule('expression', choicerule);
 
@@ -622,12 +625,10 @@ module miniup {
 			if (ast === null)
 				return null;
 			switch (ast.$rule) {
-				case "IDENTIFIER":
-					return ast; //return the same string
 				case "literal":
 					return f.literal(RegExpUtil.unescapeQuotedString(ast.text), ast.ignorecase === "i"); //TODO:ast.ignorecase for 'i' flag //TODO: if not already created, in that case, use from cache
-				case "REGEX":
-					return f.regex(RegExpUtil.unescapeRegexString(ast));
+				case "regex":
+					return f.regex(RegExpUtil.unescapeRegexString(ast.text));
 				case "characters":
 					var regexstr = "/" + ast.text + "/" + (ast.ignorecase == "i" ? "i " : "");
 					return f.characterClass(RegExpUtil.unescapeRegexString(regexstr).source);

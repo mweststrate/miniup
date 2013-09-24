@@ -67,18 +67,18 @@ exports.testwhitespace = function(test) {
     test.done();
 }
 
-exports.readmeTests = function(test) {
+exports.readmetests = function(test) {
     parse("foo = 'baR'i", "BAr" , "BAr");
     parse("foo = [^bar]", "R" , "R");
     parse("foo = 'bar' name:'baz'", "barbaz" , { name: "baz" });
-    parse("foo = 'a' / 'b' / 'b' / 'c'", "'b'" , "b");
+    parse("foo = 'a' / 'b' / 'b' / 'c'", "b" , "b");
     parse("abc = a:'a' 'b' c:'c'", "abc" , { a: "a", c: "c"});
-    parse("foo = bar:'bar'? baz:baz", "baz" , { bar: null, baz: 'baz'});
+    parse("foo = bar:'bar'? baz:'baz'", "baz" , { bar: null, baz: 'baz'});
     parse("foo = 'a'*", "aaaa" , ['a', 'a', 'a', 'a']);
     parse("foo = 'a'+", "aaaa" , ['a', 'a', 'a', 'a']);
-    parse("foo = &'0' [0-9]+", "017" , "017");
-    parse("foo = &'0' [0-9]+", "117" , fail(1));
-    parse("foo = 'idontlike ' !'coffee' what:[a-z]*", "idontlike tea" , { what: tea });
+    parse("foo = &'0' num:[0-9]+", "017" , { num : [ '0', '1', '7' ]});
+    parse("foo = &'0' num:[0-9]+", "117" , fail(1));
+    parse("foo = 'idontlike ' !'coffee' what:/[a-z]*/", "idontlike tea" , { what: "tea" });
     parse("float = /[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?/", "-34.3e523" , "-34.3e523");
     parse("expr = 'dummy'; args = args:(expr ',')*?", "dummy,dummy,dummy" , { args: ["dummy", "dummy", "dummy"]});
     parse("expr = 'dummy'; args = args:(expr ',')*?", "dummy" , { args: ["dummy"] });

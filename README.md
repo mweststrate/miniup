@@ -95,7 +95,7 @@ Example (with extended AST enabled): `abc = a:'a' 'b' c:'c'` x `abc` &raquo; `{ 
 ## expr?
 Optionally matches `expr`. If `expr` is not found, the parse is still considered to be successful.
 
-Example: `foo = bar:'bar'? baz:baz` x `baz` &raquo; `{ bar: null, baz: 'baz'}`
+Example: `foo = bar:'bar'? baz:'baz'` x `baz` &raquo; `{ bar: null, baz: 'baz'}`
 
 ## expr\*
 Matches `expr` as many times as possible, but no matches are fine as well. The match will always be performed greedy. The matches will be returned as array.
@@ -110,12 +110,12 @@ Example: `foo = 'a'+` x `aaaa` &raquo; `['a', 'a', 'a', 'a']`
 ## &expr
 Positive predicate. Tries to match `expr`. If `expr` is found, the match is considered successful, but the rule does not match anything. Can be used as 'lookahead'.
 
-Example: `foo = &'0' [0-9]+` x `017` &raquo; `"017"`. But, this rule will fail on the input `117`.
+Example: `foo = &'0' num:[0-9]+` x `017` &raquo; `{ num : [ '0', '1', '7' ] }`. But, this rule will fail on the input `117`.
 
 ## \!expr
 Negative predicate. Tries to match `expr`. If `expr` is *not* found, the match is considered successful and parsing will continue. But fails if `expr` is found.
 
-Example: `foo = 'idontlike ' !'coffee' what:[a-z]*` x `idontlike tea` &raquo; `{ what: tea }`. But, this rule will fail on `idontlike coffee`. And rightfully so.
+Example: `foo = 'idontlike ' !'coffee' what:/[a-z]*/` x `idontlike tea` &raquo; `{ what: 'tea' }`. But, this rule will fail on `idontlike coffee`. And rightfully so.
 
 # Miniup PEG extensions
 
