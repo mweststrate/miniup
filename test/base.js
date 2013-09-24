@@ -29,7 +29,7 @@ function parse(grammar, input, expected) {
 }
 
 exports.test1 = function(test) {
-    test.ok(miniup);
+    assert.ok(miniup);
     test.done();
 };
 
@@ -68,26 +68,61 @@ exports.testwhitespace = function(test) {
 }
 
 exports.readmetests = function(test) {
+  //  `phone = number; number = [0-9]+;` x `45` &raquo; `"45"`
     parse("foo = 'baR'i", "BAr" , "BAr");
     parse("foo = [^bar]", "R" , "R");
     parse("foo = 'bar' name:'baz'", "barbaz" , { name: "baz" });
     parse("foo = 'a' / 'b' / 'b' / 'c'", "b" , "b");
+
+
+//    decl = @whitespace-on modifiers:(pub:'public'? stat:'static'?) name: IDENTIFIER '(' ')'
+
+//x `static foo()` &raquo; `{ modifiers : { pub : null, stat: 'static' }, name: "foo" }`
+
     parse("abc = a:'a' 'b' c:'c'", "abc" , { a: "a", c: "c"});
+
+//Example (with extended AST enabled): `abc = a:'a' 'b' c:'c'` x `abc` &raquo; `{ a: "a", c: "c", 0: "a", 1: "b", 2: "c", length: 3 }`
+
     parse("foo = bar:'bar'? baz:'baz'", "baz" , { bar: null, baz: 'baz'});
     parse("foo = 'a'*", "aaaa" , ['a', 'a', 'a', 'a']);
     parse("foo = 'a'+", "aaaa" , ['a', 'a', 'a', 'a']);
     parse("foo = &'0' num:[0-9]+", "017" , { num : [ '0', '1', '7' ]});
     parse("foo = &'0' num:[0-9]+", "117" , fail(1));
+    test.done();
+}
+
+exports.extensionstest = function(test) {
     parse("foo = 'idontlike ' !'coffee' what:/[a-z]*/", "idontlike tea" , { what: "tea" });
     parse("float = /[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?/", "-34.3e523" , "-34.3e523");
     parse("args = args:(expr ',')*?; expr = 'dummy'", "dummy" , { args: ["dummy"] });
     parse("args = args:(expr ',')*?; expr = 'dummy'", "dummy,dummy,dummy" , { args: ["dummy", "dummy", "dummy"]});
 
+//`modifiers = (public:'public' static:'static' final: 'final')#` x `final public` &raquo; `{public:"public", static: null, final: "final"}`
+
+//numbers = @whitespace-on number+; number = @whitespace-off '-'? [0-9] + ('.' [0-9]+)?; whitespace = WHITESPACECHARS ` x `42  3.16  -12` &raquo; `["42", "3.16", "-12"]`
+
     test.done();
 }
 
-if ((typeof(module) !== "undefined" && !module.parent) || typeof(window) !== "undefined")
-    runtests(exports);
+exports.importtest = function(test) {
+//var coffeeGrammar = miniup.Grammar.load("coffee = flavor : ('coffee' /  'cappucino')");
+  //  miniup.Grammar.register('CoffeeGrammar', coffeeGrammar);
+   // var fooGrammar = miniup.Grammar.load("foo = @import CoffeeGrammar.coffee");
+    //fooGrammar.parse("cappucino");
+    //returns: { flavor : "cappucino" }
+
+    test.done();
+}
+
+if ((typeof(module) !== "undefined" && !module.parent) || typeof(window) !== "undefined") {
+    if (typeof(runtests) !== "undefined")
+        runtests(exports);
+    else { //running coverage. simulating node-unit. Blegh blegh blegh fixme fixme.
+        for (var key in exports)
+            exports[key]({ done : function(){ console.info("Finished test " + key)}});
+    }
+
+}
 
 })(
     typeof(exports) != "undefined" ? exports : {},

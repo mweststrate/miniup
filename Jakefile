@@ -19,3 +19,13 @@ task("test", ["miniup.js"], { async: true }, function() {
 		complete();
 	});
 })
+
+
+desc("Test coverage miniup")
+task("cover", ["miniup.js"], { async: true }, function() {
+	console.log('Test started');
+	jake.exec(["istanbul cover test/base.js"], {printStdout: true, printStderr: true}, function () {
+		console.log('Test completed');
+		complete();
+	});
+})

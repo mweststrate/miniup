@@ -31,7 +31,8 @@
   "devDependencies": {
     "jake": "latest",
     "nodeunit": "latest",
-    "typescript" : "~0.9.1.1"
+    "typescript" : "~0.9.1.1",
+    "istanbul" : "latest"
   },
   "dependencies": {
     "optimist": "~0.6.0"
