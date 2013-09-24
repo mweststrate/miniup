@@ -16,7 +16,7 @@ module miniup {
 		isLiteral = false;
 		isCharacterClass = false;
 		isTerminal = false;
-		sequence : ParseFunction[];
+		sequence : ISequenceItem[];
 		autoParseWhitespace: boolean = undefined;
 
 		constructor(private asString: string, public parse : (parser: Parser) => any, opts? : Object) {
@@ -643,15 +643,20 @@ module miniup {
 						case "#":
 						//TODO: assert sequence with size < 2
 							var seq = this.astToMatcherInner(ast.expr);
-							return f.set.apply(f, seq.sequence ? seq.sequence : [seq]);
+							return f.set.apply(f, seq.sequence ? seq.sequence.map(i => i.expr) : [seq]);
 						case "*": return f.list(this.astToMatcher(ast.expr), false);
 						case "+": return f.list(this.astToMatcher(ast.expr), true);
 						case "*?":
 						case "+?":
 						//TODO: throw exception if seq is not a sequence or size is smaller than 2.
 							var seq = this.astToMatcherInner(ast.expr);
-							var sep = seq.sequence && seq.sequence.length > 1 ? seq.sequence[seq.sequence.length - 1] : null;
-							seq = f.sequence.apply(f, seq.sequence.slice(0, -1));
+							var sep : ParseFunction = null;
+							if (seq.sequence && seq.sequence.length > 1)
+								sep = seq.sequence.pop().expr;
+
+							if (seq.sequence.length == 1 && !seq.sequence[0].label) //one left? not a sequency anymore
+								seq = seq.sequence[0].expr;
+
 							return f.list(this.cache(seq), ast.suffix === "+?", this.cache(sep));
 						default: throw new Error("Unimplemented suffix: " + ast.suffix);
 					}
