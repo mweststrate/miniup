@@ -127,12 +127,12 @@ Example: `float = /[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?/` x `-34.3e523` &raquo
 ## (expr<sub>1</sub> ... expr<sub>n</sub> separator)\*?
 Matches all items between the parentheses zero or more times. However, the last item of the sequence is used as separator to initiate the repitition.
 
-Example: `expr = 'dummy'; args = args:(expr ',')*?` x `dummy,dummy,dummy` &raquo; `{ args: ["dummy", "dummy", "dummy"] }`
+Example: `args = args:(expr ',')*?; expr = 'dummy'` x `dummy,dummy,dummy` &raquo; `{ args: ["dummy", "dummy", "dummy"] }`
 
 ## (expr<sub>1</sub> ... expr<sub>n</sub> separator)\*?
 Behaves the same as the `*?` operator, but requires at least one match.
 
-Example: `expr = 'dummy'; args = args:(expr ',')*?` x `dummy` &raquo; `{ args: ["dummy"] }`
+Example: `args = args:(expr ',')*?; expr = 'dummy'` x `dummy` &raquo; `{ args: ["dummy"] }`
 
 ## (expr<sub>1</sub> ... expr<sub>n</sub> separator)\#
 Matches any subset of the provided expressions, but none are required.

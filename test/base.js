@@ -80,8 +80,8 @@ exports.readmetests = function(test) {
     parse("foo = &'0' num:[0-9]+", "117" , fail(1));
     parse("foo = 'idontlike ' !'coffee' what:/[a-z]*/", "idontlike tea" , { what: "tea" });
     parse("float = /[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?/", "-34.3e523" , "-34.3e523");
-    parse("expr = 'dummy'; args = args:(expr ',')*?", "dummy,dummy,dummy" , { args: ["dummy", "dummy", "dummy"]});
-    parse("expr = 'dummy'; args = args:(expr ',')*?", "dummy" , { args: ["dummy"] });
+    parse("args = args:(expr ',')*?; expr = 'dummy'", "dummy" , { args: ["dummy"] });
+    parse("args = args:(expr ',')*?; expr = 'dummy'", "dummy,dummy,dummy" , { args: ["dummy", "dummy", "dummy"]});
 
     test.done();
 }
