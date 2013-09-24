@@ -650,7 +650,7 @@ module miniup {
 						case "+?":
 						//TODO: throw exception if seq is not a sequence or size is smaller than 2.
 							var seq = this.astToMatcherInner(ast.expr);
-							var sep = seq.sequence && seq.sequence.length ? seq.sequence[seq.sequence.length] : null;
+							var sep = seq.sequence && seq.sequence.length > 1 ? seq.sequence[seq.sequence.length - 1] : null;
 							seq = f.sequence.apply(f, seq.sequence.slice(0, -1));
 							return f.list(this.cache(seq), ast.suffix === "+?", this.cache(sep));
 						default: throw new Error("Unimplemented suffix: " + ast.suffix);
