@@ -114,6 +114,12 @@ exports.importtest = function(test) {
     test.done();
 }
 
+exports.leftrecursiondetection = function(test) {
+    //TODO: test with leftrecursion disabled:
+    // parse("foo = foo 'x' / 'x'", "xxxx", fail(1))
+    test.done();
+}
+
 if ((typeof(module) !== "undefined" && !module.parent) || typeof(window) !== "undefined") {
     if (typeof(runtests) !== "undefined")
         runtests(exports);
@@ -128,6 +134,6 @@ if ((typeof(module) !== "undefined" && !module.parent) || typeof(window) !== "un
     typeof(exports) != "undefined" ? exports : {},
     typeof(require) !== "undefined" ? require("../miniup.js") : window.miniup,
     typeof(require) !== "undefined" ? require("assert") : window.assert,
-    function(col) { return { fail : true, col : col } }
+    function(column) { return { fail : true, col : column } }
 )
 

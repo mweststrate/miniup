@@ -1,6 +1,5 @@
 // Some global environment stuff we use..
 //TODO: error handling, friendly  name instead of characterclasses for example. Do not show regexes?
-//TODO: make a list of characterclasses construct a single string, instead of [ '0', '1', '7' ]?
 //TODO: make a sequence of non labeled items return the only truthy value if applicable?
 declare var exports : any;
 declare var module: any;
@@ -10,9 +9,9 @@ declare var process : any;
 module miniup {
 
 	export class ParseFunction {
-		ruleName : string; //TODO: separate class for rules?
+		ruleName : string;
 		friendlyName : string;
-		memoizationId: number; //TODO: should not be needed anymore, reuse toString()
+		memoizationId: number; //TODO: should not be needed anymore, reuse toString()//but that ight breakwith imports?
 		isLiteral = false;
 		isCharacterClass = false;
 		isTerminal = false;
@@ -32,8 +31,6 @@ module miniup {
 	export interface ISequenceItem { label? : string; expr: ParseFunction; }
 
 	export class MatcherFactory {
-
-		//TODO: operator matcher (operand operator)<   (or >)
 
 		public static importMatcher(language: string, rule: string) {
 			return new ParseFunction(
@@ -329,7 +326,7 @@ module miniup {
 		cleanAST: boolean = false;
 		extendedAST: boolean =false;
 
-		private static nextMemoizationId = 1; //TODO: remove for to string
+		private static nextMemoizationId = 1;
 
 		currentPos: number = 0;
 		private memoizedParseFunctions = {}; //position-> parseFunction -> MemoizeResult
@@ -566,6 +563,8 @@ module miniup {
 
 		private requiredRules : Array<{ ast: any; name: string; }> = [];
 		private allMatchers : Object = {}; //rulestring -> matcher
+		private errors : { msg:string; ast:any; }[] =[];
+
 
 		constructor(private input: string, private inputName: string = "grammar source"){}
 
@@ -595,14 +594,13 @@ module miniup {
 
 		consistencyCheck(g: Grammar) {
 			//check required rules
-			var errors : { msg:string; ast:any; }[] =[];
 			this.requiredRules.forEach(req => {
 				if (!g.hasRule(req.name))
-					errors.push({ msg: "Undefined rule: '" + req.name + "'", ast: req.ast })
+					this.errors.push({ msg: "Undefined rule: '" + req.name + "'", ast: req.ast })
 			});
 
-			if (errors.length > 0)
-				throw errors.map(e => {
+			if (this.errors.length > 0)
+				throw this.errors.map(e => {
 					var coords = Util.getCoords(this.input, e.ast.$start)
 					return Util.format("Invalid grammar: at {0} ({1},{2}): {3}", this.inputName, coords.line, coords.col, e.msg)
 				}).join("\n");
@@ -641,18 +639,22 @@ module miniup {
 					switch (ast.suffix) {
 						case "?": return f.optional(this.astToMatcher(ast.expr));
 						case "#":
-						//TODO: assert sequence with size < 2
 							var seq = this.astToMatcherInner(ast.expr);
+							if (!seq.sequence || seq.sequence.length < 2) {
+								this.errors.push({ ast: ast, msg: "A set ('#') should consist of at least two items"})
+								return null; //hmmm
+							}
 							return f.set.apply(f, seq.sequence ? seq.sequence.map(i => i.expr) : [seq]);
 						case "*": return f.list(this.astToMatcher(ast.expr), false);
 						case "+": return f.list(this.astToMatcher(ast.expr), true);
 						case "*?":
 						case "+?":
-						//TODO: throw exception if seq is not a sequence or size is smaller than 2.
 							var seq = this.astToMatcherInner(ast.expr);
-							var sep : ParseFunction = null;
-							if (seq.sequence && seq.sequence.length > 1)
-								sep = seq.sequence.pop().expr;
+							if (!seq.sequence || seq.sequence.length < 2) {
+								this.errors.push({ ast: ast, msg: "Lists with separators ('*?' or '+?') should consist of at least two items"})
+								return null; //hmmm
+							}
+							var sep : ParseFunction = seq.sequence.pop().expr;
 
 							if (seq.sequence.length == 1 && !seq.sequence[0].label) //one left? not a sequency anymore
 								seq = seq.sequence[0].expr;
@@ -669,8 +671,7 @@ module miniup {
 					}
 				case "sequence":
 					return f.sequence.apply(f, ast.map(item => f.sequenceItem(item.label, this.astToMatcher(item.expr))));
-				case "expression": //TODO: should be either of them,  not both
-				case "choice":
+				case "expression":
 					return f.choice.apply(f, ast.map(this.astToMatcher, this));
 
 				default:
@@ -680,11 +681,10 @@ module miniup {
 	}
 
 	export class RegExpUtil {
-		//TODO: check if all regexes do not backtrack!
 		public static IDENTIFIER = /[a-zA-Z_][a-zA-Z_0-9]*/;
 		public static WHITESPACECHARS = /\s+/;
 		public static REGEX = /\/([^\\\/]|(\\.))*\/i?/;
-		public static SINGLEQUOTESTRING = /'([^'\\]|(\\.))*'/; //TODO: or /(["'])(?:\\\1|[^\1])*?\1/g, faster?
+		public static SINGLEQUOTESTRING = /'([^'\\]|(\\.))*'/;
 		public static DOUBLEQUOTESTRING = /"([^"\\]|(\\.))*"/;
 		public static SINGLELINECOMMENT = /\/\/.*(\n|$)/;
 		public static MULTILINECOMMENT = /\/\*(?:[^*]|\*(?!\/))*?\*\//;
@@ -801,7 +801,6 @@ module miniup {
 				.describe('c', 'Clean AST. Do not enrich the AST with parse information').alias("c", "clean")
 				.describe('e', 'Extended AST. Item without label will be added to the AST as well').alias("e", "extended")
 				.describe('h', 'Print this help').alias('h', 'help')
-				//TODO: add item to print the bootstrap grammar
 				.boolean('rvceh'.split(''))
 				.string("giso".split(''))
 
