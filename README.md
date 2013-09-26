@@ -52,7 +52,7 @@ Example:
 
 All examples in this section are in the format `grammar` x `input` &raquo; `output`. The examples can be verified by running the command `miniup -c -g "grammar" "input"` which should produce the mentioned output.
 
-`phone = number; number = [0-9]+;` x `45` &raquo; `"45"`
+`phone = number; number = [0-9]+;` x `45` &raquo; `["4", "5"]`
 
 ## 'literal'
 Tries to match `literal` literally in the input. Both single- and double quotes are allowed to define the literal. Normal java(script) escaping is allowed within the literal (e.g. `'quote\' and newline\n'`). Unicode, hexadecimal and octal escape sequences are allowed as well. The `i` flag can be added after the closing quote to perform the match case-insensitive.
@@ -64,7 +64,11 @@ Example:`foo = "baR"i` x `BAr` &raquo; `"BAr"`
 ## [characterset]
 Tries to match exactly one character from the given characterset. Ranges and negations can be used, similar to regular expressions. For example `[^0-9 ]` matches everything but a digit or a space. The `i` flag can be added after the closing bracket to perform the match case-insensitive. Within the characterset, the slash (`\`) can be used as escape character.
 
+Note that characterclasses can be combined with the `$` operator to combine the individual matched characters.
+
 Example: `foo = [^bar]` x `R` &raquo; `"R"`
+Example: `phone = number; number = [0-9]+;` x `45` &raquo; `["4", "5"]`
+Example: `phone = number; number = $[0-9]+;` x `45` &raquo; `"45"`
 
 ## expr<sub>1</sub> expr<sub>2</sub> ... expr<sub>n</sub>
 Tries to match all the expressions or fails. Returns an object containing all submatches. If the `extendedAST` option is enabled, each submatch is available under its (zero-based) index. Otherwise only labeled items are available (see `label`)

@@ -102,8 +102,8 @@ module miniup {
 					var start = p.currentPos;
 					var res = p.parse(matcher);
 					if (res !== undefined) {
-						var end = p.currentPos; //TODO: what about whitespace?
-						return p.getInput().substring(start, end);
+						var end = p.currentPos;
+						return p.getInput().substring(start, end).trim(); //MWE: trim. Really?
 					}
 					return undefined;
 				});

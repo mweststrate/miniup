@@ -1,11 +1,11 @@
 (function(exports, miniup, assert, fail) {
 
-function parse(grammar, input, expected) {
+function parse(grammar, input, expected, opts) {
     var catched = false;
 
     try {
         var g = miniup.Grammar.load(grammar);
-        var res = g.parse(input, {debug: false, cleanAST: true});
+        var res = g.parse(input, miniup.Util.extend({debug: false, cleanAST: true}, opts || {}));
     }
 
     catch(e) {
@@ -69,21 +69,23 @@ exports.testwhitespace = function(test) {
 }
 
 exports.readmetests = function(test) {
-  //  `phone = number; number = [0-9]+;` x `45` &raquo; `"45"`
+    parse("phone = number; number = [0-9]+;", "45", ["4", "5"]);
     parse("foo = 'baR'i", "BAr" , "BAr");
     parse("foo = [^bar]", "R" , "R");
+    parse("phone = number; number = $[0-9]+;", "45", "45");
+
     parse("foo = 'bar' name:'baz'", "barbaz" , { name: "baz" });
     parse("foo = 'a' / 'b' / 'b' / 'c'", "b" , "b");
 
-
-//    decl = @whitespace-on modifiers:(pub:'public'? stat:'static'?) name: IDENTIFIER '(' ')'
-
-//x `static foo()` &raquo; `{ modifiers : { pub : null, stat: 'static' }, name: "foo" }`
+    parse(
+        "decl = @whitespace-on modifiers:(pub:'public'? stat:'static'?) name: IDENTIFIER '(' ')'",
+        "static foo()",
+        { modifiers : { pub : null, stat: 'static' }, name: "foo" }
+    );
 
     parse("abc = a:'a' 'b' c:'c'", "abc" , { a: "a", c: "c"});
 
-//Example (with extended AST enabled): `abc = a:'a' 'b' c:'c'` x `abc` &raquo; `{ a: "a", c: "c", 0: "a", 1: "b", 2: "c", length: 3 }`
-
+    parse("abc = a:'a' 'b' c:'c'", "abc", { a: "a", c: "c", 0: "a", 1: "b", 2: "c", length: 3 }, { extendedAST : true })
     parse("foo = bar:'bar'? baz:'baz'", "baz" , { bar: null, baz: 'baz'});
     parse("foo = 'a'*", "aaaa" , ['a', 'a', 'a', 'a']);
     parse("foo = 'a'+", "aaaa" , ['a', 'a', 'a', 'a']);
@@ -93,6 +95,7 @@ exports.readmetests = function(test) {
 }
 
 exports.extensionstest = function(test) {
+    parse("foo = @whitespace-on 'foo' bars:$('bar'+) 'baz'", "foo bar bar baz", { bars: "bar bar" });
     parse("foo = 'idontlike ' !'coffee' what:/[a-z]*/", "idontlike tea" , { what: "tea" });
     parse("float = /[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?/", "-34.3e523" , "-34.3e523");
     parse("args = args:(expr ',')*?; expr = 'dummy'", "dummy" , { args: ["dummy"] });
