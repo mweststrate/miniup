@@ -193,23 +193,26 @@ module miniup {
 				});
 		}
 
-		public static set(...items: ParseFunction[]): ParseFunction {
+		public static set(...items: ISequenceItem[]): ParseFunction {
 			return new ParseFunction(
-				"(" + items.map(x => x.toString()).join(" ") + ")#",
+				"(" + items.map(i => (i.label ? i.label + ":" : "") + i.expr.toString()).join(" ") + ")#",
 				(parser: Parser): any => {
-					var left : ParseFunction[] = [].concat(items),
+					var left : ISequenceItem[] = [].concat(items),
 						l : number, res = {};
 					do {
 						l = left.length;
 						for(var i = l -1; i >= 0; i--) {
-							var item = parser.parse(left[i]);
+							var item = parser.parse(left[i].expr);
 							if (item !== undefined) {
+								if (left[i].label)
+									res[left[i].label] = item;
 								left.splice(i, 1);
-								if (item.label)
-									res[item.label] = item;
 							}
 						}
 					} while (left.length && l != left.length)
+
+					left.forEach(i => i.label && (res[i.label] = null)); //make sure each label is available in the result
+
 					return res; //set matcher always succeeds. It might just have matched nothing
 				});
 		}
@@ -643,7 +646,7 @@ module miniup {
 								this.errors.push({ ast: ast, msg: "A set ('#') should consist of at least two items"})
 								return null; //hmmm
 							}
-							return f.set.apply(f, seq.sequence ? seq.sequence.map(i => i.expr) : [seq]);
+							return f.set.apply(f, seq.sequence);
 						case "*": return f.list(this.astToMatcher(ast.expr), false);
 						case "+": return f.list(this.astToMatcher(ast.expr), true);
 						case "*?":

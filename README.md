@@ -140,7 +140,7 @@ Matches all items between the parentheses zero or more times. However, the last 
 
 Example: `args = args:(expr ',')*?; expr = 'dummy'` x `dummy,dummy,dummy` &raquo; `{ args: ["dummy", "dummy", "dummy"] }`
 
-## (expr<sub>1</sub> ... expr<sub>n</sub> separator)\*?
+## (expr<sub>1</sub> ... expr<sub>n</sub> separator)\+?
 Behaves the same as the `*?` operator, but requires at least one match.
 
 Example: `args = args:(expr ',')*?; expr = 'dummy'` x `dummy` &raquo; `{ args: ["dummy"] }`
@@ -148,7 +148,7 @@ Example: `args = args:(expr ',')*?; expr = 'dummy'` x `dummy` &raquo; `{ args: [
 ## (expr<sub>1</sub> ... expr<sub>n</sub> separator)\#
 Matches any subset of the provided expressions, but none are required.
 
-Example: `modifiers = (public:'public' static:'static' final: 'final')#` x `final public` &raquo; `{public:"public", static: null, final: "final"}`
+Example: `modifiers = @whitespace-on (public:'public' static:'static' final: 'final')#` x `final public` &raquo; `{public:"public", static: null, final: "final"}`
 
 ## @whitespace-on (or off) expr<sub>1</sub> .. expr<sub>n</sub>
 Enables or disables automatic whitespace parsing for this rule. Enabling automatic whitespace parsing avoids the need to explicitly match whitespace between tokens. This is very useful in many grammar. Automatic whitespace matching is by default turned off for compatibility with existing PEG grammars. Enabling whitespace enables it for the rest of this rule, and all rules called by it. After completing (or failing) the match, the whitespace status will be reset to its original value.

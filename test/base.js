@@ -101,9 +101,13 @@ exports.extensionstest = function(test) {
     parse("args = args:(expr ',')*?; expr = 'dummy'", "dummy" , { args: ["dummy"] });
     parse("args = args:(expr ',')*?; expr = 'dummy'", "dummy,dummy,dummy" , { args: ["dummy", "dummy", "dummy"]});
 
-//`modifiers = (public:'public' static:'static' final: 'final')#` x `final public` &raquo; `{public:"public", static: null, final: "final"}`
+    parse("modifiers = @whitespace-on (public:'public' static:'static' final: 'final')#", "final public", {public:"public", static: null, final: "final"});
 
-//numbers = @whitespace-on number+; number = @whitespace-off '-'? [0-9] + ('.' [0-9]+)?; whitespace = WHITESPACECHARS ` x `42  3.16  -12` &raquo; `["42", "3.16", "-12"]`
+    parse(
+        "numbers = @whitespace-on number+; number = @whitespace-off '-'? [0-9] + ('.' [0-9]+)?; whitespace = WHITESPACECHARS",
+        "42  3.16  -12",
+        ["42", "3.16", "-12"]
+    );
 
     test.done();
 }
