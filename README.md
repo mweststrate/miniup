@@ -155,7 +155,7 @@ Enables or disables automatic whitespace parsing for this rule. Enabling automat
 
 Note that using this construction requires a rule with the name 'whitespace' to be defined.
 
-Example: `numbers = @whitespace-on number+; number = @whitespace-off '-'? [0-9] + ('.' [0-9]+)?; whitespace = WHITESPACECHARS ` x `42  3.16  -12` &raquo; `["42", "3.16", "-12"]`
+Example: `numbers = @whitespace-on ($number)+; number = @whitespace-off '-'? [0-9] + ('.' [0-9]+)?; whitespace = WHITESPACECHARS ` x `42  3.16  -12` &raquo; `["42", "3.16", "-12"]`
 
 ## @import grammar.name
 TODO: @import "filename.peg".rule
