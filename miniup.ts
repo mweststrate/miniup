@@ -690,7 +690,7 @@ module miniup {
 		public static DOUBLEQUOTESTRING = /"([^"\\]|(\\.))*"/;
 		public static SINGLELINECOMMENT = /\/\/.*(\n|$)/;
 		public static MULTILINECOMMENT = /\/\*(?:[^*]|\*(?!\/))*?\*\//;
-		public static CHARACTERCLASS = /\[([^\\\/]|(\\.))*\]/;
+		public static CHARACTERCLASS = /\[([^\\\]\[]|(\\.))*\]/;
 		public static INTEGER = /(-|\+)?\d+/;
 		public static FLOAT =  /[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?/;
 		public static BOOLEAN = /(true|false)\b/;

@@ -104,11 +104,18 @@ exports.extensionstest = function(test) {
     parse("modifiers = @whitespace-on (public:'public' static:'static' final: 'final')#", "final public", {public:"public", static: null, final: "final"});
 
     parse(
-        "numbers = @whitespace-on number+; number = @whitespace-off '-'? [0-9] + ('.' [0-9]+)?; whitespace = WHITESPACECHARS",
+        "numbers = @whitespace-on number+; number = @whitespace-off '-'? [0-9] + ('.' [0-9]+)?; whitespace = WHITESPACECHARS;",
         "42  3.16  -12",
         ["42", "3.16", "-12"]
     );
 
+    test.done();
+}
+
+exports.bugtests = function(test) {
+    parse("x = n:[a-z] d:[0-9]","0a", fail(1))
+
+    parse("x = n:[a-z] d:[0-9]","a0", { n: 'a', d: '0'})
     test.done();
 }
 
