@@ -2,10 +2,10 @@
 
 function parse(grammar, input, expected, opts) {
     var catched = false;
-
+    var res;
     try {
         var g = miniup.Grammar.load(grammar);
-        var res = g.parse(input, miniup.Util.extend({debug: false, cleanAST: true}, opts || {}));
+        res = g.parse(input, miniup.Util.extend({debug: false, cleanAST: true}, opts || {}));
     }
 
     catch(e) {
@@ -13,12 +13,12 @@ function parse(grammar, input, expected, opts) {
         if (expected && expected.fail)
             assert.equal(e.getColumn(), expected.col);
         else
-            throw new assert.AssertionError({ message : "Didn't expect exception:" + e.toString()})
+            throw new assert.AssertionError({ message : "Didn't expect exception:" + e.toString()});
     }
 
     if (expected && expected.fail) {
         if(!catched)
-            assert.ok(false, "Expected exception")
+            assert.ok(false, "Expected exception");
     }
     else if (expected instanceof Object && res instanceof Object) //either object or array
         assert.deepEqual(res, expected);
@@ -35,7 +35,7 @@ exports.test1 = function(test) {
 
 exports.test2 = function(test) {
     var g = miniup.GrammarReader.getMiniupGrammar();
-    g.parse("x = a") //should not fail
+    g.parse("x = a"); //should not fail
     test.done();
 };
 
@@ -53,7 +53,7 @@ exports.test3 = function(test) {
     parse("x = 'x' '-' 'x'", 'x-x', {});
 
     test.done();
-}
+};
 
 exports.testwhitespace = function(test) {
     parse("x = @whitespace-on 'x'; whitespace = WHITESPACECHARS", ' x ', "x");
@@ -66,7 +66,7 @@ exports.testwhitespace = function(test) {
     parse("x = @whitespace-on ('x' / y)+; y = @whitespace-off '-' '7'", ' x - 7 x', fail(5));
 
     test.done();
-}
+};
 
 exports.readmetests = function(test) {
     parse("phone = number; number = [0-9]+;", "45", ["4", "5"]);
@@ -85,14 +85,14 @@ exports.readmetests = function(test) {
 
     parse("abc = a:'a' 'b' c:'c'", "abc" , { a: "a", c: "c"});
 
-    parse("abc = a:'a' 'b' c:'c'", "abc", { a: "a", c: "c", 0: "a", 1: "b", 2: "c", length: 3 }, { extendedAST : true })
+    parse("abc = a:'a' 'b' c:'c'", "abc", { a: "a", c: "c", 0: "a", 1: "b", 2: "c", length: 3 }, { extendedAST : true });
     parse("foo = bar:'bar'? baz:'baz'", "baz" , { bar: null, baz: 'baz'});
     parse("foo = 'a'*", "aaaa" , ['a', 'a', 'a', 'a']);
     parse("foo = 'a'+", "aaaa" , ['a', 'a', 'a', 'a']);
     parse("foo = &'0' num:[0-9]+", "017" , { num : [ '0', '1', '7' ]});
     parse("foo = &'0' num:[0-9]+", "117" , fail(1));
     test.done();
-}
+};
 
 exports.extensionstest = function(test) {
     parse("foo = @whitespace-on 'foo' bars:$('bar'+) 'baz'", "foo bar bar baz", { bars: "bar bar" });
@@ -110,37 +110,51 @@ exports.extensionstest = function(test) {
     );
 
     test.done();
-}
+};
+
+exports.errortest = function(test) {
+    parse("foo = 'a'", "ab", fail(1));
+
+    parse("foo = bar"); //bar not defined
+
+    parse("foo = ('a')#"); //requires two items
+    parse("foo = ('a')+?"); //requires two items
+    parse("foo = ('a')*?"); //requires two items
+
+    test.done();
+};
 
 exports.bugtests = function(test) {
-    parse("x = n:[a-z] d:[0-9]","0a", fail(1))
+    parse("x = n:[a-z] d:[0-9]","0a", fail(1));
 
-    parse("x = n:[a-z] d:[0-9]","a0", { n: 'a', d: '0'})
+    parse("x = n:[a-z] d:[0-9]","a0", { n: 'a', d: '0'});
     test.done();
-}
+};
 
 exports.importtest = function(test) {
-//var coffeeGrammar = miniup.Grammar.load("coffee = flavor : ('coffee' /  'cappucino')");
-  //  miniup.Grammar.register('CoffeeGrammar', coffeeGrammar);
-   // var fooGrammar = miniup.Grammar.load("foo = @import CoffeeGrammar.coffee");
-    //fooGrammar.parse("cappucino");
-    //returns: { flavor : "cappucino" }
+    var coffeeGrammar = miniup.Grammar.load("coffee = flavor : ('coffee' /  'cappucino')");
+    miniup.Grammar.register('CoffeeGrammar', coffeeGrammar);
+    var fooGrammar = miniup.Grammar.load("foo = @import CoffeeGrammar.coffee");
+    var res = fooGrammar.parse("cappucino");
+    test.deepEqual(res, { flavor : "cappucino" });
 
     test.done();
-}
+};
 
 exports.leftrecursiondetection = function(test) {
     //TODO: test with leftrecursion disabled:
     // parse("foo = foo 'x' / 'x'", "xxxx", fail(1))
     test.done();
-}
+};
 
 if ((typeof(module) !== "undefined" && !module.parent) || typeof(window) !== "undefined") {
     if (typeof(runtests) !== "undefined")
         runtests(exports);
     else { //running coverage. simulating node-unit. Blegh blegh blegh fixme fixme.
         for (var key in exports)
-            exports[key]({ done : function(){ console.info("Finished test " + key)}});
+            exports[key]({
+                done : function(){ console.info("Finished test " + key);}
+            });
     }
 
 }
@@ -149,6 +163,6 @@ if ((typeof(module) !== "undefined" && !module.parent) || typeof(window) !== "un
     typeof(exports) != "undefined" ? exports : {},
     typeof(require) !== "undefined" ? require("../miniup.js") : window.miniup,
     typeof(require) !== "undefined" ? require("assert") : window.assert,
-    function(column) { return { fail : true, col : column } }
-)
+    function(column) { return { fail : true, col : column }; }
+);
 
