@@ -507,7 +507,7 @@ module miniup {
 			var paren   = g.addRule('paren', seq(si(lit('(')), si('expr', call('expression')), si(lit(')'))));
 			var callRule = g.addRule('call', seq(
 			  si('name', identifier),
-			  si(MatcherFactory.negativeLookAhead(seq(si(opt(str)), si(lit('=')))))));
+			  si(MatcherFactory.negativeLookAhead(seq(si(opt(str)), si(choice(lit('='),lit('<-'))))))));
 			var importRule = g.addRule('import', seq(
 			  si(lit('@import')),
 			  si('grammar', identifier),
@@ -542,13 +542,12 @@ module miniup {
 
 			var expression = g.addRule('expression', choicerule);
 
-			//TODO: parse and ignore actions { ... } as whitespace?
 			var whitespaceflag = g.addRule('whitespaceflag', f.regex(/@whitespace-on|@whitespace-off/));
 
 			var rule = g.addRule('rule', seq(
 			  si('name', identifier),
 			  si('displayName', opt(str)),
-			  si(lit('=')), //TODO: allow '<-' as rule definer as well.
+			  si(choice(lit('='),lit('<-'))),
 			  si('autoParseWhitespace', opt(whitespaceflag)),
 			  si('expr', expression),
 			  si(opt(lit(';')))));

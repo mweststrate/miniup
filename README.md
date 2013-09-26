@@ -43,6 +43,8 @@ Java style single line comment
 ## rulename "displayname" = expr
 Defines a rule with `rulename`. A rule with a certain name can be defined only once. `expr` refers to any of the constructions defined below. The `"displayname" string is a human-friendly name used in error reporting and is optional.
 
+Instead of usign the `=` sign, using a left arrow `<-` is allowed as well.
+
 ## rule
 Searches for a rule named `rulename` and tries to match it. Rules can be used before they are defined (syntactically speaking).
 
@@ -118,6 +120,11 @@ Negative predicate. Tries to match `expr`. If `expr` is *not* found, the match i
 Example: `foo = 'idontlike ' !'coffee' what:/[a-z]*/` x `idontlike tea` &raquo; `{ what: 'tea' }`. But, this rule will fail on `idontlike coffee`. And rightfully so.
 
 # Miniup PEG extensions
+
+## $expr
+Matches `expr`. But instead of returning the result, the original input string on which the match was made is returned.
+
+Example: `foo = @whitespace-on 'foo' bars:$('bar'+) 'baz'` x `foo bar bar baz` &raquo; `{ bars: "bar bar" }`
 
 ## /regular expression/
 Matches the specified regular expression at the begin of the remainder of the input. Useful to express more powerful patterns than charactersets. The syntax is equal to native Javascript regular expressions and the same escaping rules apply. Only the `i` flag is supported, `g` and `m` flags are *not* supported.

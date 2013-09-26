@@ -41,6 +41,7 @@ exports.test2 = function(test) {
 
 exports.test3 = function(test) {
     parse("x = 'x'", 'x', 'x');
+    parse("x <- 'x'", 'x', 'x');
     parse("x = y:'x'", 'x', { y: 'x'});
     parse("x = 'x'", ' x', fail(1));
     parse("x = 'x'", 'X', fail(1));
