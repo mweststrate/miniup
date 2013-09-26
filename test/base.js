@@ -85,7 +85,7 @@ exports.readmetests = function(test) {
 
     parse("abc = a:'a' 'b' c:'c'", "abc" , { a: "a", c: "c"});
 
-    parse("abc = a:'a' 'b' c:'c'", "abc", { a: "a", c: "c", 0: "a", 1: "b", 2: "c", length: 3 }, { extendedAST : false })
+    parse("abc = a:'a' 'b' c:'c'", "abc", { a: "a", c: "c", 0: "a", 1: "b", 2: "c", length: 3 }, { extendedAST : true })
     parse("foo = bar:'bar'? baz:'baz'", "baz" , { bar: null, baz: 'baz'});
     parse("foo = 'a'*", "aaaa" , ['a', 'a', 'a', 'a']);
     parse("foo = 'a'+", "aaaa" , ['a', 'a', 'a', 'a']);
