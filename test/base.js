@@ -113,13 +113,40 @@ exports.extensionstest = function(test) {
 };
 
 exports.errortest = function(test) {
-    parse("foo = 'a'", "ab", fail(1));
+    parse("foo = 'a'", "ab", fail(2));
 
-    parse("foo = bar"); //bar not defined
+    try {
+        miniup.Grammar.load("foo = bar"); //bar not defined
+        test.ok(false)
+    }
+    catch (e) {
+        test.ok((""+e).match(/Undefined rule: 'bar'/))
+    }
 
-    parse("foo = ('a')#"); //requires two items
-    parse("foo = ('a')+?"); //requires two items
-    parse("foo = ('a')*?"); //requires two items
+    try {
+        miniup.Grammar.load("foo = ('a')#"); //requires two items
+        test.ok(false)
+    }
+    catch (e) {
+        test.ok((""+e).match(/at least two items/))
+    }
+
+    try {
+        miniup.Grammar.load("foo = ('a')+?"); //requires two items
+        test.ok(false)
+    }
+    catch (e) {
+        test.ok((""+e).match(/at least two items/))
+    }
+
+    try {
+        miniup.Grammar.load("foo = ('a')*?"); //requires two items
+        test.ok(false)
+    }
+    catch (e) {
+        test.ok((""+e).match(/at least two items/))
+    }
+
 
     test.done();
 };

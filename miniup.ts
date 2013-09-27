@@ -644,7 +644,7 @@ module miniup {
 							var seq = this.astToMatcherInner(ast.expr);
 							if (!seq.sequence || seq.sequence.length < 2) {
 								this.errors.push({ ast: ast, msg: "A set ('#') should consist of at least two items"})
-								return null; //hmmm
+								//return null; //hmmm
 							}
 							return f.set.apply(f, seq.sequence);
 						case "*": return f.list(this.astToMatcher(ast.expr), false);
@@ -652,16 +652,18 @@ module miniup {
 						case "*?":
 						case "+?":
 							var seq = this.astToMatcherInner(ast.expr);
+							var sep : ParseFunction;
 							if (!seq.sequence || seq.sequence.length < 2) {
 								this.errors.push({ ast: ast, msg: "Lists with separators ('*?' or '+?') should consist of at least two items"})
-								return null; //hmmm
+								//return null; //hmmm
 							}
-							var sep : ParseFunction = seq.sequence.pop().expr;
+							else
+								sep = seq.sequence.pop().expr;
 
-							if (seq.sequence.length == 1 && !seq.sequence[0].label) //one left? not a sequency anymore
+							if (seq.sequence && seq.sequence.length == 1 && !seq.sequence[0].label) //one left? not a sequency anymore
 								seq = seq.sequence[0].expr;
 
-							return f.list(this.cache(seq), ast.suffix === "+?", this.cache(sep));
+							return f.list(this.cache(seq), ast.suffix === "+?", sep ? this.cache(sep) : null);
 						default: throw new Error("Unimplemented suffix: " + ast.suffix);
 					}
 				case "prefixed":
