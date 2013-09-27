@@ -338,6 +338,7 @@ module miniup {
 		extendedAST: boolean =false;
 
 		private static nextMemoizationId = 1;
+		private static RecursionDetected = { recursion : true };
 
 		currentPos: number = 0;
 		private memoizedParseFunctions = {}; //position-> parseFunction -> MemoizeResult
@@ -391,9 +392,19 @@ module miniup {
 						Util.debug(Util.leftPad(" /" + func.toString() + " ? (memo)", this.stack.length, " |"));
 
 					result = this.consumeMemoized(func);
+					if (result == Parser.RecursionDetected) {
+						if (this.debug)
+							Util.debug(Util.leftPad(" | (recursion detected)", this.stack.length, " |"))
+						throw new ParseException(this, "Grammar error: Left recursion found in rule '" + func.toString() + "'");
+					}
 				}
 
 				else {
+					this.memoizedParseFunctions[func.memoizationId][startpos] = {
+						result: Parser.RecursionDetected,
+						endPos: this.currentPos
+					}
+
 					if (this.debug && !this.isParsingWhitespace)
 						Util.debug(Util.leftPad(" /" + func.toString() + " ?", this.stack.length, " |"));
 

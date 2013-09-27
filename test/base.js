@@ -177,7 +177,7 @@ exports.importtest = function(test) {
 
 exports.leftrecursiondetection = function(test) {
     //TODO: test with leftrecursion disabled:
-    // parse("foo = foo 'x' / 'x'", "xxxx", fail(1))
+    parse("foo = foo 'x' / 'x'", "xxxx", fail(1))
     test.done();
 };
 
