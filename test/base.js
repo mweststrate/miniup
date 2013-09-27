@@ -162,8 +162,15 @@ exports.importtest = function(test) {
     var coffeeGrammar = miniup.Grammar.load("coffee = flavor : ('coffee' /  'cappucino')");
     miniup.Grammar.register('CoffeeGrammar', coffeeGrammar);
     var fooGrammar = miniup.Grammar.load("foo = @import CoffeeGrammar.coffee");
-    var res = fooGrammar.parse("cappucino");
+    var res = fooGrammar.parse("cappucino",  { cleanAST : true});
     test.deepEqual(res, { flavor : "cappucino" });
+
+
+    coffeeGrammar = miniup.Grammar.load("coffee = flavor : tea; tea = 'tea'");
+    miniup.Grammar.register('CoffeeGrammar', coffeeGrammar);
+    fooGrammar = miniup.Grammar.load("foo = @import CoffeeGrammar.coffee");
+    res = fooGrammar.parse("tea",  { cleanAST : true});
+    test.deepEqual(res, { flavor : "tea" });
 
     test.done();
 };

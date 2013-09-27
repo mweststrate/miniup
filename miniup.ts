@@ -33,6 +33,8 @@ module miniup {
 	export class MatcherFactory {
 
 		public static importMatcher(language: string, rule: string) {
+			var call = MatcherFactory.call(rule);
+
 			return new ParseFunction(
 				"@" + language + "." + rule,
 				p => {
@@ -40,7 +42,7 @@ module miniup {
 					var g = Grammar.get(language);
 					try {
 						p.grammar = g;
-						return p.parse(MatcherFactory.call(language));
+						return p.parse(call);
 					}
 					finally {
 						p.grammar = thisGrammar;
@@ -238,17 +240,23 @@ module miniup {
 	export class Grammar {
 
 		private rules = new Map<ParseFunction>();
+		private static grammars : Map<Grammar> = {};
 		whitespaceMatcher: ParseFunction;
 		public startSymbol: string;
 
-		//TODO: add Grammar registery for import statements
+		public static get(grammarName: string): Grammar {
+			if (Grammar.grammars[grammarName])
+				return Grammar.grammars[grammarName]
+			throw "Unregistered grammar: '" + grammarName + "'";
+		}
+
+		public static register(grammarName: string, grammar: Grammar) : Grammar {
+			Grammar.grammars[grammarName] = grammar;
+			return grammar;
+		}
 
 		public static load(grammarSource: string, inputName: string): Grammar {
 			return new GrammarReader(grammarSource, inputName).build();
-		}
-
-		public static get(grammarName: string): Grammar {
-			throw "TODO";
 		}
 
 		public static loadFromFile(filename: string): Grammar {
@@ -677,7 +685,8 @@ module miniup {
 					return f.sequence.apply(f, ast.map(item => f.sequenceItem(item.label, this.astToMatcher(item.expr))));
 				case "expression":
 					return f.choice.apply(f, ast.map(this.astToMatcher, this));
-
+				case "import":
+					return f.importMatcher(ast.grammar, ast.rule);
 				default:
 					throw new Error("Unimplemented ruletype: " + ast.$rule);
 			}
