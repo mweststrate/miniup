@@ -117,34 +117,34 @@ exports.errortest = function(test) {
 
     try {
         miniup.Grammar.load("foo = bar"); //bar not defined
-        test.ok(false)
+        assert.ok(false)
     }
     catch (e) {
-        test.ok((""+e).match(/Undefined rule: 'bar'/))
+        assert.ok((""+e).match(/Undefined rule: 'bar'/))
     }
 
     try {
         miniup.Grammar.load("foo = ('a')#"); //requires two items
-        test.ok(false)
+        assert.ok(false)
     }
     catch (e) {
-        test.ok((""+e).match(/at least two items/))
+        assert.ok((""+e).match(/at least two items/))
     }
 
     try {
         miniup.Grammar.load("foo = ('a')+?"); //requires two items
-        test.ok(false)
+        assert.ok(false)
     }
     catch (e) {
-        test.ok((""+e).match(/at least two items/))
+        assert.ok((""+e).match(/at least two items/))
     }
 
     try {
         miniup.Grammar.load("foo = ('a')*?"); //requires two items
-        test.ok(false)
+        assert.ok(false)
     }
     catch (e) {
-        test.ok((""+e).match(/at least two items/))
+        assert.ok((""+e).match(/at least two items/))
     }
 
 
@@ -155,6 +155,9 @@ exports.bugtests = function(test) {
     parse("x = n:[a-z] d:[0-9]","0a", fail(1));
 
     parse("x = n:[a-z] d:[0-9]","a0", { n: 'a', d: '0'});
+
+    parse("x = ('0'?)* '1'", "1", fail(1)) //0?* is a never ending rule
+
     test.done();
 };
 
@@ -163,14 +166,14 @@ exports.importtest = function(test) {
     miniup.Grammar.register('CoffeeGrammar', coffeeGrammar);
     var fooGrammar = miniup.Grammar.load("foo = @import CoffeeGrammar.coffee");
     var res = fooGrammar.parse("cappucino",  { cleanAST : true});
-    test.deepEqual(res, { flavor : "cappucino" });
+    assert.deepEqual(res, { flavor : "cappucino" });
 
 
     coffeeGrammar = miniup.Grammar.load("coffee = flavor : tea; tea = 'tea'");
     miniup.Grammar.register('CoffeeGrammar', coffeeGrammar);
     fooGrammar = miniup.Grammar.load("foo = @import CoffeeGrammar.coffee");
     res = fooGrammar.parse("tea",  { cleanAST : true});
-    test.deepEqual(res, { flavor : "tea" });
+    assert.deepEqual(res, { flavor : "tea" });
 
     test.done();
 };

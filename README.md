@@ -175,6 +175,10 @@ TODO:
 
 @right-associative operand operator operand
 
+# $expr
+
+# .
+
 # built-in tokens
 
 # left recursion
