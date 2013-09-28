@@ -179,7 +179,7 @@ module miniup {
 				},
 				{ sequence : items});
 		}
-
+/*
 		public static choice(...choices: ParseFunction[]): ParseFunction {
 			if (choices.length === 1)
 				return choices[0];
@@ -194,6 +194,63 @@ module miniup {
 					return undefined;
 				});
 		}
+*/
+		public static choice(...choices: ParseFunction[]): ParseFunction {
+			if (choices.length === 1)
+				return choices[0];
+
+			return new ParseFunction(
+				"(" + choices.map(x => x.toString()).join(" | ") + ")",
+
+
+
+				function (parser: Parser): any {
+					var res = undefined;
+					var isleftrecursive = false;
+					var seedmatch; //the successful choice..
+					var seedchoice;
+					var recursionCause;
+
+					var match = choices.some(choice => {
+						try {
+							res = parser.parse(choice);
+							if (res !== undefined) {
+								seedmatch = res;
+								seedchoice = choice;
+								return true;
+							}
+							return false;
+						}
+						catch(e) {
+							if (e instanceof RecursionException) {
+								isleftrecursive = true; //mark left recursive and try the net choice
+								recursionCause = <RecursionException> e.func;
+							}
+							else
+								throw e;
+						}
+						return false;
+					})
+
+					if (!isleftrecursive)
+						return res;
+
+					//handle left recursion
+					else if (!match) {
+						if (recursionCause == this)
+							return undefined; //we're done, no match.
+						throw new RecursionException(parser, <ParseFunction> this); //TODO: properscope?
+					}
+					// a match, try the recursing one again..
+					else {
+
+					}
+				}
+
+
+			);
+		}
+
 
 		public static set(...items: ISequenceItem[]): ParseFunction {
 			return new ParseFunction(
@@ -395,15 +452,12 @@ module miniup {
 					if (result == Parser.RecursionDetected) {
 						if (this.debug)
 							Util.debug(Util.leftPad(" | (recursion detected)", this.stack.length, " |"))
-						throw new ParseException(this, "Grammar error: Left recursion found in rule '" + func.toString() + "'");
+						throw new RecursionException(this, func);
 					}
 				}
 
 				else {
-					this.memoizedParseFunctions[func.memoizationId][startpos] = {
-						result: Parser.RecursionDetected,
-						endPos: this.currentPos
-					}
+					this.memoize(func, startpos, Parser.RecursionDetected);
 
 					if (this.debug && !this.isParsingWhitespace)
 						Util.debug(Util.leftPad(" /" + func.toString() + " ?", this.stack.length, " |"));
@@ -423,10 +477,7 @@ module miniup {
 						Util.extend(result, { $start : startpos, $text : this.getInput().substring(startpos, this.currentPos), $rule : func.ruleName });
 
 					//store memoization result
-					this.memoizedParseFunctions[func.memoizationId][startpos] = <MemoizeResult> {
-						result: result,
-						endPos: this.currentPos
-					};
+					this.memoize(func, startpos, result);
 				}
 
 				return result;
@@ -446,6 +497,13 @@ module miniup {
 
 				this.stack.pop();
 			}
+		}
+
+		memoize(func: ParseFunction, startpos: number, result: any) {
+			this.memoizedParseFunctions[func.memoizationId][startpos] = <MemoizeResult> {
+				result: result,
+				endPos: this.currentPos
+			};
 		}
 
 		isMemoized(func: ParseFunction): boolean {
@@ -497,6 +555,12 @@ module miniup {
 
 		public getColumn():number { return this.coords.col; }
 		public getLineNr():number { return this.coords.line;}
+	}
+
+	export class RecursionException extends ParseException {
+		constructor(parser: Parser, public func: ParseFunction) {
+			super(parser, "Grammar error: Left recursion found in rule '" + func.toString() + "'");
+		}
 	}
 
 	export class GrammarReader {
