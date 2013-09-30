@@ -179,7 +179,7 @@ module miniup {
 				},
 				{ sequence : items});
 		}
-/*
+
 		public static choice(...choices: ParseFunction[]): ParseFunction {
 			if (choices.length === 1)
 				return choices[0];
@@ -194,7 +194,7 @@ module miniup {
 					return undefined;
 				});
 		}
-*/
+/*
 		public static choice(...choices: ParseFunction[]): ParseFunction {
 			if (choices.length === 1)
 				return choices[0];
@@ -250,7 +250,7 @@ module miniup {
 
 			);
 		}
-
+*/
 
 		public static set(...items: ISequenceItem[]): ParseFunction {
 			return new ParseFunction(
@@ -403,6 +403,8 @@ module miniup {
 		autoParseWhitespace = false;
 		private stack: StackItem[] = []; //TODO: is stack required anywhere?
 		expected = []; //pos -> [ expecteditems ]
+		recursion = {}; //'pos.memoizationId' -> true?
+		usecache = true;
 
 		constructor(public grammar: Grammar, public input: string, opts: IParseArgs = {}) {
 			Util.extend(this, opts);
@@ -432,8 +434,12 @@ module miniup {
 		}
 
 		parse(func: ParseFunction): any {
+			if (this.stack.length > 30)
+				return undefined;
+
 			var startpos = this.currentPos,
 				isMatch = false,
+
 				result = undefined;
 
 			try {
@@ -444,23 +450,28 @@ module miniup {
 				this.stack.push({ func: func, startPos : this.currentPos}); //Note, not startpos.
 
 				//check memoization cache
-				if (this.isMemoized(func)) {
-					if (this.debug && !this.isParsingWhitespace)
-						Util.debug(Util.leftPad(" /" + func.toString() + " ? (memo)", this.stack.length, " |"));
+				if (this.usecache && this.isMemoized(func)) {
+					this.log(" /" + func.toString() + " ? (memo)");
 
 					result = this.consumeMemoized(func);
 					if (result == Parser.RecursionDetected) {
-						if (this.debug)
-							Util.debug(Util.leftPad(" | (recursion detected)", this.stack.length, " |"))
-						throw new RecursionException(this, func);
+						this.log(" | (recursion detected)");
+
+						//throw new RecursionException(this, func);
+						//recursion, fail now, but remember the recursion!
+						this.recursion[this.currentPos + "." + func.memoizationId] = true;
+
+						console.log("Recursion state", this.recursion);
+
+						result = undefined;
 					}
 				}
 
 				else {
-					this.memoize(func, startpos, Parser.RecursionDetected);
+					if (this.usecache)
+						this.memoize(func, startpos, Parser.RecursionDetected);
 
-					if (this.debug && !this.isParsingWhitespace)
-						Util.debug(Util.leftPad(" /" + func.toString() + " ?", this.stack.length, " |"));
+					this.log(" /" + func.toString() + " ?");
 
 					//store expected
 					if (func.isTerminal && !this.isParsingWhitespace) {
@@ -492,14 +503,26 @@ module miniup {
 				else
 					this.currentPos = startpos; //rewind
 
-				if (this.debug && !this.isParsingWhitespace)
-					Util.debug(Util.leftPad(" \\" + func.toString() + (isMatch ? " V" : " X"), this.stack.length, " |") + " @" + this.currentPos);
+				this.log(" \\" + func.toString() + (isMatch ? " V" : " X") + " @" + this.currentPos);
+
+				if (isMatch && this.recursion[startpos + "." + func.memoizationId] && this.usecache) {
+					this.currentPos = startpos; //rewind
+
+					this.log(" + Invoking recursive call")
+					delete this.recursion[this.currentPos + "." + func.memoizationId]
+					var ucb = this.usecache;
+					//this.usecache = false;
+					result = this.parse(func);
+					this.usecache = ucb;
+					return result;
+				}
 
 				this.stack.pop();
 			}
 		}
 
 		memoize(func: ParseFunction, startpos: number, result: any) {
+			console.log("memoized ", func.memoizationId, ":", func.toString(), " @ ", startpos, " => ", result);
 			this.memoizedParseFunctions[func.memoizationId][startpos] = <MemoizeResult> {
 				result: result,
 				endPos: this.currentPos
@@ -529,6 +552,12 @@ module miniup {
 			this.isParsingWhitespace = true;
 			this.parse(this.grammar.whitespaceMatcher);
 			this.isParsingWhitespace = false;
+		}
+
+		log(msg: string) {
+			if (this.debug && !this.isParsingWhitespace)
+				Util.debug(Util.leftPad(msg, this.stack.length, " |"));
+
 		}
 	}
 
