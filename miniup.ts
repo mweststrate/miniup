@@ -140,6 +140,8 @@ module miniup {
 						item = parser.parse(matcher);
 						if (item !== undefined)
 							res.push(item);
+						else if (separator)
+							return undefined; //sequence should not end with a separator
 					} while (item !== undefined && (!separator || (sep = parser.parse(separator)) !== undefined));
 
 					return atleastOne && !res.length ? undefined : res;
