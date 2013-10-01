@@ -156,7 +156,10 @@ exports.bugtests = function(test) {
 
     parse("x = n:[a-z] d:[0-9]","a0", { n: 'a', d: '0'});
 
-    parse("x = ('0'?)* '1'", "1", fail(1)) //0?* is a never ending rule
+    parse("x= ('a' 'b')+?", "ababa", ["a","a","a"]);
+    parse("x= ('a' 'b')+?", "abab", fail(5));
+
+//TODO:    parse("x = ('0'?)* '1'", "1", fail(1)) //0?* is a never ending rule
 
     test.done();
 };
@@ -183,6 +186,11 @@ exports.leftrecursiondetection = function(test) {
     parse("foo = foo 'x' / 'x'", "xxxx", fail(1))
     test.done();
 };
+
+exports.lambdatest = function(test) {
+    parse("x =  l:'a' r:x / ", 'aaa', { l: 'a', r: { l : 'a', r : { l : 'a', r : null}}});
+    test.done();
+}
 
 if ((typeof(module) !== "undefined" && !module.parent) || typeof(window) !== "undefined") {
     if (typeof(runtests) !== "undefined")

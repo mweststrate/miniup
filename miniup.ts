@@ -238,6 +238,14 @@ module miniup {
 			});
 		}
 
+		public static lambda() : ParseFunction {
+			return new ParseFunction(
+				"",
+				(parser: Parser): any => {
+					return null;
+				});
+		}
+
 		public static operator(operator: ParseFunction, operand: ParseFunction, left: boolean): ParseFunction {
 			function buildAST (items : any[]) {
 				return items.length < 2 ? items[0] : {
