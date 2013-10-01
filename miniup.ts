@@ -247,21 +247,12 @@ module miniup {
 				}
 			}
 
+			var listparser = MatcherFactory.list(operand, true, operator, true);
+
 			return new ParseFunction(
 				["@operator-" + (left?"left":"right"), operator, operand].join(' '),
 				(parser: Parser): any => {
-					var first = parser.parse(operand);
-					if (first == undefined)
-						return undefined;
-
-					var res = [first];
-					var op, term; //operator or operand
-					while (undefined !== (op = parser.parse(operator))) {
-						if (undefined !== (term = parser.parse(operand)))
-							res = res.concat([op, term]);
-						else
-							return undefined; //operator found but no term found
-					}
+					var res =parser.parse(listparser);
 
 					if (res.length === 1)
 						return res[0];
