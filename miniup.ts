@@ -127,18 +127,20 @@ module miniup {
 			});
 		}
 
-		public static list(matcher: ParseFunction, atleastOne : boolean = false, separator : ParseFunction = null): ParseFunction {
+		public static list(matcher: ParseFunction, atleastOne : boolean = false, separator : ParseFunction = null, storeSeparator : boolean = false): ParseFunction {
 			return new ParseFunction(
 				"(" + matcher.toString() + (separator ? " " +separator.toString() : "") + ")" + (atleastOne ? "+" : "*") + (separator ? "?" : ""),
 				(parser: Parser): any => {
 					var res = [];
-					var item, sep;
+					var item, sep = undefined;
 					do {
 						//TODO: check if previous rule did consume something, else throw non-terminating rule
+						if (sep !== undefined && storeSeparator)
+							res.push(sep);
 						item = parser.parse(matcher);
 						if (item !== undefined)
 							res.push(item);
-					} while (item !== undefined && (!separator || parser.parse(separator) !== undefined));
+					} while (item !== undefined && (!separator || (sep = parser.parse(separator)) !== undefined));
 
 					return atleastOne && !res.length ? undefined : res;
 			});
@@ -233,6 +235,38 @@ module miniup {
 			var ppm = MatcherFactory.positiveLookAhead(predicate);
 			return new ParseFunction("!" + predicate.toString(), (parser: Parser): any => {
 				return parser.parse(ppm) === undefined ? null : undefined; //undefined == no match. null == match, so invert.
+			});
+		}
+
+		public static operator(operator: ParseFunction, operand: ParseFunction, left: boolean): ParseFunction {
+			function buildAST (items : any[]) {
+				return items.length < 2 ? items[0] : {
+					left : left ? buildAST(items.slice(0, -2)) : items[0],
+					right: left ? items[items.length -1] : buildAST(items.slice(2)),
+					op   : left ? items[items.length -2] : items[1]
+				}
+			}
+
+			return new ParseFunction(
+				["@operator-" + (left?"left":"right"), operator, operand].join(' '),
+				(parser: Parser): any => {
+					var first = parser.parse(operand);
+					if (first == undefined)
+						return undefined;
+
+					var res = [first];
+					var op, term; //operator or operand
+					while (undefined !== (op = parser.parse(operator))) {
+						if (undefined !== (term = parser.parse(operand)))
+							res = res.concat([op, term]);
+						else
+							return undefined; //operator found but no term found
+					}
+
+					if (res.length === 1)
+						return res[0];
+
+					return buildAST(res);
 			});
 		}
 	}
