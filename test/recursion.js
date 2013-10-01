@@ -79,6 +79,25 @@ public static choiceMatcher(choices: ParseFunction[]): ParseFunction {
 		}
 
 
+//variant 2
+
+parse
+	recursion? throw recursion detected
+
+parse
+	caught recursion detected?
+		register recursion
+		fail (do not memoize)
+		do not register fail
+
+parse
+	success?
+	reattempt recursive matches
+
+reattempt recursive matches
+	for funcs in recursive set //will repeat forever until no successful match
+		try parse
+
 //direct
 A = A b / b
 b = 'b'

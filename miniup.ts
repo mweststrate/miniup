@@ -133,15 +133,30 @@ module miniup {
 				(parser: Parser): any => {
 					var res = [];
 					var item, sep = undefined;
+					var p;
+
 					do {
-						//TODO: check if previous rule did consume something, else throw non-terminating rule
+						//store separator from previos iteration
 						if (sep !== undefined && storeSeparator)
 							res.push(sep);
+
+						p = parser.currentPos;
 						item = parser.parse(matcher);
-						if (item !== undefined)
+
+						//consumed anything at all?
+						if (parser.currentPos == p) {
+							if (item !== undefined)  //store first lambda match and return, TODO: do not use this, but memoized fail for lambda on current pos
+								res.push(item);
+							break;
+						}
+
+						//ok
+						else if (item !== undefined)
 							res.push(item);
+
+						//sequence should not end with a separator
 						else if (separator)
-							return undefined; //sequence should not end with a separator
+							return undefined;
 					} while (item !== undefined && (!separator || (sep = parser.parse(separator)) !== undefined));
 
 					return atleastOne && !res.length ? undefined : res;
@@ -560,6 +575,7 @@ module miniup {
 			var ws = g.addRule('whitespace', choice(call('WHITESPACECHARS'), call('MULTILINECOMMENT'), call('SINGLELINECOMMENT')));
 			var identifier = call('IDENTIFIER');
 			var regex = g.addRule('regex', seq(si('text', call('REGEX'))));
+			var lambda = g.addRule('lambda', seq(si('lambda', choice(lit("-"), lit("")))));
 
 			var paren   = g.addRule('paren', seq(si(lit('(')), si('expr', call('expression')), si(lit(')'))));
 			var callRule = g.addRule('call', seq(
@@ -595,7 +611,7 @@ module miniup {
 
 			var sequence = g.addRule('sequence', f.list(labeled, true));
 
-			var choicerule = g.addRule('choice', list(choice(regex, sequence), true, lit('/')));
+			var choicerule = g.addRule('choice', list(choice(regex, sequence, lambda), true, lit('/')));
 
 			var expression = g.addRule('expression', choicerule);
 
@@ -679,6 +695,8 @@ module miniup {
 			if (ast === null)
 				return null;
 			switch (ast.$rule) {
+				case "lambda":
+					return f.lambda();
 				case "literal":
 					return f.literal(RegExpUtil.unescapeQuotedString(ast.text), ast.ignorecase === "i"); //TODO:ast.ignorecase for 'i' flag //TODO: if not already created, in that case, use from cache
 				case "regex":
