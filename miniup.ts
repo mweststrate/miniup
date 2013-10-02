@@ -130,7 +130,7 @@ module miniup {
 		public static list(matcher: ParseFunction, atleastOne : boolean = false, separator : ParseFunction = null, storeSeparator : boolean = false): ParseFunction {
 			return new ParseFunction(
 				"(" + matcher.toString() + (separator ? " " +separator.toString() : "") + ")" + (atleastOne ? "+" : "*") + (separator ? "?" : ""),
-				(parser: Parser): any => {
+				function (parser: Parser): any {
 					var res = [];
 					var item, sep = undefined;
 					var p;
@@ -157,7 +157,8 @@ module miniup {
 						//TODO: fix everywhere, null indicates Parser.EMPTY, undefined indicates Parser.FAIL
 						//but, bail out on matchin lambda items eternally (unless sep does not consume anything as well!)
 						if (parser.currentPos == p && (!separator || sep === null))
-							break; //or throw?
+							break; //TODO: or throw?
+							//throw new ParseException(parser, "Rule '" + this + "' can match just nothing an unlimited amount of times. Please fix the grammar. ")
 
 					} while (item !== undefined && (!separator || (sep = parser.parse(separator)) !== undefined));
 
