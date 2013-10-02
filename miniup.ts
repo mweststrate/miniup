@@ -143,20 +143,22 @@ module miniup {
 						p = parser.currentPos;
 						item = parser.parse(matcher);
 
-						//consumed anything at all?
-						if (parser.currentPos == p) {
-							if (item !== undefined)  //store first lambda match and return, TODO: do not use this, but memoized fail for lambda on current pos
-								res.push(item);
-							break;
+						//consumed nothing?
+						if (item === undefined) {
+							if (separator && sep !== undefined && sep !== null) //should not end with separator, unless sep is optional and didn't consume input
+								return undefined;
+
+							break; //we're done
 						}
 
-						//ok
-						else if (item !== undefined)
-							res.push(item);
+						//consumed something at least
+						res.push(item);
 
-						//sequence should not end with a separator
-						else if (separator)
-							return undefined;
+						//TODO: fix everywhere, null indicates Parser.EMPTY, undefined indicates Parser.FAIL
+						//but, bail out on matchin lambda items eternally (unless sep does not consume anything as well!)
+						if (parser.currentPos == p && (!separator || sep === null))
+							break; //or throw?
+
 					} while (item !== undefined && (!separator || (sep = parser.parse(separator)) !== undefined));
 
 					return atleastOne && !res.length ? undefined : res;

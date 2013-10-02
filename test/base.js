@@ -194,12 +194,13 @@ exports.lambdatest = function(test) {
     parse("x =  l:'a' r:x / ", 'aaa', { l: 'a', r: { l : 'a', r : { l : 'a', r : null}}});
 
     parse("x = ('a' 'b'?)*?", "", [])
-    parse("x = ('a' 'b'?)*?", "abaaab", ["a", "a", "a", "a"])
+    parse("x = ('a' 'b'?)*?", "abaaa", ["a", "a", "a", "a"])
+    parse("x = ('a' 'b'?)*?", "abaaab", fail(7)) //'cause separator was found
     parse("x = ('a' 'b'?)*?", "ababa", ["a", "a", "a"])
 
-    parse("x = ('a'? 'b')+?", "", fail(1))
-    parse("x = ('a'? 'b')+?", "abbab", ["a", null, "a"])
-    parse("x = ('a'? 'b')+", "abbab", ["a", null, "a"])
+    parse("x = ('a'? 'b')+?", "", [null]) //might seem weird, but 'a'? matches nothing, so one iteration does succeed
+    parse("x = ('n'? 'b')+?", "nbbnb", ["n", null, "n",null])
+    parse("x = ('a'? 'b')+", "abbab", [{},{},{}]) //3 succesful iteratinos
     parse("x = ('a'? 'b')+?", "bbb", [null,null,null,null])
     parse("x = ('a'? 'b')+?", "ababa", ["a", "a", "a"])
     parse("x = ('a'? 'b')+", "ababa", fail(6))
@@ -211,6 +212,8 @@ exports.lambdatest = function(test) {
 
     test.done();
 }
+
+//TODO: test any matcher
 
 if ((typeof(module) !== "undefined" && !module.parent) || typeof(window) !== "undefined") {
     if (typeof(runtests) !== "undefined")
