@@ -173,7 +173,7 @@ exports.bugtests = function(test) {
     parse("x= ('a' 'b')+?", "ababa", ["a","a","a"]);
     parse("x= ('a' 'b')+?", "abab", fail(5));
 
-//TODO:    parse("x = ('0'?)* '1'", "1", fail(1)) //0?* is a never ending rule
+    parse("x = l:('0'?)* r:'1'", "1", { l: [ null ], r:"1"}) //0?* is a never ending rule
     test.done();
 };
 
@@ -195,12 +195,13 @@ exports.importtest = function(test) {
 };
 
 exports.leftrecursiondetection = function(test) {
-    //TODO: test with leftrecursion disabled:
+    //left recusion detection
     parse("foo = foo 'x' / 'x'", "xxxx", fail(1))
-    test.done();
 
     //right recursion detetion: A = 'x'? A | 'y'
     parse("A = 'x'? A / 'y'", "yyy", fail(1))
+
+    test.done();
 };
 
 exports.lambdatest = function(test) {
