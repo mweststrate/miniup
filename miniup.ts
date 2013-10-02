@@ -1,6 +1,5 @@
 // Some global environment stuff we use..
 //TODO: error handling, friendly  name instead of characterclasses for example. Do not show regexes?
-//TODO: make a sequence of non labeled items return the only truthy value if applicable?
 declare var exports : any;
 declare var module: any;
 declare var require: any;
@@ -11,7 +10,7 @@ module miniup {
 	export class ParseFunction {
 		ruleName : string;
 		friendlyName : string;
-		memoizationId: number; //TODO: should not be needed anymore, reuse toString()//but that ight breakwith imports?
+		memoizationId: number;
 		isTerminal = false;
 		sequence : ISequenceItem[];
 		autoParseWhitespace: boolean = undefined;
@@ -158,8 +157,7 @@ module miniup {
 						//TODO: fix everywhere, null indicates Parser.EMPTY, undefined indicates Parser.FAIL
 						//but, bail out on matchin lambda items eternally (unless sep does not consume anything as well!)
 						if (parser.currentPos == p && (!separator || sep === null))
-							break; //TODO: or throw?
-							//throw new ParseException(parser, "Rule '" + this + "' can match just nothing an unlimited amount of times. Please fix the grammar. ")
+							break; //or throw? -> throw new ParseException(parser, "Rule '" + this + "' can match just nothing an unlimited amount of times. Please fix the grammar. ")
 
 					} while (item !== undefined && (!separator || (sep = parser.parse(separator)) !== undefined));
 
@@ -360,16 +358,9 @@ module miniup {
 		}
 
 		public parse(input: string, opts: IParseArgs = {}): any {
-			//TODO: store inputName and show in exceptions
-			//TODO: use 'debug' for logging
 			return new Parser(this, input, opts).parseInput(MatcherFactory.call(opts.startSymbol || this.startSymbol));
 		}
 
-	}
-
-	export interface StackItem { //TODO: remove
-		func: ParseFunction;
-		startPos: number;
 	}
 
 	interface MemoizeResult {
@@ -398,8 +389,8 @@ module miniup {
 		private memoizedParseFunctions = {}; //position-> parseFunction -> MemoizeResult
 		private isParsingWhitespace = false;
 		autoParseWhitespace = false;
-		private stack: StackItem[] = []; //TODO: is stack required anywhere?
 		expected = []; //pos -> [ expecteditems ]
+		private stackdepth = 0;
 
 		constructor(public grammar: Grammar, public input: string, opts: IParseArgs = {}) {
 			Util.extend(this, opts);
@@ -434,21 +425,21 @@ module miniup {
 				result = undefined;
 
 			try {
+				this.stackdepth++;
+
 				//consume whitespace
 				if (!this.isParsingWhitespace && this.autoParseWhitespace)
 					this.consumeWhitespace();
 
-				this.stack.push({ func: func, startPos : this.currentPos}); //Note, not startpos.
-
 				//check memoization cache
 				if (this.isMemoized(func)) {
 					if (this.debug && !this.isParsingWhitespace)
-						Util.debug(Util.leftPad(" /" + func.toString() + " ? (memo)", this.stack.length, " |"));
+						Util.debug(Util.leftPad(" /" + func.toString() + " ? (memo)", this.stackdepth, " |"));
 
 					result = this.consumeMemoized(func);
 					if (result == Parser.RecursionDetected) {
 						if (this.debug)
-							Util.debug(Util.leftPad(" | (recursion detected)", this.stack.length, " |"))
+							Util.debug(Util.leftPad(" | (recursion detected)", this.stackdepth, " |"))
 						throw new ParseException(this, "Grammar error: Left recursion found in rule '" + func.toString() + "'");
 					}
 				}
@@ -460,7 +451,7 @@ module miniup {
 					}
 
 					if (this.debug && !this.isParsingWhitespace)
-						Util.debug(Util.leftPad(" /" + func.toString() + " ?", this.stack.length, " |"));
+						Util.debug(Util.leftPad(" /" + func.toString() + " ?", this.stackdepth, " |"));
 
 					//store expected
 					if (func.isTerminal && !this.isParsingWhitespace) {
@@ -496,9 +487,9 @@ module miniup {
 					this.currentPos = startpos; //rewind
 
 				if (this.debug && !this.isParsingWhitespace)
-					Util.debug(Util.leftPad(" \\" + func.toString() + (isMatch ? " V" : " X"), this.stack.length, " |") + " @" + this.currentPos);
+					Util.debug(Util.leftPad(" \\" + func.toString() + (isMatch ? " V" : " X"), this.stackdepth, " |") + " @" + this.currentPos);
 
-				this.stack.pop();
+				this.stackdepth--;
 			}
 		}
 
@@ -707,7 +698,7 @@ module miniup {
 				case "dot":
 					return f.dot();
 				case "literal":
-					return f.literal(RegExpUtil.unescapeQuotedString(ast.text), ast.ignorecase === "i"); //TODO:ast.ignorecase for 'i' flag //TODO: if not already created, in that case, use from cache
+					return f.literal(RegExpUtil.unescapeQuotedString(ast.text), ast.ignorecase === "i");
 				case "regex":
 					return f.regex(RegExpUtil.unescapeRegexString(ast.text));
 				case "characters":
@@ -824,10 +815,6 @@ module miniup {
 
 	export class Map<U> {
 		[name: string] : U
-/* TODO: not possible :-(		public static clone<T>(map: map<T>) : Map<T> {
-			return Util.extend(new Map<T>(), this);
-		}
-*/
 	}
 
 	export class Util {
@@ -970,11 +957,11 @@ module miniup {
 	}
 }
 
-//TODO: fixme: still strugling with the typescript module export system. Lets work around..
+//fixme: still strugling with the typescript module export system. Lets work around..
 (function(root) {
-//var exports = root['exports'];
-	if (typeof(exports) !== "undefined") for(var key in miniup)
-		exports[key] = miniup[key];
+	if (typeof(exports) !== "undefined")
+		for(var key in miniup)
+			exports[key] = miniup[key];
 })(this);
 
 //root script?
