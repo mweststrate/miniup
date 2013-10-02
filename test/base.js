@@ -205,15 +205,13 @@ exports.lambdatest = function(test) {
     parse("x = ('a'? 'b')+?", "ababa", ["a", "a", "a"])
     parse("x = ('a'? 'b')+", "ababa", fail(6))
 
-    parse("x = ('a'? 'b'?)*?", "", [])
-    parse("x = ('a'? 'b'?)*?", "aaa", ["a", "a", "a"])
-    parse("x = ('a'? 'b'?)*?", "bbb", [null,null,null,null])
-    parse("x = ('a'? 'b'?)*?", "bbaabb", [null,null,"a", "a", null,null])
+    parse("x = ('a'? 'b'?)*?", "", [null, null]) //MWE: disputable, but strange case
+    parse("x = ('a'? 'b'?)*?", "aaa", ["a", "a", "a", null])
+    parse("x = ('a'? 'b'?)*?", "bbb", [null,null,null,null,null])
+    parse("x = ('a'? 'b'?)*?", "bbaabb", [null,null,"a", "a", null,null, null])
 
     test.done();
 }
-
-//TODO: test any matcher
 
 if ((typeof(module) !== "undefined" && !module.parent) || typeof(window) !== "undefined") {
     if (typeof(runtests) !== "undefined")
