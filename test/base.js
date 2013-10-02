@@ -13,7 +13,7 @@ function parse(grammar, input, expected, opts) {
         if (expected && expected.fail)
             assert.equal(e.getColumn(), expected.col);
         else
-            throw new assert.AssertionError({ message : "Didn't expect exception:" + e.toString()});
+            throw new Error("Didn't expect exception:" + e.toString());
     }
 
     if (expected && expected.fail) {
@@ -54,6 +54,20 @@ exports.test3 = function(test) {
 
     test.done();
 };
+
+exports.test4 = function(test) {
+    parse("x = a a <- 'b'", "b", "b"); //rule not separated by semicolon
+
+    parse("x = .", "b", "b");
+    parse("x = .", "bb", fail(2));
+    parse("x = .", "", fail(1));
+
+    parse("x 'friendlyname' = 'b'", "b", "b")
+
+    parse("x 'frienlyname' = a a 'friendlyname2' <- 'b'", "b", "b"); //rule not separated by semicolon
+
+    test.done();
+}
 
 exports.testwhitespace = function(test) {
     parse("x = @whitespace-on 'x'; whitespace = WHITESPACECHARS", ' x ', "x");

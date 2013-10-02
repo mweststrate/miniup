@@ -12,8 +12,6 @@ module miniup {
 		ruleName : string;
 		friendlyName : string;
 		memoizationId: number; //TODO: should not be needed anymore, reuse toString()//but that ight breakwith imports?
-		isLiteral = false;
-		isCharacterClass = false;
 		isTerminal = false;
 		sequence : ISequenceItem[];
 		autoParseWhitespace: boolean = undefined;
@@ -76,7 +74,7 @@ module miniup {
 			return new ParseFunction(
 				regexstr.toString(),
 				MatcherFactory.regexMatcher(regexstr, ignoreCase),
-				{ isCharacterClass: true, isTerminal: true });
+				{ isTerminal: true });
 		}
 
 		public static literal(keyword: string, ignoreCase: boolean = false): ParseFunction {
@@ -90,11 +88,14 @@ module miniup {
 						return undefined; //fail if auto parse whitespace is enabled and we end in the middle of a word
 					return res;
 				},
-				{ isLiteral: true, isTerminal: true });
+				{ isTerminal: true });
 		}
 
 		public static dot(): ParseFunction {
-			return new ParseFunction(".", MatcherFactory.regexMatcher(/./), { isCharacterClass: true, isTerminal: true });
+			return new ParseFunction(
+				".",
+				MatcherFactory.regexMatcher(/./),
+				{ isTerminal: true });
 		}
 
 		public static dollar(matcher: ParseFunction): ParseFunction {
@@ -575,15 +576,18 @@ module miniup {
 			//rules
 			var str     = g.addRule('string', choice(call('SINGLEQUOTESTRING'), call('DOUBLEQUOTESTRING')));
 			var literal = g.addRule('literal', seq(si('text', str), si('ignorecase', opt(lit("i")))));
-			var ws = g.addRule('whitespace', choice(call('WHITESPACECHARS'), call('MULTILINECOMMENT'), call('SINGLELINECOMMENT')));
+			var ws      = g.addRule('whitespace', choice(call('WHITESPACECHARS'), call('MULTILINECOMMENT'), call('SINGLELINECOMMENT')));
 			var identifier = call('IDENTIFIER');
-			var regex = g.addRule('regex', seq(si('text', call('REGEX'))));
-			var lambda = g.addRule('lambda', seq(si('lambda', choice(lit("-"), lit("")))));
+			var regex   = g.addRule('regex', seq(si('text', call('REGEX'))));
+			var dot     = g.addRule('dot', seq(si('dot', lit('.'))));
+			var lambda  = g.addRule('lambda', seq(si('lambda', choice(lit("-"), lit("")))));
 
 			var paren   = g.addRule('paren', seq(si(lit('(')), si('expr', call('expression')), si(lit(')'))));
+
 			var callRule = g.addRule('call', seq(
 			  si('name', identifier),
 			  si(MatcherFactory.negativeLookAhead(seq(si(opt(str)), si(choice(lit('='),lit('<-'))))))));
+
 			var importRule = g.addRule('import', seq(
 			  si(lit('@import')),
 			  si('grammar', identifier),
@@ -594,7 +598,7 @@ module miniup {
 			  callRule,
 			  literal,
 			  g.addRule('characters', seq(si('text', call('CHARACTERCLASS')), si("ignorecase", opt(lit("i"))))),
-			  lit('.'),
+			  dot,
 			  importRule,
 			  paren));
 
@@ -700,6 +704,8 @@ module miniup {
 			switch (ast.$rule) {
 				case "lambda":
 					return f.lambda();
+				case "dot":
+					return f.dot();
 				case "literal":
 					return f.literal(RegExpUtil.unescapeQuotedString(ast.text), ast.ignorecase === "i"); //TODO:ast.ignorecase for 'i' flag //TODO: if not already created, in that case, use from cache
 				case "regex":
