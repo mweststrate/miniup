@@ -461,8 +461,16 @@ module miniup {
 					}
 
 					//finally... parse!
-					result = func.parse(this);
+					try {
+						result = func.parse(this);
+					}
+					catch (e) {
+						if (!(e instanceof RecursionException))
+							throw e;
+						var fixedRule = fixLeftRecusion(func); //TODO: store
+						return this.parse(fixedRule);
 
+					}
 					//enrich result with match information
 					if (!this.cleanAST && result instanceof Object && !result.$rule)
 						Util.extend(result, { $start : startpos, $text : this.getInput().substring(startpos, this.currentPos), $rule : func.ruleName });

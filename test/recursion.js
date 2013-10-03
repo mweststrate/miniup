@@ -9,8 +9,11 @@ R = left:R right:a  /  b
 
 R = b X --> after match X, if X then X.left = b else b;
 
-X = a X --> { right: a, left : X }
+X = a X --> after match a. if a object-or-array then a.left = X; else { left: X }
+
 X = - --> null
+
+//TODO: extendedAST info / general AST info
 
 
 R → Ra
