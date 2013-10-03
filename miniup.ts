@@ -412,7 +412,7 @@ module miniup {
 			else {
 				if (this.currentPos < this.input.length) {
 					if (this.currentPos == this.expected.length -1) //we parsed something valid, but we expected more..
-						throw new ParseException(this, "Found superflous input after parsing");
+						throw new ParseException(this, "Found superfluous input after parsing");
 					throw new ParseException(this, "Failed to parse");
 				}
 				return res;
@@ -511,8 +511,6 @@ module miniup {
 		}
 
 		consumeWhitespace() {
-			if (!this.grammar.whitespaceMatcher)
-				throw "Whitespace matcher has not been defined!";
 			this.isParsingWhitespace = true;
 			this.parse(this.grammar.whitespaceMatcher);
 			this.isParsingWhitespace = false;
@@ -548,7 +546,7 @@ module miniup {
 		private static miniupGrammar: Grammar = null;
 
 		public static getMiniupGrammar(): Grammar {
-			if (GrammarReader.miniupGrammar == null)
+			if (GrammarReader.miniupGrammar === null)
 				GrammarReader.miniupGrammar = GrammarReader.bootstrap();
 			return GrammarReader.miniupGrammar;
 		}
@@ -639,7 +637,7 @@ module miniup {
 		constructor(private input: string, private inputName: string = "grammar source"){}
 
 		public build(): Grammar {
-			var ast = GrammarReader.bootstrap().parse(this.input);
+			var ast = GrammarReader.getMiniupGrammar().parse(this.input);
 			var g = new Grammar();
 
 			(<any[]>ast.rules).forEach((ast: any) => {
@@ -690,8 +688,6 @@ module miniup {
 
 		astToMatcherInner(ast: any): ParseFunction {
 			var f = MatcherFactory;
-			if (ast === null)
-				return null;
 			switch (ast.$rule) {
 				case "lambda":
 					return f.lambda();

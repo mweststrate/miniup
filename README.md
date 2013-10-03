@@ -26,10 +26,13 @@ Test page
 Built in tokens + conversion functions
 Build instructions
 PEGJS compatibility.
-Lambda parsing ( nothign or dash)
+Lambda parsing ( nothign or dash )
+Lambda parsing in lists
 
 Extended and meta AST information
 TODO: convert every example in a unit test.
+
+grammar modifications on runtime
 
 # PEG grammar constructions
 

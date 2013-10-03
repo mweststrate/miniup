@@ -228,14 +228,95 @@ exports.lambdatest = function(test) {
     test.done();
 }
 
+exports.improvecoverage = function(test) {
+    parse("x = @whitespace-on 'function' 'stuff'", "function stuff", {});
+    parse("x = @whitespace-on 'function' 'stuff'", "functionstuff", fail(6));
+    parse("x = @whitespace-on 'function' '.' 'stuff'", "function . stuff", {});
+    parse("x = @whitespace-on 'function' '.' 'stuff'", "function.stuff", {});
+    parse("x = @whitespace-on 'function' '.' 'stuff'", "function. stuff", { debug: true});
+
+    assert.throws(function() { miniup.Grammar.get("nonsense"); });
+
+    parse("x = (l: 'a' 'b')#", "ba", { l: "a"})
+    parse("x = (l: 'a' 'b')#", "ba", { l: "a"}, { debug : true})
+
+    parse(
+        "x = l: 'a' 'b'", "ba",
+        { l: "a", $rule : "x", $start : 0, $text: "ba"},
+        { cleanAST : false}
+    )
+
+
+    parse(
+        "x = l: 'a' 'b'", "ba",
+        { l: "a", $rule : "x", $start : 0, $text: "ba", 0: "a", 1:"b"},
+        { cleanAST : false, extendedAST : true}
+    )
+
+    try {
+        miniup.Grammar.load("x='a'").parse("b");
+        assert.ok(false);
+    }
+    catch (e){
+        assert.equal(e.toString(), "Miniup.ParseException: input(1,1): Unexpected end of input\nb\n^Expected x")
+        assert.equal(e.getLineNr(), 1)
+    }
+
+    test.done();
+}
+
+exports.testunicode = function(test) {
+    var g = miniup.Grammar.load("x = SINGLEQUOTESTRING")
+    assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a'")), "a");
+    assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\na'")), "a\na");
+    assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\ta'")), "a\ta");
+    assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\u1234a'")), "a\u1234a");
+    assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\xFFa'")), "a256a");
+    assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\077a'")), "a64a");
+
+    test.done();
+}
+
+exports.testgrammarmodification = function(test) {
+    var g = miniup.Grammar.load("x = '3'");
+
+    assert.throws(function() { g.addRule(miniup.MatcherFactory.dot()); }, "Anonymous rules cannot be registered in a grammar");
+    assert.throws(function() { g.addRule("x", miniup.MatcherFactory.dot()); }, "is already defined");
+
+    var h = g.clone();
+    assert.equal(g.parse("3"), "3");
+
+    g.updateRule("x", miniup.MatcherFactory.dot());
+    assert.equal(g.parse("4"), "4");
+
+    assert.equal(h.parse("4"), undefined);
+    assert.equal(h.parse("3"), "3");
+
+    assert.throws(g.parse("45"), "superfluous input")
+
+
+
+    var temp = miniup.Grammar.load("x = y y = 'z'+")
+
+    g.updateRule("x", temp.rule("x"));
+    g.addRule("y", temp.rule("y"))
+
+    test.done();
+}
+
 if ((typeof(module) !== "undefined" && !module.parent) || typeof(window) !== "undefined") {
     if (typeof(runtests) !== "undefined")
         runtests(exports);
     else { //running coverage. simulating node-unit. Blegh blegh blegh fixme fixme.
-        for (var key in exports)
-            exports[key]({
-                done : function(){ console.info("Finished test " + key);}
-            });
+        for (var key in exports) {
+            try {
+                exports[key]({
+                   done : function(){ console.info("Finished test " + key);}
+                });
+            } catch(e) {
+                console.error(e);
+            }
+        }
     }
 
 }
