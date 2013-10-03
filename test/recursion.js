@@ -1,3 +1,27 @@
+R = R a / b
+
+R = b X
+X = a X / -
+
+---
+
+R = left:R right:a  /  b
+
+R = b X --> after match X, if X then X.left = b else b;
+
+X = a X --> { right: a, left : X }
+X = - --> null
+
+
+R → Ra
+|b
+can be translated to the right-recursive:
+R →bX
+R →aX
+|ε
+
+
+
 in parser.parse:
 
 				//TODO: get memoize record. If state is 'running', bail out: left recursion
