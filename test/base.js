@@ -230,10 +230,10 @@ exports.lambdatest = function(test) {
 
 exports.improvecoverage = function(test) {
     parse("x = @whitespace-on 'function' 'stuff'", "function stuff", {});
-    parse("x = @whitespace-on 'function' 'stuff'", "functionstuff", fail(6));
+    parse("x = @whitespace-on 'function' 'stuff'", "functionstuff", fail(1));
     parse("x = @whitespace-on 'function' '.' 'stuff'", "function . stuff", {});
     parse("x = @whitespace-on 'function' '.' 'stuff'", "function.stuff", {});
-    parse("x = @whitespace-on 'function' '.' 'stuff'", "function. stuff", { debug: true});
+    parse("x = @whitespace-on 'function' '.' 'stuff'", "function. stuff", {}, { debug: true});
 
     assert.throws(function() { miniup.Grammar.get("nonsense"); });
 
@@ -241,15 +241,15 @@ exports.improvecoverage = function(test) {
     parse("x = (l: 'a' 'b')#", "ba", { l: "a"}, { debug : true})
 
     parse(
-        "x = l: 'a' 'b'", "ba",
-        { l: "a", $rule : "x", $start : 0, $text: "ba"},
+        "x = l: 'a' 'b'",
+        "ab",
+        { l: "a", $rule : "x", $start : 0, $text: "ab"},
         { cleanAST : false}
     )
 
-
     parse(
-        "x = l: 'a' 'b'", "ba",
-        { l: "a", $rule : "x", $start : 0, $text: "ba", 0: "a", 1:"b"},
+        "x = l: 'a' 'b'", "ab",
+        { l: "a", $rule : "x", $start : 0, $text: "ab", 0: "a", 1:"b", length: 2},
         { cleanAST : false, extendedAST : true}
     )
 
@@ -258,7 +258,7 @@ exports.improvecoverage = function(test) {
         assert.ok(false);
     }
     catch (e){
-        assert.equal(e.toString(), "Miniup.ParseException: input(1,1): Unexpected end of input\nb\n^Expected x")
+        assert.equal(e.toString(), "Miniup.ParseException: input(1,1): Unexpected end of input\nb\n^\nExpected x")
         assert.equal(e.getLineNr(), 1)
     }
 
@@ -270,9 +270,9 @@ exports.testunicode = function(test) {
     assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a'")), "a");
     assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\na'")), "a\na");
     assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\ta'")), "a\ta");
-    assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\u1234a'")), "a\u1234a");
-    assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\xFFa'")), "a256a");
-    assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\077a'")), "a64a");
+    assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\u1234a'")), "aሴa");
+    assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\xFFa'")), "aÿa");
+    assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\077a'")), "a?a");
 
     test.done();
 }
@@ -289,10 +289,10 @@ exports.testgrammarmodification = function(test) {
     g.updateRule("x", miniup.MatcherFactory.dot());
     assert.equal(g.parse("4"), "4");
 
-    assert.equal(h.parse("4"), undefined);
+    assert.throws(function() { h.parse("4") });
     assert.equal(h.parse("3"), "3");
 
-    assert.throws(g.parse("45"), "superfluous input")
+    assert.throws(function() { g.parse("45") }, "superfluous input")
 
 
 
