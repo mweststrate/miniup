@@ -433,13 +433,11 @@ module miniup {
 
 				//check memoization cache
 				if (this.isMemoized(func)) {
-					if (this.debug && !this.isParsingWhitespace)
-						Util.debug(Util.leftPad(" /" + func.toString() + " ? (memo)", this.stackdepth, " |"));
+					this.log(" /" + func.toString() + " ? (memo)");
 
 					result = this.consumeMemoized(func);
 					if (result == Parser.RecursionDetected) {
-						if (this.debug)
-							Util.debug(Util.leftPad(" | (recursion detected)", this.stackdepth, " |"))
+						this.log(" | (recursion detected)");
 						throw new RecursionException(this, func);
 					}
 				}
@@ -447,8 +445,7 @@ module miniup {
 				else {
 					this.memoize(func, startpos, Parser.RecursionDetected);
 
-					if (this.debug && !this.isParsingWhitespace)
-						Util.debug(Util.leftPad(" /" + func.toString() + " ?", this.stackdepth, " |"));
+					this.log(" /" + func.toString() + " ?");
 
 					//store expected
 					if (func.isTerminal && !this.isParsingWhitespace) {
@@ -458,16 +455,8 @@ module miniup {
 					}
 
 					//finally... parse!
-					try {
-						result = func.parse(this);
-					}
-					catch (e) {
-						if (!(e instanceof RecursionException))
-							throw e;
-						var fixedRule = fixLeftRecusion(func); //TODO: store
-						return this.parse(fixedRule);
+					result = func.parse(this);
 
-					}
 					//enrich result with match information
 					if (!this.cleanAST && result instanceof Object && !result.$rule)
 						Util.extend(result, { $start : startpos, $text : this.getInput().substring(startpos, this.currentPos), $rule : func.ruleName });
@@ -488,8 +477,7 @@ module miniup {
 				else
 					this.currentPos = startpos; //rewind
 
-				if (this.debug && !this.isParsingWhitespace)
-					Util.debug(Util.leftPad(" \\" + func.toString() + (isMatch ? " V" : " X"), this.stackdepth, " |") + " @" + this.currentPos);
+				this.log(" \\" + func.toString() + (isMatch ? " V" : " X") + " @" + this.currentPos);
 
 				this.stackdepth--;
 			}
@@ -523,6 +511,12 @@ module miniup {
 			this.isParsingWhitespace = true;
 			this.parse(this.grammar.whitespaceMatcher);
 			this.isParsingWhitespace = false;
+		}
+
+		log(msg: string) {
+			if (this.debug && !this.isParsingWhitespace)
+				Util.debug(Util.leftPad(msg, this.stackdepth, " |"));
+
 		}
 	}
 
@@ -594,7 +588,7 @@ module miniup {
 
 			var importRule = g.addRule('import', seq(
 			  si(lit('@import')),
-			  si('grammar', identifier),
+			  si('grammar', identifier), //TODO: or string, in case of filename
 			  si(lit('.')),
 			  si('rule', identifier)));
 
