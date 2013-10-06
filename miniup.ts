@@ -419,7 +419,42 @@ module miniup {
 			}
 		}
 
-		parse(func: ParseFunction): any {
+
+		private growing = {}; //rule -> position -> seed ← R -> P -> seed
+
+		parse(func: ParseFunction) {
+			return this.applyrule(func, this.currentPos, func, this.currentPos)
+		}
+
+
+		applyrule(func: ParseFunction, P , Rorig , Porig) {
+			var result;
+			var seed;
+			var R = func.memoizationId;
+
+			if (R == Rorig && this.growing[R] && this.growing[R][P]) {
+				return this.growing[R][P]
+			}
+			else if (R == Rorig && P == Porig) {
+				if (!this.growing[R])
+					this.growing[R] = {};
+
+				this.growing[R][P] = undefined;
+				while (true) {
+					var result = this.applyrule(func, P, Rorig , Porig)
+					var seed = this.growing[R][P]
+					if (result == undefined || (seed == undefined && result.endPos < seed.endPos)) {
+						delete this.growing[R][P];
+						return seed;
+					}
+					this.growing[R][P] = result;
+				}
+			}
+			else
+				return this.parsePeg(func);
+		}
+
+		parsePeg(func: ParseFunction): any {
 			var startpos = this.currentPos,
 				isMatch = false,
 				result = undefined;
@@ -436,11 +471,11 @@ module miniup {
 					this.log(" /" + func.toString() + " ? (memo)");
 
 					result = this.consumeMemoized(func);
-					if (result == Parser.RecursionDetected) {
+				/*	if (result == Parser.RecursionDetected) {
 						this.log(" | (recursion detected)");
 						throw new RecursionException(this, func);
 					}
-				}
+				*/}
 
 				else {
 					this.memoize(func, startpos, Parser.RecursionDetected);
