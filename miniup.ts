@@ -205,6 +205,8 @@ module miniup {
 
 
 				function (parser: Parser): any {
+					var self = this;
+					var start = parser.currentPos;
 					var res = undefined;
 					var isleftrecursive = false;
 					var seedmatch; //the successful choice..
@@ -225,6 +227,7 @@ module miniup {
 							if (e instanceof RecursionException) {
 								isleftrecursive = true; //mark left recursive and try the net choice
 								recursionCause = <RecursionException> e.func;
+								parser.log("> Detected recursion in " + e.func.toString())
 							}
 							else
 								throw e;
@@ -237,13 +240,53 @@ module miniup {
 
 					//handle left recursion
 					else if (!match) {
-						if (recursionCause == this)
+						if (recursionCause == this) {
+							parser.log("> recursion cause is self. Done with no match ")
 							return undefined; //we're done, no match.
-						throw new RecursionException(parser, <ParseFunction> this); //TODO: properscope?
+						}
+						parser.log("> found no seed to solve recursion")
+						throw new RecursionException(parser, <ParseFunction> self); //TODO: properscope?
 					}
 					// a match, try the recursing one again..
 					else {
+						parser.log("> found seed for recursion, growing")
+						var newMatch = false;
+						var res = seedmatch;
 
+						//rewind and story seed
+						parser.currentPos = start;
+						//parser.memoize(recursionCause, start, res);
+						delete parser.memoizedParseFunctions[seedchoice.memoizationId][start];
+
+						do {
+							newMatch = choices.some(choice => {
+								if (choice == seedchoice)
+									return false; //this is the terminator
+
+								try {
+									var r = parser.parse(choice);
+									if (r !== undefined) { //TODO: and consumed input..
+										parser.log("> recursion grow success for " + choice.toString() + ": " + r.$text)
+										parser.currentPos = start;
+										//parser.memoize(self, start, r);
+										return true;
+									}
+									else
+										parser.log("> nothing found for grow in " + choice.toString());
+								}
+								catch (e) {
+									if (e instanceof RecursionException) {
+										parser.log("> recursion grow recursion exception");
+										//try next choice
+										return false;
+									}
+									else
+										throw e;
+								}
+							});
+						} while (newMatch)
+
+						return parser.consumeMemoized(self);
 					}
 				}
 
@@ -398,7 +441,7 @@ module miniup {
 		private static RecursionDetected = { recursion : true };
 
 		currentPos: number = 0;
-		private memoizedParseFunctions = {}; //position-> parseFunction -> MemoizeResult
+		memoizedParseFunctions = {}; //position-> parseFunction -> MemoizeResult
 		private isParsingWhitespace = false;
 		autoParseWhitespace = false;
 		private stack: StackItem[] = []; //TODO: is stack required anywhere?
@@ -529,6 +572,11 @@ module miniup {
 			this.isParsingWhitespace = true;
 			this.parse(this.grammar.whitespaceMatcher);
 			this.isParsingWhitespace = false;
+		}
+
+		log(msg: string) {
+			//TODO: merge
+			Util.debug(msg);
 		}
 	}
 
