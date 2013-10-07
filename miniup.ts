@@ -422,36 +422,43 @@ module miniup {
 
 		private growing = {}; //rule -> position -> seed ← R -> P -> seed
 
+		private FIXME = { endPos: 0, result: undefined }
+
 		parse(func: ParseFunction) {
-			return this.applyrule(func, this.currentPos, func, this.currentPos)
+			var r = this.applyrule(func, func.memoizationId, this.currentPos)
+			if (r !== undefined && r !== this.FIXME)
+				return r.result;
+			return undefined;
 		}
 
-
-		applyrule(func: ParseFunction, P , Rorig , Porig) {
-			var result;
-			var seed;
+		//TODO: only call from 'call' applications, not for any rule
+		private applyrule(func: ParseFunction, Rorig:number , Porig:number) : MemoizeResult {
+			var result : MemoizeResult;
+			var seed : MemoizeResult;
 			var R = func.memoizationId;
+			var P = this.currentPos;
 
 			if (R == Rorig && this.growing[R] && this.growing[R][P]) {
-				return this.growing[R][P]
+				return <MemoizeResult> this.growing[R][P]
 			}
 			else if (R == Rorig && P == Porig) {
 				if (!this.growing[R])
 					this.growing[R] = {};
 
-				this.growing[R][P] = undefined;
+				this.growing[R][P] = this.FIXME;
 				while (true) {
-					var result = this.applyrule(func, P, Rorig , Porig)
-					var seed = this.growing[R][P]
-					if (result == undefined || (seed == undefined && result.endPos < seed.endPos)) {
+					result = this.applyrule(func, Rorig , Porig)
+					seed = this.growing[R][P]
+					if (result === this.FIXME || (seed === this.FIXME && result.endPos < seed.endPos)) {
 						delete this.growing[R][P];
 						return seed;
 					}
-					this.growing[R][P] = result;
+					this.growing[R][P] = { result: result, endPos: this.currentPos };
 				}
+				throw "Illegal State"
 			}
 			else
-				return this.parsePeg(func);
+				return { endPos: this.currentPos, result: this.parsePeg(func) };
 		}
 
 		parsePeg(func: ParseFunction): any {
