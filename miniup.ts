@@ -202,32 +202,34 @@ module miniup {
 			return new ParseFunction(
 				"(" + choices.map(x => x.toString()).join(" | ") + ")",
 
-
+				// R = R a / b
+				// ->
+				// R = b R2
+				// R2= a R2 / -
+				// ->
+				// R = b R2
+				// R2 = a*
+				// R = b (a)*
 
 				function (parser: Parser): any {
-					var self = this;
 					var start = parser.currentPos;
 					var res = undefined;
 					var isleftrecursive = false;
-					var seedmatch; //the successful choice..
-					var seedchoice;
-					var recursionCause;
+					var error: RecursionException;
+					var recursingchoice : ParseFunction;
 
 					var match = choices.some(choice => {
 						try {
-							res = parser.parse(choice);
-							if (res !== undefined) {
-								seedmatch = res;
-								seedchoice = choice;
-								return true;
-							}
-							return false;
+							return undefined !== (res = parser.parse(choice));
 						}
 						catch(e) {
-							if (e instanceof RecursionException) {
+							if (e instanceof RecursionException) { //TODO: what if a next choice is recusrive again -> create a new choice matcher based on the remaining options
 								isleftrecursive = true; //mark left recursive and try the net choice
-								recursionCause = <RecursionException> e.func;
+								recursingchoice = choice;
+								error = <RecursionException> e;
+								parser.currentPos = start;
 								parser.log("> Detected recursion in " + e.func.toString())
+
 							}
 							else
 								throw e;
@@ -239,57 +241,26 @@ module miniup {
 						return res;
 
 					//handle left recursion
-					else if (!match) {
-						if (recursionCause == this) {
-							parser.log("> recursion cause is self. Done with no match ")
-							return undefined; //we're done, no match.
-						}
+					if (!match) {
 						parser.log("> found no seed to solve recursion")
-						throw new RecursionException(parser, <ParseFunction> self); //TODO: properscope?
+						throw error;
 					}
+
 					// a match, try the recursing one again..
-					else {
-						parser.log("> found seed for recursion, growing")
-						var newMatch = false;
-						var res = seedmatch;
+					var LR = { LR : 1 }
+					var parts = [res]; //seed
+					parser.memoize(error.func, parser.currentPos, LR);
 
-						//rewind and story seed
-						parser.currentPos = start;
-						//parser.memoize(recursionCause, start, res);
-						delete parser.memoizedParseFunctions[seedchoice.memoizationId][start];
+					delete parser.memoizedParseFunctions[recursingchoice.memoizationId][start]
 
-						do {
-							newMatch = choices.some(choice => {
-								if (choice == seedchoice)
-									return false; //this is the terminator
-
-								try {
-									var r = parser.parse(choice);
-									if (r !== undefined) { //TODO: and consumed input..
-										parser.log("> recursion grow success for " + choice.toString() + ": " + r.$text)
-										parser.currentPos = start;
-										//parser.memoize(self, start, r);
-										return true;
-									}
-									else
-										parser.log("> nothing found for grow in " + choice.toString());
-								}
-								catch (e) {
-									if (e instanceof RecursionException) {
-										parser.log("> recursion grow recursion exception");
-										//try next choice
-										return false;
-									}
-									else
-										throw e;
-								}
-							});
-						} while (newMatch)
-
-						return parser.consumeMemoized(self);
+					parser.log("> found seed for recursion, growing on " + recursingchoice.memoizationId + " recur: " + error.func.memoizationId);
+					while (undefined !== (res = parser.parse(recursingchoice))) {
+						parts.push(res);
+						parser.memoize(error.func, parser.currentPos, LR); //<- TODO: could store previous iteration here!
 					}
-				}
 
+					return parts;
+				}
 
 			);
 		}
@@ -489,10 +460,11 @@ module miniup {
 				//check memoization cache
 				if (this.isMemoized(func)) {
 					if (this.debug && !this.isParsingWhitespace)
-						Util.debug(Util.leftPad(" /" + func.toString() + " ? (memo)", this.stack.length, " |"));
+						Util.debug(Util.leftPad(" /" + func.toString() + func.memoizationId + " ? (memo)", this.stack.length, " |"));
 
 					result = this.consumeMemoized(func);
 					if (result == Parser.RecursionDetected) {
+						result = undefined; //fix isMatch detection
 						if (this.debug)
 							Util.debug(Util.leftPad(" | (recursion detected)", this.stack.length, " |"))
 						throw new RecursionException(this, func);
@@ -503,7 +475,7 @@ module miniup {
 					this.memoize(func, startpos, Parser.RecursionDetected);
 
 					if (this.debug && !this.isParsingWhitespace)
-						Util.debug(Util.leftPad(" /" + func.toString() + " ?", this.stack.length, " |"));
+						Util.debug(Util.leftPad(" /" + func.toString() + func.memoizationId + " ?", this.stack.length, " |"));
 
 					//store expected
 					if (func.isTerminal && !this.isParsingWhitespace) {
