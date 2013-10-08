@@ -184,6 +184,20 @@ exports.leftrecursiondetection = function(test) {
     test.done();
 };
 
+export.leftrecursion = function(test) {
+   // jake && ./miniup -v -g "x=x 'a' / 'b'" "baaaaa"
+
+    // ./miniup -v -g "x=z 'a' / 'b';z=x" "baaaaa"
+
+    //./miniup -g "A= A b/b;b='b'" "bbbbb"
+
+    ./miniup -g "A=B 'x' / 'x';B=A'y'/'y'" "x"
+./miniup -g "A=B 'x' / 'x';B=A'y'/'y'" "yx"
+./miniup -g "A=B 'x' / 'x';B=A'y'/'y'" "xyx"
+./miniup -g "A=B 'x' / 'x';B=A'y'/'y'" "yxyx"//not working yet!
+
+}
+
 if ((typeof(module) !== "undefined" && !module.parent) || typeof(window) !== "undefined") {
     if (typeof(runtests) !== "undefined")
         runtests(exports);

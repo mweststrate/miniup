@@ -487,7 +487,11 @@ module miniup {
 					}
 
 					//finally... parse!
-					result = func.parse(this);
+					try {
+						result = func.parse(this);
+					} finally {
+						delete this.memoizedParseFunctions[func.memoizationId][startpos]
+					}
 
 					//enrich result with match information
 					if (!this.cleanAST && result instanceof Object && !result.$rule)
