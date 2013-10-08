@@ -24,7 +24,7 @@ module miniup {
 		}
 
 		public toString(): string {
-			return this.ruleName ? this.ruleName : "" + this.asString;
+			return (this.ruleName ? this.ruleName + " = " : "") + this.asString;
 		}
 	}
 
@@ -128,6 +128,7 @@ module miniup {
 		}
 
 		public static list(matcher: ParseFunction, atleastOne : boolean = false, separator : ParseFunction = null): ParseFunction {
+			//TODO: throw error on lambda matches based on grammar setting
 			return new ParseFunction(
 				"(" + matcher.toString() + (separator ? " " +separator.toString() : "") + ")" + (atleastOne ? "+" : "*") + (separator ? "?" : ""),
 				(parser: Parser): any => {
@@ -223,6 +224,7 @@ module miniup {
 							return undefined !== (res = parser.parse(choice));
 						}
 						catch(e) {
+							//TODO: only catch if left recursion support is enabled
 							if (e instanceof RecursionException) { //TODO: what if a next choice is recusrive again -> create a new choice matcher based on the remaining options
 								isleftrecursive = true; //mark left recursive and try the net choice
 								recursingchoice = choice;
