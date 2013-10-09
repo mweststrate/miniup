@@ -218,20 +218,23 @@ module miniup {
 					var isleftrecursive = false;
 					var error: RecursionException;
 					var recursingchoice : ParseFunction;
+					var recursingpos: number;
 
-					var match = choices.some(choice => {
+					choices.some((choice, idx) => {
 						try {
 							return undefined !== (res = parser.parse(choice));
 						}
 						catch(e) {
 							//TODO: only catch if left recursion support is enabled
-							if (e instanceof RecursionException) { //TODO: what if a next choice is recusrive again -> create a new choice matcher based on the remaining options
+							if (e instanceof RecursionException
+								&& idx < choices.length -1 //recursion in the last choice cannot be solved
+							) {
 								isleftrecursive = true; //mark left recursive and try the net choice
 								recursingchoice = choice;
+								recursingpos = idx;
 								error = <RecursionException> e;
-								parser.currentPos = start;
 								parser.log("> Detected recursion in " + e.func.toString())
-
+								return true; //break the loop
 							}
 							else
 								throw e;
@@ -243,25 +246,25 @@ module miniup {
 						return res;
 
 					//handle left recursion
-					if (!match) {
+					//find seed. Given the failed choice, there should be another choice that matches!
+					//A new choice matcher will be created, because recusion might occur in the remaining choice, which need their own state management
+					var seed = res = parser.parse(MatcherFactory.choice.apply(MatcherFactory, choices.slice(recursingpos +1)));
+
+					if (seed === undefined) {
 						parser.log("> found no seed to solve recursion")
 						throw error;
 					}
 
-					// a match, try the recursing one again..
-					var LR = { LR : 1 }
-					var parts = [res]; //seed
-					parser.memoize(error.func, parser.currentPos, LR);
-
-					delete parser.memoizedParseFunctions[recursingchoice.memoizationId][start]
-
 					parser.log("> found seed for recursion, growing on " + recursingchoice.memoizationId + " recur: " + error.func.memoizationId);
-					while (undefined !== (res = parser.parse(recursingchoice))) {
-						parts.push(res);
-						parser.memoize(error.func, parser.currentPos, LR); //<- TODO: could store previous iteration here!
-					}
+					do {
+						parser.memoize(error.func, parser.currentPos, seed);
+						if (seed !== undefined) {
+							res = seed;
+							seed = parser.parse(recursingchoice);
+						}
+					} while (seed !== undefined);
 
-					return parts;
+					return res;
 				}
 
 			);
