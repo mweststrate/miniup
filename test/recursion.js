@@ -84,9 +84,6 @@ A = A b / b
 b = 'b'
 
 
-//indirect
-A = B x | x
-B = A y | y
 
 
 //left, priorized
@@ -115,6 +112,11 @@ Value   ← [0-9.]+ | '(' Expr ')'
 Product ← Expr (('*' | '/') Expr)*
 Sum     ← Expr (('+' | '-') Expr)*
 Expr    ← Product | Sum | Value
+
+
+//indirect
+A = B x | x
+B = A y | y
 
 //impossible
 S ← 'x' S 'x' | 'x

@@ -158,6 +158,9 @@ exports.bugtests = function(test) {
 
     parse("x = ('0'?)* '1'", "1", fail(1)) //0?* is a never ending rule
 
+    parse("A = '7'", "7", "7"); //TODO: goes wrong from the command line at least
+)
+
     test.done();
 };
 
@@ -196,6 +199,20 @@ export.leftrecursion = function(test) {
 ./miniup -g "A=B 'x' / 'x';B=A'y'/'y'" "xyx"
 ./miniup -g "A=B 'x' / 'x';B=A'y'/'y'" "yxyx"//not working yet!
 
+}
+
+exports.impossible = function(test) {
+
+    parse("A = 'x' A 'x' / 'x'", "x", "x")
+    parse("A = 'x' A 'x' / 'x'", "xxx", "xxx")
+    parse("A = 'x' A 'x' / 'x'", "xxxxx", fail(6)) //This one actually valid!
+    //but left descendent parsers without backtracking cannot handle this pattern:
+
+//xxxxx
+//xAx
+// xAx
+//  xAx //this will no fail the others due to backtracking. Should have chosen just 'x' for this one, but cant do that without lookahead or backtracking!
+    test.done();
 }
 
 if ((typeof(module) !== "undefined" && !module.parent) || typeof(window) !== "undefined") {

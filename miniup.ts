@@ -462,7 +462,7 @@ module miniup {
 				//check memoization cache
 				if (this.isMemoized(func)) {
 					if (this.debug && !this.isParsingWhitespace)
-						Util.debug(Util.leftPad(" /" + func.toString() + func.memoizationId + " ? (memo)", this.stack.length, " |"));
+						Util.debug(Util.leftPad(" /" + func.toString() + " ? (memo)", this.stack.length, " |"));
 
 					result = this.consumeMemoized(func);
 					if (result == Parser.RecursionDetected) {
@@ -490,7 +490,7 @@ module miniup {
 					try {
 						result = func.parse(this);
 					} finally {
-						delete this.memoizedParseFunctions[func.memoizationId][startpos]
+						//delete this.memoizedParseFunctions[func.memoizationId][startpos]
 					}
 
 					//enrich result with match information
@@ -514,7 +514,7 @@ module miniup {
 					this.currentPos = startpos; //rewind
 
 				if (this.debug && !this.isParsingWhitespace)
-					Util.debug(Util.leftPad(" \\" + func.toString() + (isMatch ? " V" : " X"), this.stack.length, " |") + " @" + this.currentPos);
+					Util.debug(Util.leftPad(" \\" + func.toString() + (isMatch ? " V" : " X"), this.stack.length, " |") + " @" + startpos + ".." + this.currentPos);
 
 				this.stack.pop();
 			}
