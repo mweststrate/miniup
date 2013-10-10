@@ -199,6 +199,11 @@ export.leftrecursion = function(test) {
 ./miniup -g "A=B 'x' / 'x';B=A'y'/'y'" "xyx"
 ./miniup -g "A=B 'x' / 'x';B=A'y'/'y'" "yxyx"//not working yet!
 
+./miniup -c -g "expr = l:expr o:'+' r:expr / l:expr o:'*' r:expr / 'x'" "x*x+x"
+./miniup -c -g "expr = l:expr o:'+' r:expr / l:expr o:'*' r:expr / 'x'" "x+x*x"
+./miniup -cv -g "expr = l:expr o:'*' r:expr / l:expr o:'+' r:expr / 'x'" "x*x+x"
+
+
 }
 
 exports.impossible = function(test) {

@@ -17,6 +17,7 @@ module miniup {
 		isTerminal = false;
 		sequence : ISequenceItem[];
 		autoParseWhitespace: boolean = undefined;
+		disabled = {}; //TODO remove again?
 
 		constructor(private asString: string, public parse : (parser: Parser) => any, opts? : Object) {
 			if (opts)
@@ -200,6 +201,8 @@ module miniup {
 			if (choices.length === 1)
 				return choices[0];
 
+			var disallow = -1;//{};
+
 			return new ParseFunction(
 				"(" + choices.map(x => x.toString()).join(" | ") + ")",
 
@@ -221,6 +224,11 @@ module miniup {
 					var recursingpos: number;
 
 					choices.some((choice, idx) => {
+						//if (disallow[idx] && idx <= disallow[idx]){
+						if (choice.disabled[parser.currentPos]){
+							parser.log("> skipped for disallow" + choice.toString() + " @ " + parser.currentPos);
+							return false;
+						}
 						try {
 							return undefined !== (res = parser.parse(choice));
 						}
@@ -233,7 +241,7 @@ module miniup {
 								recursingchoice = choice;
 								recursingpos = idx;
 								error = <RecursionException> e;
-								parser.log("> Detected recursion in " + e.func.toString())
+								parser.log("> Detected recursion in " + e.func.toString() + " @ " + parser.currentPos)
 								return true; //break the loop
 							}
 							else
@@ -245,19 +253,26 @@ module miniup {
 					if (!isleftrecursive)
 						return res;
 
+						disallow = Math.max(disallow,recursingpos);
+
 					//handle left recursion
 					//find seed. Given the failed choice, there should be another choice that matches!
 					//A new choice matcher will be created, because recusion might occur in the remaining choice, which need their own state management
-					var seed = res = parser.parse(MatcherFactory.choice.apply(MatcherFactory, choices.slice(recursingpos +1)));
+					choices.slice(0, recursingpos).forEach(c => c.disabled[parser.currentPos] = true);
+					var seedmatcher = MatcherFactory.choice.apply(MatcherFactory, choices.slice(1+recursingpos));
+					parser.log("> searching seed with " + seedmatcher.toString() + " @ " + parser.currentPos)
+					var seed = res = parser.parse(seedmatcher);
 
 					if (seed === undefined) {
 						parser.log("> found no seed to solve recursion")
 						throw error;
 					}
 
-					parser.log("> found seed for recursion, growing on " + recursingchoice.memoizationId + " recur: " + error.func.memoizationId);
+					parser.log("> found seed for recursion, growing on " + recursingchoice.memoizationId + " recur: " + error.func.memoizationId+ " seed: " + (seed.$text?seed.$text:seed));
 					do {
 						parser.memoize(error.func, parser.currentPos, seed);
+						//disallow[parser.currentPos] = recursingpos;
+						//disallow = Math.max(disallow,recursingpos);
 						if (seed !== undefined) {
 							res = seed;
 							seed = parser.parse(recursingchoice);
@@ -472,6 +487,8 @@ module miniup {
 						result = undefined; //fix isMatch detection
 						if (this.debug)
 							Util.debug(Util.leftPad(" | (recursion detected)", this.stack.length, " |"))
+//						delete this.memoizedParseFunctions[func.memoizationId][startpos]
+
 						throw new RecursionException(this, func);
 					}
 				}
@@ -493,7 +510,7 @@ module miniup {
 					try {
 						result = func.parse(this);
 					} finally {
-						//delete this.memoizedParseFunctions[func.memoizationId][startpos]
+						delete this.memoizedParseFunctions[func.memoizationId][startpos]
 					}
 
 					//enrich result with match information
