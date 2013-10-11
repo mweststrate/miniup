@@ -198,6 +198,24 @@ module miniup {
 		}
 */
 		public static choice(...choices: ParseFunction[]): ParseFunction {
+			//TODO: move to UTIL
+			var walk = (thing: any, cb:(thing: any, parent: any, idx: any)=>void) => {
+				if (thing === null || thing === false)
+					return;
+				if (typeof thing == 'object'){
+					if (thing.length)
+						<any[]>thing.forEach((item, idx) => {
+							cb(item, thing, idx);
+							walk(item, cb);
+						});
+					else
+						for(var key in thing) {
+							cb(thing[key], thing, key);
+							walk(thing[key], cb);
+						}
+				}
+			}
+
 			if (choices.length === 1)
 				return choices[0];
 
@@ -268,13 +286,29 @@ module miniup {
 						throw error;
 					}
 
+					res = []
 					parser.log("> found seed for recursion, growing on " + recursingchoice.memoizationId + " recur: " + error.func.memoizationId+ " seed: " + (seed.$text?seed.$text:seed));
 					do {
-						parser.memoize(error.func, parser.currentPos, seed);
+						parser.memoize(error.func, parser.currentPos, "LR");
 						//disallow[parser.currentPos] = recursingpos;
 						//disallow = Math.max(disallow,recursingpos);
 						if (seed !== undefined) {
-							res = seed;
+							res.push(seed);
+
+								//detect and handle right recursion
+							walk(res, (item, parent, idx) => {
+								parser.log("checking RR for: " + item.$rule + " against " + recursingchoice.toString());
+								if (item.$rule === recursingchoice.toString() &&
+									item.$start + item.$text.length == parser.currentPos) {
+									parser.log("grabbed " + item.$text);
+									if (parent && typeof parent.splice == 'function')
+										parent.splice(idx, 1);
+									else
+										delete parent[idx];
+									res.push(item); //TODO: remove
+								}
+							})
+
 							seed = parser.parse(recursingchoice);
 						}
 					} while (seed !== undefined);
@@ -515,7 +549,7 @@ module miniup {
 
 					//enrich result with match information
 					if (!this.cleanAST && result instanceof Object && !result.$rule)
-						Util.extend(result, { $start : startpos, $text : this.getInput().substring(startpos, this.currentPos), $rule : func.ruleName });
+						Util.extend(result, { $start : startpos, $text : this.getInput().substring(startpos, this.currentPos), $rule : func.ruleName || func.toString() });
 
 					//store memoization result
 					this.memoize(func, startpos, result);
