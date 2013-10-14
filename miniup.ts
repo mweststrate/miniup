@@ -287,7 +287,7 @@ module miniup {
 					}
 
 					var res2 = []
-					res2.$lr = recursingchoice;
+					res2['$lr'] = recursingchoice;
 
 					parser.log("> found seed for recursion, growing on " + recursingchoice.memoizationId + " recur: " + error.func.memoizationId+ " seed: " + (seed.$text?seed.$text:seed));
 					do {
@@ -319,6 +319,29 @@ module miniup {
 							seed = parser.parse(recursingchoice);
 						}
 					} while (seed !== undefined);
+
+					res2['$end'] = parser.currentPos;
+					res2['$start'] = start;
+
+					var done = false;
+					var item = res2[res2.length -1][1];
+					walk(res2[res2.length -1], function(item){
+						if (item && !done
+							&& item != res2[res2.length-1]
+							&& item != res2
+							&& item.$lr == res2['$lr']
+							&& parser.currentPos == item.$end
+							&& item.length > 1
+							//&& res2[res2.length-1]['$end']== item.$start
+						) {
+							parser.log("grabbing items for " + item.$lr +": " + item.slice(1).map(x=>x.$text).join())
+							//console.dir(res2);
+							item.splice(1).forEach(x => res2.push(x))
+							//console.info("==>")
+							//console.dir(res2);
+							done = true;
+						}
+					})
 
 					/*for(var i= 1; i < res2.length; i++) {
 						walk(res2[i], (item, parent, idx)=> {
