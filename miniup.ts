@@ -203,7 +203,7 @@ module miniup {
 				if (thing === null || thing === false)
 					return;
 				if (typeof thing == 'object'){
-					if (thing.length)
+					if (Object.prototype.toString.call( thing ) === '[object Array]')
 						<any[]>thing.forEach((item, idx) => {
 							cb(item, thing, idx);
 							walk(item, cb);
@@ -279,25 +279,30 @@ module miniup {
 					choices.slice(0, recursingpos).forEach(c => c.disabled[parser.currentPos] = true);
 					var seedmatcher = MatcherFactory.choice.apply(MatcherFactory, choices.slice(1+recursingpos));
 					parser.log("> searching seed with " + seedmatcher.toString() + " @ " + parser.currentPos)
-					var seed = res = parser.parse(seedmatcher);
+					var seed = parser.parse(seedmatcher);
 
 					if (seed === undefined) {
 						parser.log("> found no seed to solve recursion")
 						throw error;
 					}
 
-					res = []
+					var res2 = []
+					res2.$lr = recursingchoice;
+
 					parser.log("> found seed for recursion, growing on " + recursingchoice.memoizationId + " recur: " + error.func.memoizationId+ " seed: " + (seed.$text?seed.$text:seed));
 					do {
-						parser.memoize(error.func, parser.currentPos, "LR");
+						parser.memoize(error.func, parser.currentPos, parser.currentPos, "LR" /*seed*/);
+						//parser.memoize(error.func, start, parser.currentPos, seed);
+						//parser.currentPos = start;
 						//disallow[parser.currentPos] = recursingpos;
 						//disallow = Math.max(disallow,recursingpos);
 						if (seed !== undefined) {
-							res.push(seed);
+							res2.push(seed);
+							//res = seed;
 
 								//detect and handle right recursion
-							walk(res, (item, parent, idx) => {
-								parser.log("checking RR for: " + item.$rule + " against " + recursingchoice.toString());
+							/*walk(seed, (item, parent, idx) => {
+								//parser.log("checking RR for: " + item.$rule + " against " + recursingchoice.toString());
 								if (item.$rule === recursingchoice.toString() &&
 									item.$start + item.$text.length == parser.currentPos) {
 									parser.log("grabbed " + item.$text);
@@ -305,15 +310,31 @@ module miniup {
 										parent.splice(idx, 1);
 									else
 										delete parent[idx];
-									res.push(item); //TODO: remove
+									parser.log("major rewind to " + item.$start)
+									parser.currentPos = item.$start; //rewind
+									//res2.push(item); //TODO: remove
 								}
 							})
-
+							*/
 							seed = parser.parse(recursingchoice);
 						}
 					} while (seed !== undefined);
 
-					return res;
+					/*for(var i= 1; i < res2.length; i++) {
+						walk(res2[i], (item, parent, idx)=> {
+							if (item == "LR") {
+								var seed = res2[i-1];
+								parser.log("Rewritting LR -> " + JSON.stringify(seed) + " in " + JSON.stringify(parent));
+								parent[idx] = seed; //TODO: double check, should be only one..
+								delete res2[i-1];
+							}
+						});
+					}*/
+					/*
+					if (res.length == 1)
+						return res[0];
+					*/
+					return res2;
 				}
 
 			);
@@ -528,7 +549,7 @@ module miniup {
 				}
 
 				else {
-					this.memoize(func, startpos, Parser.RecursionDetected);
+					this.memoize(func, startpos, startpos, Parser.RecursionDetected);
 
 					if (this.debug && !this.isParsingWhitespace)
 						Util.debug(Util.leftPad(" /" + func.toString() + func.memoizationId + " ?", this.stack.length, " |"));
@@ -544,7 +565,7 @@ module miniup {
 					try {
 						result = func.parse(this);
 					} finally {
-						delete this.memoizedParseFunctions[func.memoizationId][startpos]
+						this.unmemoize(func, startpos); //for the case that parse threw. Make sure LR state is always removed. New state will be stored later on
 					}
 
 					//enrich result with match information
@@ -552,7 +573,7 @@ module miniup {
 						Util.extend(result, { $start : startpos, $text : this.getInput().substring(startpos, this.currentPos), $rule : func.ruleName || func.toString() });
 
 					//store memoization result
-					this.memoize(func, startpos, result);
+					this.memoize(func, startpos, this.currentPos, result);
 				}
 
 				return result;
@@ -574,11 +595,15 @@ module miniup {
 			}
 		}
 
-		memoize(func: ParseFunction, startpos: number, result: any) {
+		memoize(func: ParseFunction, startpos: number, endpos: number, result: any) {
 			this.memoizedParseFunctions[func.memoizationId][startpos] = <MemoizeResult> {
 				result: result,
-				endPos: this.currentPos
+				endPos: endpos
 			};
+		}
+
+		unmemoize(func: ParseFunction, startpos: number) {
+			delete this.memoizedParseFunctions[func.memoizationId][startpos];
 		}
 
 		isMemoized(func: ParseFunction): boolean {
