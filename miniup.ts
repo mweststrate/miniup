@@ -396,6 +396,7 @@ module miniup {
 	export class Parser implements IParseArgs {
 		debug: boolean = false;
 		inputName: string = "input";
+		input: string;
 		cleanAST: boolean = false;
 		extendedAST: boolean =false;
 
@@ -409,7 +410,8 @@ module miniup {
 		expected = []; //pos -> [ expecteditems ]
 		private stackdepth = 0;
 
-		constructor(public grammar: Grammar, public input: string, opts: IParseArgs = {}) {
+		constructor(public grammar: Grammar, input: string, opts: IParseArgs = {}) {
+			this.input = "" + input;
 			Util.extend(this, opts);
 		}
 
