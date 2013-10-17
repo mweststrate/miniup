@@ -296,7 +296,10 @@ module miniup {
 			return new ParseFunction(
 				["@operator-" + (op.left?"left":"right"), op.operator, operand].join(' '),
 				(parser: Parser): any => {
-					var res =parser.parse(listparser);
+					var res = parser.parse(listparser);
+
+					if (res === undefined)
+						return undefined;
 
 					if (res.length === 1)
 						return res[0];
