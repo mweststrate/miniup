@@ -1,5 +1,7 @@
 // Some global environment stuff we use..
 //TODO: error handling, friendly  name instead of characterclasses for example. Do not show regexes?
+//TODO: jquery xhr get
+
 declare var exports : any;
 declare var module: any;
 declare var require: any;
@@ -26,6 +28,7 @@ module miniup {
 	}
 
 	export interface ISequenceItem { label? : string; expr: ParseFunction; }
+	export interface IOperatorDef { operator:ParseFunction; left:boolean; }
 
 	export class MatcherFactory {
 
@@ -265,19 +268,33 @@ module miniup {
 				});
 		}
 
-		public static operator(operator: ParseFunction, operand: ParseFunction, left: boolean): ParseFunction {
+
+		public static operators(ops:IOperatorDef[], operand: ParseFunction): ParseFunction {
+			var base : ParseFunction;
+			for(var i=0; i < ops.length; i++)
+				base = MatcherFactory.singleOperator(ops[i], i == 0 ? operand : base)
+
+			return new ParseFunction(
+				["@operator", ops.map(op => (op.left?"left":"right" + op.operator)).join(" "), "on", operand.toString()].join(" "),
+				(parser: Parser): any => {
+					return parser.parse(base);
+				}
+			)
+		}
+
+		public static singleOperator(op: IOperatorDef, operand: ParseFunction): ParseFunction {
 			function buildAST (items : any[]) {
 				return items.length < 2 ? items[0] : {
-					left : left ? buildAST(items.slice(0, -2)) : items[0],
-					right: left ? items[items.length -1] : buildAST(items.slice(2)),
-					op   : left ? items[items.length -2] : items[1]
+					left : op.left ? buildAST(items.slice(0, -2)) : items[0],
+					right: op.left ? items[items.length -1] : buildAST(items.slice(2)),
+					op   : op.left ? items[items.length -2] : items[1]
 				}
 			}
 
-			var listparser = MatcherFactory.list(operand, true, operator, true);
+			var listparser = MatcherFactory.list(operand, true, op.operator, true);
 
 			return new ParseFunction(
-				["@operator-" + (left?"left":"right"), operator, operand].join(' '),
+				["@operator-" + (op.left?"left":"right"), op.operator, operand].join(' '),
 				(parser: Parser): any => {
 					var res =parser.parse(listparser);
 
@@ -607,7 +624,20 @@ module miniup {
 
 			var sequence = g.addRule('sequence', f.list(labeled, true));
 
-			var choicerule = g.addRule('choice', list(choice(regex, sequence, lambda), true, lit('/')));
+			//@operators left:expr > right:expr on expr
+			var opdef= g.addRule('operatorDef', seq(
+				si('associativity', opt(f.regex(/@left|@right/))),
+				si('operator', call('expression'))
+			));
+
+			var operators = g.addRule('operator', seq(
+				si(lit('@operator')),
+				si('operators', list(opdef, true, lit('>'))),
+				si(lit('@on')),
+				si('operand', call('expression'))
+			));
+
+			var choicerule = g.addRule('choice', list(choice(regex, operators, sequence, lambda), true, lit('/')));
 
 			var expression = g.addRule('expression', choicerule);
 
@@ -747,6 +777,13 @@ module miniup {
 					return f.choice.apply(f, ast.map(this.astToMatcher, this));
 				case "import":
 					return f.importMatcher(ast.grammar, ast.rule);
+				case "operator":
+					var operators: IOperatorDef[] = (<any[]>ast.operators).map(opdef => ({
+						left: opdef.associativity == null || opdef.associativity == "@left",
+						operator: this.astToMatcher(opdef.operator)
+					}));
+
+					return f.operators(operators, this.astToMatcher(ast.operand));
 				default:
 					throw new Error("Unimplemented ruletype: " + ast.$rule);
 			}

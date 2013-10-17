@@ -174,7 +174,12 @@ Example:
 	fooGrammar.parse("cappucino");
 	//returns: { flavor : "cappucino" }
 
+
+## @operators left:expr > right:expr on expr
 TODO:
+
+
+
 @left-associative operand operator operand
 
 @right-associative operand operator operand

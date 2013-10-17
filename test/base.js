@@ -228,6 +228,19 @@ exports.lambdatest = function(test) {
     test.done();
 }
 
+exports.operators = function(test) {
+    parse("x = @operator '+' on INTEGER", "", fail(1));
+    parse("x = @operator '+' on INTEGER", "1", "1");
+    parse("x = @operator '+' on INTEGER", "1+2", { left: "1", op:"+", right: "2" });
+    parse("x = @operator '+' on INTEGER", "1+2+3", { left: { left: "1", op:"+", right: "2" }, op:"+", right: "3"});
+    parse("x = @operator left '+' on INTEGER", "1+2+3", { left: { left: "1", op:"+", right: "2" }, op:"+", right: "3"});
+    parse("x = @operator right '+' on INTEGER", "1+2+3", { left: "1", op:"+", right: { left: "2", op: "+", right: "3"}});
+
+    test.done();
+}
+
+//TODO: combined operators.
+
 exports.improvecoverage = function(test) {
     parse("x = @whitespace-on 'function' 'stuff'", "function stuff", {});
     parse("x = @whitespace-on 'function' 'stuff'", "functionstuff", fail(1));
