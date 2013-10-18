@@ -239,10 +239,51 @@ exports.operators = function(test) {
     parse("x = @operator @left '+' @on INTEGER", "1+2+3", { left: { left: "1", op:"+", right: "2" }, op:"+", right: "3"});
     parse("x = @operator @right '+' @on INTEGER", "1+2+3", { left: "1", op:"+", right: { left: "2", op: "+", right: "3"}});
 
+    //multiple operatores.
+    parse("x = @operator '*' > '+' @on INTEGER", "1+2+3", { left: { left: "1", op:"+", right: "2" }, op:"+", right: "3"});
+    parse("x = @operator '*' > '+' @on INTEGER", "1*2*3", { left: { left: "1", op:"*", right: "2" }, op:"*", right: "3"});
+    parse("x = @operator '*' > '+' @on INTEGER", "1*2+3", { left: { left: "1", op:"*", right: "2" }, op:"+", right: "3"});
+    parse("x = @operator '*' > '+' @on INTEGER", "1+2*3", { left: "1", op: "+", right:{ left: "2", op:"*", right: "3" }});
+
+    parse("x = @operator @left '*' > @right '+' @on INTEGER", "1+2*3*4+5+6+7*8",
+        {
+            left : "1",
+            op : "+",
+            right : {
+                left : {
+                    left : {
+                        left : "2",
+                        op : "*",
+                        right : "3"
+                    },
+                    op: "*",
+                    right : "4"
+                },
+                op:"+",
+                right: {
+                    left: "5",
+                    op: "+",
+                    right: {
+                        left: "6",
+                        op: "+",
+                        right: {
+                            left: "7",
+                            op: "*",
+                            right: "8"
+                        }
+                    }
+                }
+            }
+        });
+
+    parse("x = @operator '*' > '+' @on prim; prim = '(' x ')' / INTEGER", "7", "7");
+    parse("x = @operator '*' > '+' @on prim; prim = '(' v:x ')' / INTEGER", "(7)", {v:'7'});
+    parse("x = @operator '*' > '+' @on prim; prim = '(' v:x ')' / INTEGER", "(1+2)*3", { left: { v: { left: "1", op:"+", right: "2"}}, op: "*", right: "3"});
+    parse("x = @operator '*' > '+' @on prim; prim = '(' v:x ')' / INTEGER", "1+(2+3)", { left: "1", op:"+", right: { v: { left: "2", op: "+", right: "3"}}});
+    parse("x = @operator '*' > '+' @on prim; prim = '(' v:x ')' / INTEGER", "1*(2+3)", { left: "1", op:"*", right: { v: { left: "2", op: "+", right: "3"}}});
+
     test.done();
 }
-
-//TODO: combined operators.
 
 exports.improvecoverage = function(test) {
     parse("x = @whitespace-on 'function' 'stuff'", "function stuff", {});

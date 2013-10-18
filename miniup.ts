@@ -181,7 +181,7 @@ module miniup {
 			return { label: <string> (b ? a : undefined), expr: <ParseFunction> (b ? b : a)};
 		}
 
-
+		//TODO, empty label means only result? ex: '(' :res ')'
 		public static sequence(...items: ISequenceItem[]): ParseFunction {
 			if (items.length == 1 && !items[0].label)
 				return items[0].expr;
