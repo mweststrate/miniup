@@ -159,7 +159,6 @@ exports.bugtests = function(test) {
     parse("x = ('0'?)* '1'", "1", fail(1)) //0?* is a never ending rule
 
     parse("A = '7'", "7", "7"); //TODO: goes wrong from the command line at least
-)
 
     test.done();
 };
@@ -187,22 +186,24 @@ exports.leftrecursiondetection = function(test) {
     test.done();
 };
 
-export.leftrecursion = function(test) {
+exports.leftrecursion = function(test) {
    // jake && ./miniup -v -g "x=x 'a' / 'b'" "baaaaa"
 
     // ./miniup -v -g "x=z 'a' / 'b';z=x" "baaaaa"
 
     //./miniup -g "A= A b/b;b='b'" "bbbbb"
-
+/* TODO:
     ./miniup -g "A=B 'x' / 'x';B=A'y'/'y'" "x"
 ./miniup -g "A=B 'x' / 'x';B=A'y'/'y'" "yx"
 ./miniup -g "A=B 'x' / 'x';B=A'y'/'y'" "xyx"
 ./miniup -g "A=B 'x' / 'x';B=A'y'/'y'" "yxyx"//not working yet!
+./miniup -g "x=a:x b:'b' / c:'a'" "abbbb"
 
 ./miniup -c -g "expr = l:expr o:'+' r:expr / l:expr o:'*' r:expr / 'x'" "x*x+x"
 ./miniup -c -g "expr = l:expr o:'+' r:expr / l:expr o:'*' r:expr / 'x'" "x+x*x"
 ./miniup -cv -g "expr = l:expr o:'*' r:expr / l:expr o:'+' r:expr / 'x'" "x*x+x"
-
+*/
+    test.done();
 
 }
 
