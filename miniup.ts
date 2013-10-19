@@ -181,57 +181,13 @@ module miniup {
 				},
 				{ sequence : items});
 		}
-/*
+
 		public static choice(...choices: ParseFunction[]): ParseFunction {
 			if (choices.length === 1)
 				return choices[0];
 
 			return new ParseFunction(
 				"(" + choices.map(x => x.toString()).join(" | ") + ")",
-				(parser: Parser): any => {
-					var res;
-
-					if (choices.some(choice => undefined !== (res = parser.parse(choice))))
-						return res;
-					return undefined;
-				});
-		}
-*/
-		public static choice(...choices: ParseFunction[]): ParseFunction {
-			//TODO: move to UTIL
-			var walk = (thing: any, cb:(thing: any, parent: any, idx: any)=>void) => {
-				if (thing === null || thing === false)
-					return;
-				if (typeof thing == 'object'){
-					if (Object.prototype.toString.call( thing ) === '[object Array]')
-						<any[]>thing.forEach((item, idx) => {
-							cb(item, thing, idx);
-							walk(item, cb);
-						});
-					else
-						for(var key in thing) {
-							cb(thing[key], thing, key);
-							walk(thing[key], cb);
-						}
-				}
-			}
-
-			if (choices.length === 1)
-				return choices[0];
-
-			var disallow = -1;//{};
-
-			return new ParseFunction(
-				"(" + choices.map(x => x.toString()).join(" | ") + ")",
-
-				// R = R a / b
-				// ->
-				// R = b R2
-				// R2= a R2 / -
-				// ->
-				// R = b R2
-				// R2 = a*
-				// R = b (a)*
 
 				function (parser: Parser): any {
 					var start = parser.currentPos;
@@ -271,12 +227,17 @@ module miniup {
 					if (!isleftrecursive)
 						return res;
 
-						disallow = Math.max(disallow,recursingpos);
+					// handle left recursion. Left recursion is parsed by using basically the follow on-the-fly refactoring of the grammar
+					// LR: R = R a / b
+					// Rewrites to RR:
+					// R = b R2; R2= a R2 / lambda
+					// R2 can be written as R2 = a*
+					// So R can be rewritten as as
+					// R = b (a)*
+					// So first match b, then repeat the pattern R a, where R contains the memoized previous match
 
-					//handle left recursion
 					//find seed. Given the failed choice, there should be another choice that matches!
 					//A new choice matcher will be created, because recusion might occur in the remaining choice, which need their own state management
-					choices.slice(0, recursingpos).forEach(c => c.disabled[parser.currentPos] = true);
 					var seedmatcher = MatcherFactory.choice.apply(MatcherFactory, choices.slice(1+recursingpos));
 					parser.log("> searching seed with " + seedmatcher.toString() + " @ " + parser.currentPos)
 					var seed = parser.parse(seedmatcher);
@@ -286,78 +247,24 @@ module miniup {
 						throw error;
 					}
 
-					var res2 = []
-					res2['$lr'] = recursingchoice;
-
 					parser.log("> found seed for recursion, growing on " + recursingchoice.memoizationId + " recur: " + error.func.memoizationId+ " seed: " + (seed.$text?seed.$text:seed));
 					do {
-						parser.memoize(error.func, parser.currentPos, parser.currentPos, "LR" /*seed*/);
-						//parser.memoize(error.func, start, parser.currentPos, seed);
+						parser.memoize(error.func, parser.currentPos, parser.currentPos, seed);
 						//parser.currentPos = start;
-						//disallow[parser.currentPos] = recursingpos;
-						//disallow = Math.max(disallow,recursingpos);
 						if (seed !== undefined) {
-							res2.push(seed);
-							//res = seed;
-
-								//detect and handle right recursion
-							/*walk(seed, (item, parent, idx) => {
-								//parser.log("checking RR for: " + item.$rule + " against " + recursingchoice.toString());
-								if (item.$rule === recursingchoice.toString() &&
-									item.$start + item.$text.length == parser.currentPos) {
-									parser.log("grabbed " + item.$text);
-									if (parent && typeof parent.splice == 'function')
-										parent.splice(idx, 1);
-									else
-										delete parent[idx];
-									parser.log("major rewind to " + item.$start)
-									parser.currentPos = item.$start; //rewind
-									//res2.push(item); //TODO: remove
-								}
-							})
-							*/
+							//fix meta info
+							if (!parser.cleanAST && seed instanceof Object)
+								Util.extend(seed, {
+									$start : start,
+									$text : parser.getInput().substring(start, parser.currentPos),
+									$rule : seed.$rule || this.toString()
+								})
+							res = seed;
 							seed = parser.parse(recursingchoice);
 						}
 					} while (seed !== undefined);
 
-					res2['$end'] = parser.currentPos;
-					res2['$start'] = start;
-
-					var done = false;
-					var item = res2[res2.length -1][1];
-					walk(res2[res2.length -1], function(item){
-						if (item && !done
-							&& item != res2[res2.length-1]
-							&& item != res2
-							&& item.$lr == res2['$lr']
-							&& parser.currentPos == item.$end
-							&& item.length > 1
-							//&& res2[res2.length-1]['$end']== item.$start
-						) {
-							parser.log("grabbing items for " + item.$lr +": " + item.slice(1).map(x=>x.$text).join())
-							//console.dir(res2);
-							item.splice(1).forEach(x => res2.push(x))
-							//console.info("==>")
-							//console.dir(res2);
-							done = true;
-						}
-					})
-
-					/*for(var i= 1; i < res2.length; i++) {
-						walk(res2[i], (item, parent, idx)=> {
-							if (item == "LR") {
-								var seed = res2[i-1];
-								parser.log("Rewritting LR -> " + JSON.stringify(seed) + " in " + JSON.stringify(parent));
-								parent[idx] = seed; //TODO: double check, should be only one..
-								delete res2[i-1];
-							}
-						});
-					}*/
-					/*
-					if (res.length == 1)
-						return res[0];
-					*/
-					return res2;
+					return res;
 				}
 
 			);
@@ -588,7 +495,7 @@ module miniup {
 					try {
 						result = func.parse(this);
 					} finally {
-						this.unmemoize(func, startpos); //for the case that parse threw. Make sure LR state is always removed. New state will be stored later on
+						this.unmemoize(func, startpos); //TODO: still needed? for the case that parse threw. Make sure LR state is always removed. New state will be stored later on
 					}
 
 					//enrich result with match information
