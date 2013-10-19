@@ -16,6 +16,7 @@ module miniup {
 		isTerminal = false;
 		sequence : ISequenceItem[];
 		autoParseWhitespace: boolean = undefined;
+		disabled = {}; //TODO remove again?
 
 		constructor(private asString: string, public parse : (parser: Parser) => any, opts? : Object) {
 			if (opts)
@@ -23,7 +24,7 @@ module miniup {
 		}
 
 		public toString(): string {
-			return this.ruleName ? this.ruleName : "" + this.asString;
+			return (this.ruleName ? this.ruleName + " = " : "") + this.asString;
 		}
 	}
 
@@ -131,6 +132,7 @@ module miniup {
 		}
 
 		public static list(matcher: ParseFunction, atleastOne : boolean = false, separator : ParseFunction = null, storeSeparator : boolean = false): ParseFunction {
+			//TODO: throw error on lambda matches based on grammar setting
 			return new ParseFunction(
 				"(" + matcher.toString() + (separator ? " " +separator.toString() : "") + ")" + (atleastOne ? "+" : "*") + (separator ? "?" : ""),
 				function (parser: Parser): any {
@@ -210,13 +212,86 @@ module miniup {
 
 			return new ParseFunction(
 				"(" + choices.map(x => x.toString()).join(" | ") + ")",
-				(parser: Parser): any => {
-					var res;
 
-					if (choices.some(choice => undefined !== (res = parser.parse(choice))))
+				function (parser: Parser): any {
+					var start = parser.currentPos;
+					var res = undefined;
+					var isleftrecursive = false;
+					var error: RecursionException;
+					var recursingchoice : ParseFunction;
+					var recursingpos: number;
+
+					choices.some((choice, idx) => {
+						//if (disallow[idx] && idx <= disallow[idx]){
+						if (choice.disabled[parser.currentPos]){
+							parser.log("> skipped for disallow" + choice.toString() + " @ " + parser.currentPos);
+							return false;
+						}
+						try {
+							return undefined !== (res = parser.parse(choice));
+						}
+						catch(e) {
+							//TODO: only catch if left recursion support is enabled
+							if (e instanceof RecursionException
+								&& idx < choices.length -1 //recursion in the last choice cannot be solved
+							) {
+								isleftrecursive = true; //mark left recursive and try the net choice
+								recursingchoice = choice;
+								recursingpos = idx;
+								error = <RecursionException> e;
+								parser.log("> Detected recursion in " + e.func.toString() + " @ " + parser.currentPos)
+								return true; //break the loop
+							}
+							else
+								throw e;
+						}
+						return false;
+					})
+
+					if (!isleftrecursive)
 						return res;
-					return undefined;
-				});
+
+					// handle left recursion. Left recursion is parsed by using basically the follow on-the-fly refactoring of the grammar
+					// LR: R = R a / b
+					// Rewrites to RR:
+					// R = b R2; R2= a R2 / lambda
+					// R2 can be written as R2 = a*
+					// So R can be rewritten as as
+					// R = b (a)*
+					// So first match b, then repeat the pattern R a, where R contains the memoized previous match
+
+					//find seed. Given the failed choice, there should be another choice that matches!
+					//A new choice matcher will be created, because recusion might occur in the remaining choice, which need their own state management
+					var seedmatcher = MatcherFactory.choice.apply(MatcherFactory, choices.slice(1+recursingpos));
+					parser.log("> searching seed with " + seedmatcher.toString() + " @ " + parser.currentPos)
+					var seed = parser.parse(seedmatcher);
+
+					if (seed === undefined) {
+						parser.log("> found no seed to solve recursion")
+						throw error;
+					}
+
+					parser.log("> found seed for recursion, growing on " + recursingchoice.memoizationId + " recur: " + error.func.memoizationId+ " seed: " + (seed.$text?seed.$text:seed));
+					do {
+						parser.memoize(error.func, parser.currentPos, parser.currentPos, seed);
+						//parser.currentPos = start;
+						if (seed !== undefined) {
+							//fix meta info
+							if (!parser.cleanAST && seed instanceof Object)
+								Util.extend(seed, {
+									$start : start,
+									$text : parser.getInput().substring(start, parser.currentPos),
+									$rule : seed.$rule || this.toString()
+								})
+							res = seed;
+							seed = parser.parse(recursingchoice);
+						}
+					} while (seed !== undefined);
+
+					return res;
+				}
+
+			);
 		}
 
 		public static set(...items: ISequenceItem[]): ParseFunction {
@@ -407,7 +482,7 @@ module miniup {
 		private static RecursionDetected = { recursion : true };
 
 		currentPos: number = 0;
-		private memoizedParseFunctions = {}; //position-> parseFunction -> MemoizeResult
+		memoizedParseFunctions = {}; //position-> parseFunction -> MemoizeResult
 		private isParsingWhitespace = false;
 		autoParseWhitespace = false;
 		expected = []; //pos -> [ expecteditems ]
@@ -502,14 +577,16 @@ module miniup {
 					result = this.consumeMemoized(func);
 					if (result == Parser.RecursionDetected) {
 						this.log(" | (recursion detected)");
-						throw new ParseException(this, "Grammar error: Left recursion found in rule '" + func.toString() + "'");
+						result = undefined; //fix isMatch detection
+//	TODO: needed?					delete this.memoizedParseFunctions[func.memoizationId][startpos]
+
+						throw new RecursionException(this, func);
 					}
 				}
 
 				else {
-					this.memoize(func, startpos, Parser.RecursionDetected);
-
 					this.log(" /" + func.toString() + " ?");
+					this.memoize(func, startpos, startpos, Parser.RecursionDetected);
 
 					//store expected
 					if (func.isTerminal && !this.isParsingWhitespace) {
@@ -519,14 +596,18 @@ module miniup {
 					}
 
 					//finally... parse!
-					result = func.parse(this);
+					try {
+						result = func.parse(this);
+					} finally {
+						this.unmemoize(func, startpos); //TODO: still needed? for the case that parse threw. Make sure LR state is always removed. New state will be stored later on
+					}
 
 					//enrich result with match information
 					if (!this.cleanAST && result instanceof Object && !result.$rule)
-						Util.extend(result, { $start : startpos, $text : this.getInput().substring(startpos, this.currentPos), $rule : func.ruleName });
+						Util.extend(result, { $start : startpos, $text : this.getInput().substring(startpos, this.currentPos), $rule : func.ruleName || func.toString() });
 
 					//store memoization result
-					this.memoize(func, startpos, result);
+					this.memoize(func, startpos, this.currentPos, result);
 				}
 
 				return result;
@@ -546,11 +627,15 @@ module miniup {
 			}
 		}
 
-		memoize(func: ParseFunction, startpos: number, result: any) {
+		memoize(func: ParseFunction, startpos: number, endpos: number, result: any) {
 			this.memoizedParseFunctions[func.memoizationId][startpos] = <MemoizeResult> {
 				result: result,
-				endPos: this.currentPos
+				endPos: endpos
 			};
+		}
+
+		unmemoize(func: ParseFunction, startpos: number) {
+			delete this.memoizedParseFunctions[func.memoizationId][startpos];
 		}
 
 		isMemoized(func: ParseFunction): boolean {
@@ -936,6 +1021,7 @@ module miniup {
 			return r + str;
 		}
 
+		//TODO: move to parser.log?
 		public static debug(msg: string, ...args: string[]) {
 			console && console.log(Util.format.apply(null, [msg].concat(args)));
 		}

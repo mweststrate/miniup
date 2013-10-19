@@ -177,6 +177,8 @@ exports.bugtests = function(test) {
 
     parse("x = l:('0'?)* r:'1'", "1", { l: [ null ], r:"1"}) //0?* is a never ending rule
 
+    parse("A = '7'", "7", "7"); //TODO: goes wrong from the command line at least
+
     test.done();
 };
 
@@ -357,6 +359,45 @@ exports.testgrammarmodification = function(test) {
 
     g.updateRule("x", temp.rule("x"));
     g.addRule("y", temp.rule("y"))
+
+    assert.equal(g.parse("zzzz"), "zzzz");
+
+    test.done();
+}
+
+exports.leftrecursion = function(test) {
+   // jake && ./miniup -v -g "x=x 'a' / 'b'" "baaaaa"
+
+    // ./miniup -v -g "x=z 'a' / 'b';z=x" "baaaaa"
+
+    //./miniup -g "A= A b/b;b='b'" "bbbbb"
+/* TODO:
+    ./miniup -g "A=B 'x' / 'x';B=A'y'/'y'" "x"
+./miniup -g "A=B 'x' / 'x';B=A'y'/'y'" "yx"
+./miniup -g "A=B 'x' / 'x';B=A'y'/'y'" "xyx"
+./miniup -g "A=B 'x' / 'x';B=A'y'/'y'" "yxyx"//not working yet!
+./miniup -g "x=a:x b:'b' / c:'a'" "abbbb"
+
+./miniup -c -g "expr = l:expr o:'+' r:expr / l:expr o:'*' r:expr / 'x'" "x*x+x"
+./miniup -c -g "expr = l:expr o:'+' r:expr / l:expr o:'*' r:expr / 'x'" "x+x*x"
+./miniup -cv -g "expr = l:expr o:'*' r:expr / l:expr o:'+' r:expr / 'x'" "x*x+x"
+*/
+    test.done();
+
+}
+
+exports.impossible = function(test) {
+
+    parse("A = 'x' A 'x' / 'x'", "x", "x")
+    parse("A = 'x' A 'x' / 'x'", "xxx", "xxx")
+
+    //xxxxx
+    //xAx
+    // xAx
+    //  xAx //this will no fail the others due to backtracking. Should have chosen just 'x' for this one, but cant do that without lookahead or backtracking!
+    parse("A = 'x' A 'x' / 'x'", "xxxxx", fail(6)) //This one actually valid!
+    //but left descendent parsers without backtracking cannot handle this pattern:
+
 
     test.done();
 }
