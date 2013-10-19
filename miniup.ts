@@ -218,63 +218,6 @@ module miniup {
 					return undefined;
 				});
 		}
-/*
-		public static choice(...choices: ParseFunction[]): ParseFunction {
-			if (choices.length === 1)
-				return choices[0];
-
-			return new ParseFunction(
-				"(" + choices.map(x => x.toString()).join(" | ") + ")",
-
-
-
-				function (parser: Parser): any {
-					var res = undefined;
-					var isleftrecursive = false;
-					var seedmatch; //the successful choice..
-					var seedchoice;
-					var recursionCause;
-
-					var match = choices.some(choice => {
-						try {
-							res = parser.parse(choice);
-							if (res !== undefined) {
-								seedmatch = res;
-								seedchoice = choice;
-								return true;
-							}
-							return false;
-						}
-						catch(e) {
-							if (e instanceof RecursionException) {
-								isleftrecursive = true; //mark left recursive and try the net choice
-								recursionCause = <RecursionException> e.func;
-							}
-							else
-								throw e;
-						}
-						return false;
-					})
-
-					if (!isleftrecursive)
-						return res;
-
-					//handle left recursion
-					else if (!match) {
-						if (recursionCause == this)
-							return undefined; //we're done, no match.
-						throw new RecursionException(parser, <ParseFunction> this); //TODO: properscope?
-					}
-					// a match, try the recursing one again..
-					else {
-
-					}
-				}
-
-
-			);
-		}
-*/
 
 		public static set(...items: ISequenceItem[]): ParseFunction {
 			return new ParseFunction(
@@ -498,7 +441,49 @@ module miniup {
 			}
 		}
 
-		parse(func: ParseFunction): any {
+
+		private growing = {}; //rule -> position -> seed ← R -> P -> seed
+
+		private FIXME = { endPos: 0, result: undefined }
+
+		parse(func: ParseFunction) {
+			var r = this.applyrule(func, func.memoizationId, this.currentPos)
+			if (r !== undefined && r !== this.FIXME)
+				return r.result;
+			return undefined;
+		}
+
+		//TODO: only call from 'call' applications, not for any rule
+		private applyrule(func: ParseFunction, Rorig:number , Porig:number) : MemoizeResult {
+			var result : MemoizeResult;
+			var seed : MemoizeResult;
+			var R = func.memoizationId;
+			var P = this.currentPos;
+
+			if (R == Rorig && this.growing[R] && this.growing[R][P]) {
+				return <MemoizeResult> this.growing[R][P]
+			}
+			else if (R == Rorig && P == Porig) {
+				if (!this.growing[R])
+					this.growing[R] = {};
+
+				this.growing[R][P] = this.FIXME;
+				while (true) {
+					result = this.applyrule(func, Rorig , Porig)
+					seed = this.growing[R][P]
+					if (result === this.FIXME || (seed === this.FIXME && result.endPos < seed.endPos)) {
+						delete this.growing[R][P];
+						return seed;
+					}
+					this.growing[R][P] = { result: result, endPos: this.currentPos };
+				}
+				throw "Illegal State"
+			}
+			else
+				return { endPos: this.currentPos, result: this.parsePeg(func) };
+		}
+
+		parsePeg(func: ParseFunction): any {
 			var startpos = this.currentPos,
 				isMatch = false,
 				result = undefined;
@@ -665,7 +650,7 @@ module miniup {
 
 			var importRule = g.addRule('import', seq(
 			  si(lit('@import')),
-			  si('grammar', identifier),
+			  si('grammar', identifier), //TODO: or string, in case of filename
 			  si(lit('.')),
 			  si('rule', identifier)));
 
