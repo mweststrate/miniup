@@ -455,6 +455,7 @@ module miniup {
 
 				//check memoization cache
 				if (this.isMemoized(func)) {
+					//TODO: rewrite to parser.log
 					if (this.debug && !this.isParsingWhitespace)
 						Util.debug(Util.leftPad(" /" + func.toString() + " ? (memo)", this.stackdepth, " |"));
 
@@ -536,6 +537,11 @@ module miniup {
 			this.isParsingWhitespace = true;
 			this.parse(this.grammar.whitespaceMatcher);
 			this.isParsingWhitespace = false;
+		}
+
+		log(msg: string) {
+			if (this.debug && !this.isParsingWhitespace)
+				Util.debug(Util.leftPad(msg, this.stackdepth, " |"));
 		}
 	}
 
