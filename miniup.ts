@@ -222,11 +222,6 @@ module miniup {
 					var recursingpos: number;
 
 					choices.some((choice, idx) => {
-						//if (disallow[idx] && idx <= disallow[idx]){
-						if (choice.disabled[parser.currentPos]){
-							parser.log("> skipped for disallow" + choice.toString() + " @ " + parser.currentPos);
-							return false;
-						}
 						try {
 							return undefined !== (res = parser.parse(choice));
 						}
@@ -482,7 +477,7 @@ module miniup {
 		private static RecursionDetected = { recursion : true };
 
 		currentPos: number = 0;
-		memoizedParseFunctions = {}; //position-> parseFunction -> MemoizeResult
+		private memoizedParseFunctions = {}; //position-> parseFunction -> MemoizeResult
 		private isParsingWhitespace = false;
 		autoParseWhitespace = false;
 		expected = []; //pos -> [ expecteditems ]
@@ -516,49 +511,7 @@ module miniup {
 			}
 		}
 
-
-		private growing = {}; //rule -> position -> seed ← R -> P -> seed
-
-		private FIXME = { endPos: 0, result: undefined }
-
-		parse(func: ParseFunction) {
-			var r = this.applyrule(func, func.memoizationId, this.currentPos)
-			if (r !== undefined && r !== this.FIXME)
-				return r.result;
-			return undefined;
-		}
-
-		//TODO: only call from 'call' applications, not for any rule
-		private applyrule(func: ParseFunction, Rorig:number , Porig:number) : MemoizeResult {
-			var result : MemoizeResult;
-			var seed : MemoizeResult;
-			var R = func.memoizationId;
-			var P = this.currentPos;
-
-			if (R == Rorig && this.growing[R] && this.growing[R][P]) {
-				return <MemoizeResult> this.growing[R][P]
-			}
-			else if (R == Rorig && P == Porig) {
-				if (!this.growing[R])
-					this.growing[R] = {};
-
-				this.growing[R][P] = this.FIXME;
-				while (true) {
-					result = this.applyrule(func, Rorig , Porig)
-					seed = this.growing[R][P]
-					if (result === this.FIXME || (seed === this.FIXME && result.endPos < seed.endPos)) {
-						delete this.growing[R][P];
-						return seed;
-					}
-					this.growing[R][P] = { result: result, endPos: this.currentPos };
-				}
-				throw "Illegal State"
-			}
-			else
-				return { endPos: this.currentPos, result: this.parsePeg(func) };
-		}
-
-		parsePeg(func: ParseFunction): any {
+		parse(func: ParseFunction): any {
 			var startpos = this.currentPos,
 				isMatch = false,
 				result = undefined;
@@ -604,7 +557,7 @@ module miniup {
 
 					//enrich result with match information
 					if (!this.cleanAST && result instanceof Object && !result.$rule)
-						Util.extend(result, { $start : startpos, $text : this.getInput().substring(startpos, this.currentPos), $rule : func.ruleName || func.toString() });
+						Util.extend(result, { $start : startpos, $text : this.getInput().substring(startpos, this.currentPos), $rule : func.ruleName });
 
 					//store memoization result
 					this.memoize(func, startpos, this.currentPos, result);
@@ -634,6 +587,7 @@ module miniup {
 			};
 		}
 
+		//TODO: used?
 		unmemoize(func: ParseFunction, startpos: number) {
 			delete this.memoizedParseFunctions[func.memoizationId][startpos];
 		}

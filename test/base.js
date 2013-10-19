@@ -360,7 +360,7 @@ exports.testgrammarmodification = function(test) {
     g.updateRule("x", temp.rule("x"));
     g.addRule("y", temp.rule("y"))
 
-    assert.equal(g.parse("zzzz"), "zzzz");
+    assert.equal(g.parse("zzzz").join(""), "zzzz");
 
     test.done();
 }
@@ -389,7 +389,7 @@ exports.leftrecursion = function(test) {
 exports.impossible = function(test) {
 
     parse("A = 'x' A 'x' / 'x'", "x", "x")
-    parse("A = 'x' A 'x' / 'x'", "xxx", "xxx")
+    parse("A = a:'x' b:A c:'x' / 'x'", "xxx", {a:"x" ,b: "x", c: "x"})
 
     //xxxxx
     //xAx
