@@ -701,10 +701,24 @@ module miniup {
 			  importRule,
 			  paren));
 
-			var suffixed = g.addRule('suffixed', choice(seq(
-			  si('expr', primary),
-			  si('suffix', choice(lit('?'), lit('*?'), lit('+?'), lit('*'), lit('+'), lit('#')))),
+			var repeated = g.addRule('repeated', choice(
+			  seq(
+			    si(lit('(')),
+			    si('expr', call('expression')),
+			    si('separator', opt(seq(si(lit(',')), si('expr', call('expression'))))),
+			    si(lit(')')),
+			    si('suffix', choice(lit('*'), lit('+')))
+			  ),
+			  seq(
+			  	si('expr', primary),
+			    si('suffix', choice(lit('+'), lit('*')))
+			  ),
 			  primary));
+
+			var suffixed = g.addRule('suffixed', choice(seq(
+			  si('expr', repeated),
+			  si('suffix', choice(lit('?'), lit('#')))),
+			  repeated));
 
 			var prefixed = g.addRule('prefixed', choice(seq(
 			  si('prefix', choice(lit('$'), lit('&'), lit('!'))),
@@ -838,25 +852,11 @@ module miniup {
 								//return null; //hmmm
 							}
 							return f.set.apply(f, seq.sequence);
-						case "*": return f.list(this.astToMatcher(ast.expr), false);
-						case "+": return f.list(this.astToMatcher(ast.expr), true);
-						case "*?":
-						case "+?":
-							var seq = this.astToMatcherInner(ast.expr);
-							var sep : ParseFunction;
-							if (!seq.sequence || seq.sequence.length < 2) {
-								this.errors.push({ ast: ast, msg: "Lists with separators ('*?' or '+?') should consist of at least two items"})
-								//return null; //hmmm
-							}
-							else
-								sep = seq.sequence.pop().expr;
-
-							if (seq.sequence && seq.sequence.length == 1 && !seq.sequence[0].label) //one left? not a sequency anymore
-								seq = seq.sequence[0].expr;
-
-							return f.list(this.cache(seq), ast.suffix === "+?", sep ? this.cache(sep) : null);
-						default: throw new Error("Unimplemented suffix: " + ast.suffix);
 					}
+				case "repeated":
+					var separator = ast.separator ? this.astToMatcher(ast.separator.expr) : null;
+					var expr = this.astToMatcher(ast.expr);
+					return f.list(expr, ast.suffix === "+" ? true: false, separator);
 				case "prefixed":
 					switch(ast.prefix) {
 						case "$": return f.dollar(this.astToMatcher(ast.expr));

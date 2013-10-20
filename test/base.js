@@ -112,8 +112,8 @@ exports.extensionstest = function(test) {
     parse("foo = @whitespace-on 'foo' bars:$('bar'+) 'baz'", "foo bar bar baz", { bars: "bar bar" });
     parse("foo = 'idontlike ' !'coffee' what:/[a-z]*/", "idontlike tea" , { what: "tea" });
     parse("float = /[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?/", "-34.3e523" , "-34.3e523");
-    parse("args = args:(expr ',')*?; expr = 'dummy'", "dummy" , { args: ["dummy"] });
-    parse("args = args:(expr ',')*?; expr = 'dummy'", "dummy,dummy,dummy" , { args: ["dummy", "dummy", "dummy"]});
+    parse("args = args:(expr, ',')*; expr = 'dummy'", "dummy" , { args: ["dummy"] });
+    parse("args = args:(expr, ',')*; expr = 'dummy'", "dummy,dummy,dummy" , { args: ["dummy", "dummy", "dummy"]});
 
     parse("modifiers = @whitespace-on (public:'public' static:'static' final: 'final')#", "final public", {public:"public", static: null, final: "final"});
 
@@ -145,23 +145,6 @@ exports.errortest = function(test) {
         assert.ok((""+e).match(/at least two items/))
     }
 
-    try {
-        miniup.Grammar.load("foo = ('a')+?"); //requires two items
-        assert.ok(false)
-    }
-    catch (e) {
-        assert.ok((""+e).match(/at least two items/))
-    }
-
-    try {
-        miniup.Grammar.load("foo = ('a')*?"); //requires two items
-        assert.ok(false)
-    }
-    catch (e) {
-        assert.ok((""+e).match(/at least two items/))
-    }
-
-
     test.done();
 };
 
@@ -172,8 +155,8 @@ exports.bugtests = function(test) {
 
     parse("x = n:[a-z] d:[0-9]","a0", { n: 'a', d: '0'});
 
-    parse("x= ('a' 'b')+?", "ababa", ["a","a","a"]);
-    parse("x= ('a' 'b')+?", "abab", fail(5));
+    parse("x= ('a', 'b')+", "ababa", ["a","a","a"]);
+    parse("x= ('a', 'b')+", "abab", fail(5));
 
     parse("x = l:('0'?)* r:'1'", "1", { l: [ null ], r:"1"}) //0?* is a never ending rule
 
@@ -213,22 +196,22 @@ exports.lambdatest = function(test) {
     parse("x =  l:'a' r:x / - ", 'aaa', { l: 'a', r: { l : 'a', r : { l : 'a', r : null}}});
     parse("x =  l:'a' r:x / ", 'aaa', { l: 'a', r: { l : 'a', r : { l : 'a', r : null}}});
 
-    parse("x = ('a' 'b'?)*?", "", [])
-    parse("x = ('a' 'b'?)*?", "abaaa", ["a", "a", "a", "a"])
-    parse("x = ('a' 'b'?)*?", "abaaab", fail(7)) //'cause separator was found
-    parse("x = ('a' 'b'?)*?", "ababa", ["a", "a", "a"])
+    parse("x = ('a', 'b'?)*", "", [])
+    parse("x = ('a', 'b'?)*", "abaaa", ["a", "a", "a", "a"])
+    parse("x = ('a', 'b'?)*", "abaaab", fail(7)) //'cause separator was found
+    parse("x = ('a', 'b'?)*", "ababa", ["a", "a", "a"])
 
-    parse("x = ('a'? 'b')+?", "", [null]) //might seem weird, but 'a'? matches nothing, so one iteration does succeed
-    parse("x = ('n'? 'b')+?", "nbbnb", ["n", null, "n",null])
+    parse("x = ('a'?, 'b')+", "", [null]) //might seem weird, but 'a'? matches nothing, so one iteration does succeed
+    parse("x = ('n'?, 'b')+", "nbbnb", ["n", null, "n",null])
     parse("x = ('a'? 'b')+", "abbab", [{},{},{}]) //3 succesful iteratinos
-    parse("x = ('a'? 'b')+?", "bbb", [null,null,null,null])
-    parse("x = ('a'? 'b')+?", "ababa", ["a", "a", "a"])
+    parse("x = ('a'?, 'b')+", "bbb", [null,null,null,null])
+    parse("x = ('a'?, 'b')+", "ababa", ["a", "a", "a"])
     parse("x = ('a'? 'b')+", "ababa", fail(6))
 
-    parse("x = ('a'? 'b'?)*?", "", [null, null]) //MWE: disputable, but strange case
-    parse("x = ('a'? 'b'?)*?", "aaa", ["a", "a", "a", null])
-    parse("x = ('a'? 'b'?)*?", "bbb", [null,null,null,null,null])
-    parse("x = ('a'? 'b'?)*?", "bbaabb", [null,null,"a", "a", null,null, null])
+    parse("x = ('a'?, 'b'?)*", "", [null, null]) //MWE: disputable, but strange case
+    parse("x = ('a'?, 'b'?)*", "aaa", ["a", "a", "a", null])
+    parse("x = ('a'?, 'b'?)*", "bbb", [null,null,null,null,null])
+    parse("x = ('a'?, 'b'?)*", "bbaabb", [null,null,"a", "a", null,null, null])
 
     test.done();
 }
