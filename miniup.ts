@@ -705,7 +705,7 @@ module miniup {
 			  seq(
 			    si(lit('(')),
 			    si('expr', call('expression')),
-			    si('separator', opt(seq(si(lit(',')), si('expr', call('expression'))))),
+			    si('separator', opt(seq(si(lit(';')), si('expr', call('expression'))))),
 			    si(lit(')')),
 			    si('suffix', choice(lit('*'), lit('+')))
 			  ),
