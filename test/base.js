@@ -186,10 +186,10 @@ exports.importtest = function(test) {
 
 exports.leftrecursiondetection = function(test) {
     //left recusion detection
-    parse("foo = foo 'x' / 'x'", "xxxx", fail(1))
+    parse("foo = foo 'x' / 'x'", "xxxx", fail(1), { allowLeftRecursion : false })
 
     //right recursion detetion: A = 'x'? A | 'y'
-    parse("A = 'x'? A / 'y'", "yyy", fail(1))
+    parse("A = 'x'? A / 'y'", "yyy", fail(1), { allowLeftRecursion : false })
 
     test.done();
 };

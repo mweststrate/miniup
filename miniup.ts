@@ -226,8 +226,8 @@ module miniup {
 							return undefined !== (res = parser.parse(choice));
 						}
 						catch(e) {
-							//TODO: only catch if left recursion support is enabled
 							if (e instanceof RecursionException
+								&& parser.allowLeftRecursion
 								&& idx < choices.length -1 //recursion in the last choice cannot be solved
 							) {
 								isleftrecursive = true; //mark left recursive and try the net choice
@@ -464,6 +464,7 @@ module miniup {
 		debug?: boolean;
 		cleanAST?: boolean;
 		extendedAST?: boolean;
+		allowLeftRecursion? : boolean;
 	}
 
 	export class Parser implements IParseArgs {
@@ -472,6 +473,7 @@ module miniup {
 		input: string;
 		cleanAST: boolean = false;
 		extendedAST: boolean =false;
+		allowLeftRecursion : boolean = true;
 
 		private static nextMemoizationId = 1;
 		private static RecursionDetected = { recursion : true };
@@ -996,6 +998,7 @@ module miniup {
 				.describe('c', 'Clean AST. Do not enrich the AST with parse information').alias("c", "clean")
 				.describe('e', 'Extended AST. Item without label will be added to the AST as well').alias("e", "extended")
 				.describe('h', 'Print this help').alias('h', 'help')
+				.describe('l', 'Disable left recursion').alias('l', 'no-left-recursion')
 				.boolean('rvceh'.split(''))
 				.string("giso".split(''))
 
@@ -1023,7 +1026,8 @@ module miniup {
 						debug: argv.v,
 						cleanAST: argv.c,
 						extendedAST: argv.e,
-						inputName : inputName
+						inputName : inputName,
+						allowLeftRecursion : !argv.l
 					});
 
 					//store

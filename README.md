@@ -266,6 +266,7 @@ The following options can be provided to the parse function:
 		extendedAST: true, /* default: false, if true, unlabeled items are added to the resulting AST as well */
 		startSymbol: 'rulename', /* use alternative start symbol. Default: first rule that is defined in the grammar */
 		inputName: 'string' /* default: 'input', name of the input to use in error reporting, such as a filename */
+		allowLeftRecursion: bool; default: true. --no-leftrecursion to disable
 	}
 
 
