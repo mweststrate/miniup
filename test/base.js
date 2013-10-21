@@ -219,20 +219,20 @@ exports.lambdatest = function(test) {
 }
 
 exports.operators = function(test) {
-    parse("x = @operator '+' @on INTEGER", "", fail(1));
-    parse("x = @operator '+' @on INTEGER", "1", "1");
-    parse("x = @operator '+' @on INTEGER", "1+2", { left: "1", op:"+", right: "2" });
-    parse("x = @operator '+' @on INTEGER", "1+2+3", { left: { left: "1", op:"+", right: "2" }, op:"+", right: "3"});
-    parse("x = @operator @left '+' @on INTEGER", "1+2+3", { left: { left: "1", op:"+", right: "2" }, op:"+", right: "3"});
-    parse("x = @operator @right '+' @on INTEGER", "1+2+3", { left: "1", op:"+", right: { left: "2", op: "+", right: "3"}});
+    parse("x = '+' > INTEGER", "", fail(1));
+    parse("x = '+' > INTEGER", "1", "1");
+    parse("x = '+' > INTEGER", "1+2", { left: "1", op:"+", right: "2" });
+    parse("x = '+' > INTEGER", "1+2+3", { left: { left: "1", op:"+", right: "2" }, op:"+", right: "3"});
+    parse("x = '+' @left > INTEGER", "1+2+3", { left: { left: "1", op:"+", right: "2" }, op:"+", right: "3"});
+    parse("x = '+' @right > INTEGER", "1+2+3", { left: "1", op:"+", right: { left: "2", op: "+", right: "3"}});
 
     //multiple operatores.
-    parse("x = @operator '*' > '+' @on INTEGER", "1+2+3", { left: { left: "1", op:"+", right: "2" }, op:"+", right: "3"});
-    parse("x = @operator '*' > '+' @on INTEGER", "1*2*3", { left: { left: "1", op:"*", right: "2" }, op:"*", right: "3"});
-    parse("x = @operator '*' > '+' @on INTEGER", "1*2+3", { left: { left: "1", op:"*", right: "2" }, op:"+", right: "3"});
-    parse("x = @operator '*' > '+' @on INTEGER", "1+2*3", { left: "1", op: "+", right:{ left: "2", op:"*", right: "3" }});
+    parse("x = '*' > '+' > INTEGER", "1+2+3", { left: { left: "1", op:"+", right: "2" }, op:"+", right: "3"});
+    parse("x = '*' > '+' > INTEGER", "1*2*3", { left: { left: "1", op:"*", right: "2" }, op:"*", right: "3"});
+    parse("x = '*' > '+' > INTEGER", "1*2+3", { left: { left: "1", op:"*", right: "2" }, op:"+", right: "3"});
+    parse("x = '*' > '+' > INTEGER", "1+2*3", { left: "1", op: "+", right:{ left: "2", op:"*", right: "3" }});
 
-    parse("x = @operator @left '*' > @right '+' @on INTEGER", "1+2*3*4+5+6+7*8",
+    parse("x = '*' @left > '+' @right > INTEGER", "1+2*3*4+5+6+7*8",
         {
             left : "1",
             op : "+",
@@ -263,11 +263,11 @@ exports.operators = function(test) {
             }
         });
 
-    parse("x = @operator '*' > '+' @on prim; prim = '(' x ')' / INTEGER", "7", "7");
-    parse("x = @operator '*' > '+' @on prim; prim = '(' v:x ')' / INTEGER", "(7)", {v:'7'});
-    parse("x = @operator '*' > '+' @on prim; prim = '(' v:x ')' / INTEGER", "(1+2)*3", { left: { v: { left: "1", op:"+", right: "2"}}, op: "*", right: "3"});
-    parse("x = @operator '*' > '+' @on prim; prim = '(' v:x ')' / INTEGER", "1+(2+3)", { left: "1", op:"+", right: { v: { left: "2", op: "+", right: "3"}}});
-    parse("x = @operator '*' > '+' @on prim; prim = '(' v:x ')' / INTEGER", "1*(2+3)", { left: "1", op:"*", right: { v: { left: "2", op: "+", right: "3"}}});
+    parse("x = '*' > '+' > prim; prim = '(' x ')' / INTEGER", "7", "7");
+    parse("x = '*' > '+' > prim; prim = '(' v:x ')' / INTEGER", "(7)", {v:'7'});
+    parse("x = '*' > '+' > prim; prim = '(' v:x ')' / INTEGER", "(1+2)*3", { left: { v: { left: "1", op:"+", right: "2"}}, op: "*", right: "3"});
+    parse("x = '*' > '+' > prim; prim = '(' v:x ')' / INTEGER", "1+(2+3)", { left: "1", op:"+", right: { v: { left: "2", op: "+", right: "3"}}});
+    parse("x = '*' > '+' > prim; prim = '(' v:x ')' / INTEGER", "1*(2+3)", { left: "1", op:"*", right: { v: { left: "2", op: "+", right: "3"}}});
 
     test.done();
 }

@@ -731,18 +731,13 @@ module miniup {
 
 			var sequence = g.addRule('sequence', f.list(labeled, true));
 
-			//@operators left:expr > right:expr on expr
-			var opdef= g.addRule('operatorDef', seq(
-				si('associativity', opt(f.regex(/@left|@right/))),
-				si('operator', call('expression'))
-			));
-
 			var operators = g.addRule('operator', seq(
-				si(lit('@operator')),
-				si('operators', list(opdef, true, lit('>'))),
-				si(lit('@on')),
-				si('operand', call('expression'))
-			));
+			  si('operators', f.list(seq(
+			  	si('operator', prefixed),
+			  	si('associativity', opt(f.regex(/@left|@right/))),
+			  	si(lit('>'))
+			  ), true)),
+			  si('operand', prefixed)));
 
 			var choicerule = g.addRule('choice', list(choice(regex, operators, sequence, lambda), true, lit('/')));
 
