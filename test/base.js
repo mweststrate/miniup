@@ -339,7 +339,7 @@ exports.testgrammarmodification = function(test) {
     assert.throws(function() { h.parse("4") });
     assert.equal(h.parse("3"), "3");
 
-   // assert.throws(function() { g.parse("45") }, /superfluous input/)
+    assert.throws(function() { g.parse("45") }, /<nothing>/)
 
 
 

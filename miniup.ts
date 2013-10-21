@@ -513,11 +513,8 @@ module miniup {
 				throw new ParseException(this, "Failed to parse");
 			}
 			else {
-				if (this.currentPos < this.input.length) {
-					if (this.currentPos == this.expected.length -1) //we parsed something valid, but we expected more..
-						throw new ParseException(this, "Found superfluous input after parsing");
+				if (this.currentPos < this.input.length)
 					throw new ParseException(this, "Failed to parse");
-				}
 				return res;
 			}
 		}
