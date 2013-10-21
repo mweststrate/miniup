@@ -353,6 +353,13 @@ exports.testgrammarmodification = function(test) {
     test.done();
 }
 
+exports.testdefaultlabel = function(test) {
+    assert.throws(function() { parse( "x = a:'a' ::'b'", "ab","");}, /default label/);
+    parse("x = 'a' ::'b'", "ab", "b");
+    parse("x = 'a' ::(x:'b')", "ab", {x:'b'});
+    test.done();
+}
+
 exports.leftrecursion = function(test) {
     parse("x=x 'a' / 'b'", "baaaaa", {})
     parse("x=z 'a' / 'b';z=x","baaaaa", {});

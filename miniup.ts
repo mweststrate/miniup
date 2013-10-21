@@ -183,21 +183,25 @@ module miniup {
 			return { label: <string> (b ? a : undefined), expr: <ParseFunction> (b ? b : a)};
 		}
 
-		//TODO, empty label means only result? ex: '(' :res ')'
 		public static sequence(...items: ISequenceItem[]): ParseFunction {
 			if (items.length == 1 && !items[0].label)
 				return items[0].expr;
 
 			return new ParseFunction(
-				"(" + items.map(i => (i.label ? i.label + ":" : "") + i.expr.toString()).join(" ") + ")",
+				"(" + items.map(i => (i.label ? i.label + ":" : i.label === "" ? "::" : "") + i.expr.toString()).join(" ") + ")",
+
 				(parser: Parser): any => {
 					var result = {};
 					var success = items.every(item => {
 						var itemres = parser.parse(item.expr);
-						if (item.label) //we are interested in the result
-							result[item.label] = itemres;
-						if (parser.extendedAST)
-							result[-1 + ((<any>result).length = ((<any>result).length || 0) + 1)] = itemres;
+						if (item.label === "")
+							result = itemres;
+						else {
+							if (item.label) //we are interested in the result
+								result[item.label] = itemres;
+							if (parser.extendedAST)
+								result[-1 + ((<any>result).length = ((<any>result).length || 0) + 1)] = itemres;
+						}
 						return itemres !== undefined;
 					});
 
@@ -734,7 +738,8 @@ module miniup {
 
 			var labeled = g.addRule('labeled', choice(
 			  seq(si('label', identifier), si(lit(':')), si('expr', choice(regex, prefixed))),
-			  seq(si('expr', prefixed))));
+			  seq(si('nolabel', lit('::')), si('expr', choice(regex, prefixed))),
+			  prefixed));
 
 			var sequence = g.addRule('sequence', f.list(labeled, true));
 
@@ -867,7 +872,13 @@ module miniup {
 						default: throw new Error("Unimplemented prefix: " + ast.prefix);
 					}
 				case "sequence":
-					return f.sequence.apply(f, ast.map(item => f.sequenceItem(item.label, this.astToMatcher(item.expr))));
+					if (ast.some(x => x.label) && ast.some(x => x.nolabel))
+						this.errors.push({ ast: ast, msg: "A default label ('::') is not allowed in a sequence where normal labels are used"})
+
+					return f.sequence.apply(f, ast.map(item => f.sequenceItem(
+						item.label ? item.label : item.nolabel ? "" : undefined,
+						this.astToMatcher(item.label || item.nolabel ? item.expr : item)
+					)));
 				case "expression":
 					return f.choice.apply(f, ast.map(this.astToMatcher, this));
 				case "import":

@@ -28,7 +28,7 @@ Build instructions
 PEGJS compatibility.
 Lambda parsing ( nothign or dash )
 Lambda parsing in lists
-
+Default label for sequence
 Extended and meta AST information
 TODO: convert every example in a unit test.
 
