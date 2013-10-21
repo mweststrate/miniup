@@ -351,24 +351,79 @@ exports.testgrammarmodification = function(test) {
 }
 
 exports.leftrecursion = function(test) {
-   // jake && ./miniup -v -g "x=x 'a' / 'b'" "baaaaa"
+    parse("x=x 'a' / 'b'", "baaaaa", {})
+    parse("x=z 'a' / 'b';z=x","baaaaa", {});
 
-    // ./miniup -v -g "x=z 'a' / 'b';z=x" "baaaaa"
-
-    //./miniup -g "A= A b/b;b='b'" "bbbbb"
-/* TODO:
-    ./miniup -g "A=B 'x' / 'x';B=A'y'/'y'" "x"
-./miniup -g "A=B 'x' / 'x';B=A'y'/'y'" "yx"
-./miniup -g "A=B 'x' / 'x';B=A'y'/'y'" "xyx"
-./miniup -g "A=B 'x' / 'x';B=A'y'/'y'" "yxyx"//not working yet!
-./miniup -g "x=a:x b:'b' / c:'a'" "abbbb"
-
-./miniup -c -g "expr = l:expr o:'+' r:expr / l:expr o:'*' r:expr / 'x'" "x*x+x"
-./miniup -c -g "expr = l:expr o:'+' r:expr / l:expr o:'*' r:expr / 'x'" "x+x*x"
-./miniup -cv -g "expr = l:expr o:'*' r:expr / l:expr o:'+' r:expr / 'x'" "x*x+x"
-*/
+    parse("A= A b/b;b='b'", "bbbbb", {});
+    parse("A=B 'x' / 'x';B=A'y'/'y'", "x", "x");
+    parse("A=B 'x' / 'x';B=A'y'/'y'", "yx", {});
+    parse("A=B 'x' / 'x';B=A'y'/'y'", "xyx", {});
+    //Correct, but known one to fail... parse("A=B 'x' / 'x';B=A'y'/'y'", "yxyx", {});
     test.done();
+}
 
+exports.leftrecursionwithAST = function(test) {
+    //For left recursive rules, the AST is nice...
+    parse("x=a:x b:'b' / c:'a'", "abb", { a: { a: { c: 'a' }, b: 'b' }, b: 'b' });
+
+    parse("x=a:x b:'b' / c:'a'", "abb", {
+        a: {
+            a: {
+                c: 'a',
+                '$start': 0,
+                '$text': 'a',
+                '$rule': 'x'
+            },
+            b: 'b',
+            '$start': 0,
+            '$text': 'ab',
+            '$rule': 'x'
+        },
+        b: 'b',
+        '$start': 0,
+        '$text': 'abb',
+        '$rule': 'x'
+    }, { cleanAST : false});
+
+    parse("x=a:x b:'b' / c:'a'", "abb", {
+        '0': {
+            '0': { '0': 'a', c: 'a', length: 1 },
+            '1': 'b',
+            a  : { '0': 'a', c: 'a', length: 1 },
+            length: 2,
+            b: 'b'
+        },
+        '1': 'b',
+        a: {
+            '0': { '0': 'a', c: 'a', length: 1 },
+            '1': 'b',
+            a:   { '0': 'a', c: 'a', length: 1 },
+            length: 2,
+            b: 'b'
+        },
+        length: 2,
+        b: 'b'
+    }, { extendedAST : true });
+
+    //...Except, when a left recursive rule is right recursive as well! Do use operators in such a case!
+    //The following results are parsable, but the ast is unusable in relation to the mathetmatical properties of
+    //these expression
+    parse("expr = l:expr o:'*' r:expr / l:expr o:'+' r:expr / 'x'", "x*x+x", { l: 'x', o: '*', r: { l: 'x', o: '+', r: 'x' } });
+    parse("expr = l:expr o:'*' r:expr / l:expr o:'+' r:expr / 'x'", "x+x*x", { l: 'x', o: '+', r: { l: 'x', o: '*', r: 'x' } });
+    parse("expr = l:expr o:'+' r:expr / l:expr o:'*' r:expr / 'x'", "x*x+x", { l: 'x', o: '*', r: { l: 'x', o: '+', r: 'x' } });
+
+    //but, this grammar is useful!
+    //TODO:
+    /*
+    var g = "Expr <- Product / Sum / Value; Value <- [0-9]+ / '(' Expr ')'; Product <- Expr (('*' / '/') Expr)*; Sum <- Expr (('+' / '-') Expr)*";
+
+    parse(g, "7","7");
+    parse(g, "7+7",{});
+    parse(g, "7*6+5*4",{});
+    parse(g, "7*(6+5)", {});
+    */
+
+    test.done();
 }
 
 exports.impossible = function(test) {

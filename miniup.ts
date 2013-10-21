@@ -276,7 +276,7 @@ module miniup {
 								Util.extend(seed, {
 									$start : start,
 									$text : parser.getInput().substring(start, parser.currentPos),
-									$rule : seed.$rule || this.toString()
+									$rule : seed.$rule || this.ruleName || ""
 								})
 							res = seed;
 							seed = parser.parse(recursingchoice);
