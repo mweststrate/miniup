@@ -232,6 +232,9 @@ exports.operators = function(test) {
     parse("x = '*' > '+' > INTEGER", "1*2+3", { left: { left: "1", op:"*", right: "2" }, op:"+", right: "3"});
     parse("x = '*' > '+' > INTEGER", "1+2*3", { left: "1", op: "+", right:{ left: "2", op:"*", right: "3" }});
 
+    //should work without left recursion suppiort
+    parse("x = '*' > '+' > INTEGER", "1+2*3", { left: "1", op: "+", right:{ left: "2", op:"*", right: "3" }}, { allowLeftRecursion : false });
+
     parse("x = '*' @left > '+' @right > INTEGER", "1+2*3*4+5+6+7*8",
         {
             left : "1",
@@ -413,15 +416,16 @@ exports.leftrecursionwithAST = function(test) {
     parse("expr = l:expr o:'+' r:expr / l:expr o:'*' r:expr / 'x'", "x*x+x", { l: 'x', o: '*', r: { l: 'x', o: '+', r: 'x' } });
 
     //but, this grammar is useful!
-    //TODO:
-    /*
-    var g = "Expr <- Product / Sum / Value; Value <- [0-9]+ / '(' Expr ')'; Product <- Expr (('*' / '/') Expr)*; Sum <- Expr (('+' / '-') Expr)*";
+    var g =
+        "Expr <- Product / Sum / Value; "+
+        "Value <- [0-9]+ / '(' Expr ')';"+
+        "Product <- Expr (('*' / '/') Expr);"+
+        "Sum <- Expr (('+' / '-') Expr)*";
 
     parse(g, "7","7");
     parse(g, "7+7",{});
     parse(g, "7*6+5*4",{});
     parse(g, "7*(6+5)", {});
-    */
 
     test.done();
 }

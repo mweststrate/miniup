@@ -260,6 +260,7 @@ module miniup {
 					var seedmatcher = MatcherFactory.choice.apply(MatcherFactory, choices.slice(1+recursingpos));
 					parser.log("> searching seed with " + seedmatcher.toString() + " @ " + parser.currentPos)
 					var seed = parser.parse(seedmatcher);
+					var basepos = start; //input needs to consume during loop, to avoid endless list!
 
 					if (seed === undefined) {
 						parser.log("> found no seed to solve recursion")
@@ -267,21 +268,25 @@ module miniup {
 					}
 
 					parser.log("> found seed for recursion, growing on " + recursingchoice.memoizationId + " recur: " + error.func.memoizationId+ " seed: " + (seed.$text?seed.$text:seed));
-					do {
+					while(true) {
 						parser.memoize(error.func, parser.currentPos, parser.currentPos, seed);
-						//parser.currentPos = start;
-						if (seed !== undefined) {
-							//fix meta info
+
+						if (seed !== undefined && parser.currentPos > basepos) {
+
 							if (!parser.cleanAST && seed instanceof Object)
 								Util.extend(seed, {
 									$start : start,
 									$text : parser.getInput().substring(start, parser.currentPos),
 									$rule : seed.$rule || this.ruleName || ""
 								})
+
+							basepos = parser.currentPos;
 							res = seed;
 							seed = parser.parse(recursingchoice);
 						}
-					} while (seed !== undefined);
+						else
+							break;
+					}
 
 					return res;
 				}
