@@ -437,6 +437,58 @@ exports.leftrecursionwithAST = function(test) {
     test.done();
 }
 
+exports.testerrorreporting(test) {
+    /*
+
+    michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "x=[ab]+" "abca"Miniup.ParseException: input(1,3): Failed to parse
+abca
+--^
+Expected [ab]
+
+michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "number = [-]? [0-9]+ ([.][0-9]+)?" "1.a"
+Miniup.ParseException: input(1,3): Failed to parse
+1.a
+--^
+Expected [0-9]
+
+michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "number 'number' = [-]? [0-9]+ ([.][0-9]+)?" "1.a"
+Miniup.ParseException: input(1,1): Failed to parse
+1.a
+^
+Expected 'number'
+
+
+michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "x=(/ab/)+" "abaca"
+Miniup.ParseException: input(1,3): Failed to parse
+abaca
+--^
+Expected /ab/
+
+michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "x=z+;z 'ding' = /ab/" "abaca"
+Miniup.ParseException: input(1,3): Failed to parse
+abaca
+--^
+Expected 'ding'
+
+michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "x=z+;z = [a][b]" "abaca"
+Miniup.ParseException: input(1,4): Failed to parse
+abaca
+---^
+Expected [b]
+
+michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "x=z+;z 'ding' = [a][b]" "abaca"
+Miniup.ParseException: input(1,3): Failed to parse
+abaca
+--^
+Expected 'ding'
+
+
+
+    */
+
+    test.done();
+}
+
 exports.impossible = function(test) {
 
     parse("A = 'x' A 'x' / 'x'", "x", "x")

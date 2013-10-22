@@ -552,6 +552,7 @@ module miniup {
 					try {
 						result = func.parse(this);
 					} finally {
+						this.unstoreExpected(func);
 						this.unmemoize(func, startpos); //TODO: still needed? for the case that parse threw. Make sure LR state is always removed. New state will be stored later on
 					}
 
@@ -615,14 +616,25 @@ module miniup {
 			this.isParsingWhitespace = false;
 		}
 
+		friendlyNames : { pos: number; name: string; }[] = [];
+
 		storeExpected(func: ParseFunction) {
 			var p = this.currentPos;
+
+			if (!this.isParsingWhitespace && func.friendlyName)
+				this.friendlyNames.unshift({ pos : p, name: func.friendlyName});
 
 			if (func.isTerminal && !this.isParsingWhitespace) {
 				if (!this.expected[p])
 					this.expected[p] = [];
-				this.expected[p].push(func.friendlyName || func.toString()); //TODO: no tostring, ugly for classes and regexes
+				//last resort is toString(), which is ugly for classes and regexes
+				this.expected[p].push(func.friendlyName || this.friendlyNames[0] || func.toString());
 			}
+		}
+
+		unstoreExpected(func: ParseFunction) {
+			if (!this.isParsingWhitespace && func.friendlyName)
+				this.friendlyNames.pop();
 		}
 
 		log(msg: string) {
@@ -635,10 +647,31 @@ module miniup {
 		public name = "Miniup.ParseException";
 		public message : string;
 		public coords: TextCoords;
+		public expected : string[] = [];
 
 		constructor(parser: Parser, message: string) {
 			var pos = Math.max(parser.currentPos, parser.expected.length - 1);
+			var expected = parser.expected[pos] ? parser.expected[pos] : [];
+
+			//If some terminal, like a characterclass or regex failed,
+			//but hasn't a nice descriptive name, we might fallback to giving the error at a position
+			//where a friendly name was available and expected.
+			//This makes sure that error messages can be displayed on token level instead of charachter level
+			//in case of a complex token.
+
+			var nonPartialMatches = expected.filter(
+				x => x instanceof Object
+			).sort(
+				(x,y) => x.pos - y.pos
+			);
+
+			if (nonPartialMatches.length) {
+				pos = nonPartialMatches[0].pos;
+				expected = nonPartialMatches.filter(x => x.pos == pos).map(x => x.name);
+			}
+
 			this.coords = Util.getCoords(parser.input, pos);
+			this.expected = expected;
 
 			this.message = Util.format("{1}({2},{3}): {0}\n{4}\n{5}\nExpected {6}",
 				message,
@@ -646,8 +679,7 @@ module miniup {
 				this.coords.line, this.coords.col,
 				this.coords.linetrimmed,
 				this.coords.linehighlight,
-				//TODO: uneque only
-				parser.expected[pos] ? parser.expected[pos].join(" or ") : "<nothing>"
+				this.expected.length ? this.expected.join(" or ") : "<nothing>"
 			);
 		}
 

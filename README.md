@@ -31,6 +31,7 @@ Lambda parsing in lists
 Default label for sequence
 Extended and meta AST information
 TODO: convert every example in a unit test.
+error reporting with friendly names
 
 grammar modifications on runtime
 
