@@ -1,6 +1,4 @@
 // Some global environment stuff we use..
-//TODO: error handling, friendly  name instead of characterclasses for example. Do not show regexes?
-//TODO: jquery xhr get
 
 declare var exports : any;
 declare var module: any;
@@ -16,7 +14,6 @@ module miniup {
 		isTerminal = false;
 		sequence : ISequenceItem[];
 		autoParseWhitespace: boolean = undefined;
-		disabled = {}; //TODO remove again?
 
 		constructor(private asString: string, public parse : (parser: Parser) => any, opts? : Object) {
 			if (opts)
@@ -91,7 +88,7 @@ module miniup {
 						return undefined; //fail if auto parse whitespace is enabled and we end in the middle of a word
 					return res;
 				},
-				{ isTerminal: true });
+				{ isTerminal: true, friendlyName : "'" + keyword + "'"});
 		}
 
 		public static dot(): ParseFunction {
@@ -549,12 +546,7 @@ module miniup {
 					this.log(" /" + func.toString() + " ?");
 					this.memoize(func, startpos, startpos, Parser.RecursionDetected);
 
-					//store expected
-					if (func.isTerminal && !this.isParsingWhitespace) {
-						if (!this.expected[this.currentPos])
-							this.expected[this.currentPos] = [];
-						this.expected[this.currentPos].push(func.friendlyName || func.ruleName || func.toString());
-					}
+					this.storeExpected(func);
 
 					//finally... parse!
 					try {
@@ -623,6 +615,16 @@ module miniup {
 			this.isParsingWhitespace = false;
 		}
 
+		storeExpected(func: ParseFunction) {
+			var p = this.currentPos;
+
+			if (func.isTerminal && !this.isParsingWhitespace) {
+				if (!this.expected[p])
+					this.expected[p] = [];
+				this.expected[p].push(func.friendlyName || func.toString()); //TODO: no tostring, ugly for classes and regexes
+			}
+		}
+
 		log(msg: string) {
 			if (this.debug && !this.isParsingWhitespace)
 				Util.debug(Util.leftPad(msg, this.stackdepth, " |"));
@@ -644,6 +646,7 @@ module miniup {
 				this.coords.line, this.coords.col,
 				this.coords.linetrimmed,
 				this.coords.linehighlight,
+				//TODO: uneque only
 				parser.expected[pos] ? parser.expected[pos].join(" or ") : "<nothing>"
 			);
 		}
