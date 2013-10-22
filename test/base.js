@@ -451,12 +451,11 @@ Miniup.ParseException: input(1,3): Failed to parse
 --^
 Expected [0-9]
 
-michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "number 'number' = [-]? [0-9]+ ([.][0-9]+)?" "1.a"
+michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "number 'number' = [-]? [0-9]+ ([.][0-9]+)?" "1.asef"
 Miniup.ParseException: input(1,1): Failed to parse
-1.a
-^
+1.asef
+^^^
 Expected 'number'
-
 
 michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "x=(/ab/)+" "abaca"
 Miniup.ParseException: input(1,3): Failed to parse

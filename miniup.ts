@@ -651,6 +651,7 @@ module miniup {
 
 		constructor(parser: Parser, message: string) {
 			var pos = Math.max(parser.currentPos, parser.expected.length - 1);
+			var endpos = pos;
 			var expected = parser.expected[pos] ? parser.expected[pos] : [];
 
 			//If some terminal, like a characterclass or regex failed,
@@ -670,7 +671,7 @@ module miniup {
 				expected = nonPartialMatches.filter(x => x.pos == pos).map(x => x.name);
 			}
 
-			this.coords = Util.getCoords(parser.input, pos);
+			this.coords = Util.getCoords(parser.input, pos, endpos);
 			this.expected = expected;
 
 			this.message = Util.format("{1}({2},{3}): {0}\n{4}\n{5}\nExpected {6}",
@@ -979,6 +980,7 @@ module miniup {
 	export interface TextCoords {
 		line: number;
 		col: number;
+		length: number; //number of highlighted characters
 		linetext: string;
 		linetrimmed: string;
 		linehighlight: string;
@@ -1000,18 +1002,21 @@ module miniup {
 			return thing;
 		}
 
-		public static getCoords(input: string, pos: number): TextCoords {
+		public static getCoords(input: string, pos: number, endpos? : number): TextCoords {
 			var lines = input.substring(0, pos).split(RegExpUtil.LINEENDCHAR);
 			var curline = input.split(RegExpUtil.LINEENDCHAR)[lines.length -1];
 			lines.pop(); //remove curline
 			var col = pos - lines.join().length;
+			endpos = isNaN(endpos) ? pos : Math.max(pos, endpos);
+			var length = Math.max(1, endpos - pos +1)
 
 			return {
 				line : lines.length + 1,
 				col : col + 1, //do not use zero-indexes in messages
+				length: length,
 				linetext : curline,
 				linetrimmed: curline.replace(/\t/," "), //trim and replace tabs
-				linehighlight : Util.leftPad("^", col , "-") //correct padding for trimmed whitespacse
+				linehighlight : Util.leftPad(Util.leftPad("", length, "^"), col , "-") //correct padding for trimmed whitespacse
 			}
 		}
 
