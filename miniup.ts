@@ -88,7 +88,7 @@ module miniup {
 						return undefined; //fail if auto parse whitespace is enabled and we end in the middle of a word
 					return res;
 				},
-				{ isTerminal: true, friendlyName : "'" + keyword + "'"});
+				{ isTerminal: true, friendlyName : keyword});
 		}
 
 		public static dot(): ParseFunction {
@@ -707,7 +707,7 @@ module miniup {
 		private static mixinDefaultRegexes(g: Grammar) {
 			for (var key in RegExpUtil)
 				if (RegExpUtil[key] instanceof RegExp)
-					g.addRule(key, MatcherFactory.regex(RegExpUtil[key]));
+					g.addRule(key, Util.extend(MatcherFactory.regex(RegExpUtil[key]), { friendlyName : key.toLowerCase() }));
 		}
 
 		private static bootstrap(): Grammar {
