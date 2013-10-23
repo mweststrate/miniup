@@ -442,13 +442,13 @@ exports.testerrorreporting = function (test) {
         try {
             miniup.Grammar.load(grammar).parse(input);
         } catch(e) {
-            test.ok(e instanceof miniup.ParseException, "Expected exception");
-            test.equal(e.getColumn(), pos, "Error pos is wrong");
-            test.equal(e.coords.length, length, "Error length is wrong");
-            test.deepEqual(e.expected, expected);
+            assert.ok(e instanceof miniup.ParseException, "Expected exception");
+            assert.equal(e.getColumn(), pos, "Error pos is wrong");
+            assert.equal(e.coords.length, length, "Error length is wrong");
+            assert.deepEqual(e.expected, expected);
             return;
         }
-        test.ok(false, "expected exception");
+        assert.ok(false, "expected exception");
     }
 
     testErrors("x=[ab]+",  "abca", 3, 1, ["[ab]"]);
@@ -464,9 +464,9 @@ exports.testerrorreporting = function (test) {
 
 exports.testshortAPI = function(test) {
     var g = miniup("x='3'");
-    test.equal(g.parse("3"), "3");
+    assert.equal(g.parse("3"), "3");
 
-    test.equal(miniup("x='4'", "4"), "4");
+    assert.equal(miniup("x='4'", "4"), "4");
     test.done();
 }
 
