@@ -697,6 +697,7 @@ module miniup {
 		public toString():string { return this.name + ": " + this.message }
 
 		public getColumn():number { return this.coords.col; }
+		public getEndColumn(): number { return this.coords.col + this.coords.length; }
 		public getLineNr():number { return this.coords.line;}
 	}
 

@@ -305,7 +305,7 @@ exports.improvecoverage = function(test) {
         assert.ok(false);
     }
     catch (e){
-        assert.equal(e.toString(), "Miniup.ParseException: input(1,1): Unexpected end of input\nb\n^\nExpected x")
+        assert.equal(e.toString(), "Miniup.ParseException: input(1,1): Unexpected end of input\nb\n^\nExpected 'a'")
         assert.equal(e.getLineNr(), 1)
     }
 
@@ -437,65 +437,27 @@ exports.leftrecursionwithAST = function(test) {
     test.done();
 }
 
-exports.testerrorreporting(test) {
-    /*
+exports.testerrorreporting = function (test) {
+    function testErrors(grammar, input, pos, length, expected) {
+        try {
+            miniup.Grammar.load(grammar).parse(input);
+        } catch(e) {
+            test.ok(e instanceof miniup.ParseException, "Expected exception");
+            test.equal(e.getColumn(), pos, "Error pos is wrong");
+            test.equal(e.coords.length, length, "Error length is wrong");
+            test.deepEqual(e.expected, expected);
+            return;
+        }
+        test.ok(false, "expected exception");
+    }
 
-    michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "x=[ab]+" "abca"Miniup.ParseException: input(1,3): Failed to parse
-abca
---^
-Expected [ab]
-
-michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "number = [-]? [0-9]+ ([.][0-9]+)?" "1.a"
-Miniup.ParseException: input(1,3): Failed to parse
-1.a
---^
-Expected [0-9]
-
-michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "number 'number' = [-]? [0-9]+ ([.][0-9]+)?" "1.asef"
-Miniup.ParseException: input(1,1): Failed to parse
-1.asef
-^^^
-Expected 'number'
-
-michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "x=(/ab/)+" "abaca"
-Miniup.ParseException: input(1,3): Failed to parse
-abaca
---^
-Expected /ab/
-
-michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "x=z+;z 'ding' = /ab/" "abaca"
-Miniup.ParseException: input(1,3): Failed to parse
-abaca
---^
-Expected 'ding'
-
-michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "x=z+;z = [a][b]" "abaca"
-Miniup.ParseException: input(1,4): Failed to parse
-abaca
----^
-Expected [b]
-
-michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "x=z+;z 'ding' = [a][b]" "abaca"
-Miniup.ParseException: input(1,3): Failed to parse
-abaca
---^
-Expected 'ding'
-
-michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "x = number / 'abc'; number 'number' = [-]? [0-9]+ ([.][0-9]+)?" "1.asef"
-Miniup.ParseException: input(1,1): Failed to parse
-1.asef
-^^^
-Expected 'number' or 'number' or 'number'
-michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "x = 'abc'/ number; number 'number' = [-]? [0-9]+ ([.][0-9]+)?" "1.asef"
-Miniup.ParseException: input(1,1): Failed to parse
-1.asef
-^^^
-Expected 'number' or abc or 'number' or 'number'
-
-
-
-
-    */
+    testErrors("x=[ab]+",  "abca", 3, 1, ["[ab]"]);
+    testErrors("number = [-]? [0-9]+ ([.][0-9]+)?", "1.a", 3,1,["[0-9]"]);
+    testErrors("x=(/ab/)+", "abaca", 3,1,["/ab/"]);
+    testErrors("x=z+;z 'ding' = /ab/", "abaca", 3,1,["ding"])
+    testErrors("x=z+;z = [a][b]", "abaca", 4,1,["[b]"]);
+    testErrors("x=z+;z 'ding' = [a][b]", "abaca", 3,2,["ding"]);
+    testErrors("x = number / 'abc'; number 'number' = [-]? [0-9]+ ([.][0-9]+)?", "1.asef", 1, 3, ["number"]);
 
     test.done();
 }
