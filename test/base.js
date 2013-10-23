@@ -481,6 +481,18 @@ abaca
 --^
 Expected 'ding'
 
+michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "x = number / 'abc'; number 'number' = [-]? [0-9]+ ([.][0-9]+)?" "1.asef"
+Miniup.ParseException: input(1,1): Failed to parse
+1.asef
+^^^
+Expected 'number' or 'number' or 'number'
+michel@miniub:~/Dropbox/miniup-typescript$ ./miniup -g "x = 'abc'/ number; number 'number' = [-]? [0-9]+ ([.][0-9]+)?" "1.asef"
+Miniup.ParseException: input(1,1): Failed to parse
+1.asef
+^^^
+Expected 'number' or abc or 'number' or 'number'
+
+
 
 
     */

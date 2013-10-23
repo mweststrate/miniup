@@ -88,7 +88,7 @@ module miniup {
 						return undefined; //fail if auto parse whitespace is enabled and we end in the middle of a word
 					return res;
 				},
-				{ isTerminal: true, friendlyName : keyword});
+				{ isTerminal: true, friendlyName : "'" + keyword + "'"});
 		}
 
 		public static dot(): ParseFunction {
@@ -652,7 +652,7 @@ module miniup {
 		constructor(parser: Parser, message: string) {
 			var pos = Math.max(parser.currentPos, parser.expected.length - 1);
 			var endpos = pos;
-			var expected = parser.expected[pos] ? parser.expected[pos] : [];
+			var expected : string[] = parser.expected[pos] ? parser.expected[pos] : [];
 
 			//If some terminal, like a characterclass or regex failed,
 			//but hasn't a nice descriptive name, we might fallback to giving the error at a position
@@ -660,18 +660,28 @@ module miniup {
 			//This makes sure that error messages can be displayed on token level instead of charachter level
 			//in case of a complex token.
 
-			var nonPartialMatches = expected.filter(
+			//TODO: this code becomes probably easier if all items are in the name,pos format
+			var nonPartialMatches : any[] = expected.filter(
 				x => x instanceof Object
 			).sort(
 				(x,y) => x.pos - y.pos
 			);
 
+			//if friendly names are used, report the error on the position the friendly name starts
 			if (nonPartialMatches.length) {
 				pos = nonPartialMatches[0].pos;
 				expected = nonPartialMatches.filter(x => x.pos == pos).map(x => x.name);
+				if (parser.expected[pos])
+					expected = expected.concat(parser.expected[pos].map(x => x instanceof Object ? x.name : x))
 			}
 
 			this.coords = Util.getCoords(parser.input, pos, endpos);
+
+			expected = expected.sort().reverse().reduce((x, y) => { //Reverse because quoted terminals is nicer in front of non-terminal
+				if (x[0] !== y)
+					x.unshift(y); //reduce to non-unique items
+				return x;
+			}, [])
 			this.expected = expected;
 
 			this.message = Util.format("{1}({2},{3}): {0}\n{4}\n{5}\nExpected {6}",
@@ -820,7 +830,7 @@ module miniup {
 			(<any[]>ast.rules).forEach((ast: any) => {
 				var r = this.astToMatcher(ast.expr);
 				if (ast.displayName)
-					r.friendlyName = ast.displayName;
+					r.friendlyName = RegExpUtil.unescapeQuotedString(ast.displayName);
 				if (ast.autoParseWhitespace)
 					r.autoParseWhitespace = ast.autoParseWhitespace == '@whitespace-on'
 				g.addRule(ast.name, r);
