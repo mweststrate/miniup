@@ -55,11 +55,8 @@ module miniup {
 				});
 		}
 
-		private static regexMatcher(regex: RegExp);
-		private static regexMatcher(regex: string);
-		private static regexMatcher(regex: string, ignoreCase: boolean);
-		private static regexMatcher(regex: any, ignoreCase: boolean = false): (p:Parser) => any {
-			var r = new RegExp("^" + (regex.source || regex), regex.ignoreCase || ignoreCase ? "i" : "");
+		private static regexMatcher(regex: RegExp): (p:Parser) => any {
+			var r = new RegExp("^" + regex.source, regex.ignoreCase ? "i" : "");
 			return (parser: Parser) : any => {
 				var match = parser.getRemainingInput().match(r);
 				if (match) {
@@ -70,17 +67,17 @@ module miniup {
 			}
 		}
 
-		public static regex(regex: RegExp, ignoreCase: boolean = false): ParseFunction {
+		public static regex(regex: RegExp): ParseFunction {
 			return new ParseFunction(
 				regex.toString(),
 				MatcherFactory.regexMatcher(regex),
 				{ isTerminal: true });
 		}
 
-		public static characterClass(regexstr: string, ignoreCase: boolean = false): ParseFunction {
+		public static characterClass(characterClass: string, ignoreCase: boolean = false): ParseFunction {
 			return new ParseFunction(
-				regexstr.toString(),
-				MatcherFactory.regexMatcher(regexstr, ignoreCase),
+				characterClass + (ignoreCase ? "i":""),
+				MatcherFactory.regexMatcher(new RegExp(characterClass, ignoreCase ? "i":"")),
 				{ isTerminal: true });
 		}
 
@@ -893,8 +890,7 @@ module miniup {
 				case "regex":
 					return f.regex(RegExpUtil.unescapeRegexString(ast.text));
 				case "characters":
-					var regexstr = "/" + ast.text + "/" + (ast.ignorecase == "i" ? "i " : "");
-					return f.characterClass(RegExpUtil.unescapeRegexString(regexstr).source);
+					return f.characterClass(ast.text, ast.ignorecase === "i");
 				case "paren":
 					return this.astToMatcher(ast.expr);
 				case "call":
