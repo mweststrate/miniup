@@ -5,6 +5,13 @@ declare var module: any;
 declare var require: any;
 declare var process : any;
 
+function miniup(grammar: string): miniup.Grammar;
+function miniup(grammar: string, input?: string, opts?: miniup.IParseArgs):any;
+function miniup(grammar: string, input?: string, opts?: miniup.IParseArgs):any {
+	if (input === undefined)
+		return miniup.Grammar.load(grammar);
+	return miniup(grammar).parse(input, opts);
+}
 module miniup {
 
 	export class ParseFunction {
@@ -403,7 +410,7 @@ module miniup {
 			return grammar;
 		}
 
-		public static load(grammarSource: string, inputName: string): Grammar {
+		public static load(grammarSource: string, inputName?: string): Grammar {
 			return new GrammarReader(grammarSource, inputName).build();
 		}
 
@@ -1148,10 +1155,10 @@ module miniup {
 }
 
 //fixme: still strugling with the typescript module export system. Lets work around..
+//export = miniup;
 (function(root) {
-	if (typeof(exports) !== "undefined")
-		for(var key in miniup)
-			exports[key] = miniup[key];
+	if (typeof(module) !== "undefined" && typeof(exports) !== "undefined")
+		module.exports = miniup;
 })(this);
 
 //root script?

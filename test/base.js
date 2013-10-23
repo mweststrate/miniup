@@ -462,6 +462,14 @@ exports.testerrorreporting = function (test) {
     test.done();
 }
 
+exports.testshortAPI = function(test) {
+    var g = miniup("x='3'");
+    test.equal(g.parse("3"), "3");
+
+    test.equal(miniup("x='4'", "4"), "4");
+    test.done();
+}
+
 exports.impossible = function(test) {
 
     parse("A = 'x' A 'x' / 'x'", "x", "x")
