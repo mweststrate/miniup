@@ -237,13 +237,12 @@ module miniup {
 							) {
 								isleftrecursive = true; //mark left recursive and try the net choice
 								recursingchoice = choice;
-								recursingpos = idx;
+								recursingpos = idx; //TODO: not needed anymore
 								error = <RecursionException> e;
-								parser.log("> Detected recursion in " + e.func.toString() + " @ " + parser.currentPos)
+								parser.log("> Detected recursion in " + e.func.toString() + " @ " + parser.currentPos) //TODO: improve LR logging
 								return true; //break the loop
 							}
-							else
-								throw e;
+							throw e;
 						}
 						return false;
 					})
@@ -262,7 +261,7 @@ module miniup {
 
 					//find seed. Given the failed choice, there should be another choice that matches!
 					//A new choice matcher will be created, because recusion might occur in the remaining choice, which need their own state management
-					var seedmatcher = MatcherFactory.choice.apply(MatcherFactory, choices.slice(1+recursingpos));
+					var seedmatcher = MatcherFactory.choice.apply(MatcherFactory, choices.slice(1+recursingpos)); //TODO: use choices.indexOf ..
 					parser.log("> searching seed with " + seedmatcher.toString() + " @ " + parser.currentPos)
 					var seed = parser.parse(seedmatcher);
 					var basepos = start; //input needs to consume during loop, to avoid endless list!
@@ -734,7 +733,7 @@ module miniup {
 			//rules
 			var str     = g.addRule('string', choice(call('SINGLEQUOTESTRING'), call('DOUBLEQUOTESTRING')));
 			var literal = g.addRule('literal', seq(si('text', str), si('ignorecase', opt(lit("i")))));
-			var ws      = g.addRule('whitespace', choice(call('WHITESPACECHARS'), call('MULTILINECOMMENT'), call('SINGLELINECOMMENT')));
+			var ws      = g.addRule('whitespace', choice(call('WHITESPACECHARS'), call('MULTILINECOMMENT'), call('SINGLELINECOMMENT'))); //TODO: or {..}
 			var identifier = call('IDENTIFIER');
 			var regex   = g.addRule('regex', seq(si('text', call('REGEX'))));
 			var dot     = g.addRule('dot', seq(si('dot', lit('.'))));
