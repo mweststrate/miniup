@@ -28,7 +28,11 @@ module miniup {
 		}
 
 		public toString(): string {
-			return (this.ruleName ? this.ruleName + " = " : "") + this.asString;
+			return this.ruleName ? this.ruleName : this.asString;
+		}
+
+		public toSource(): string {
+			return (this.ruleName ? this.ruleName + " = " : "") + this.asString; //TODO: friendlyname and whitespace
 		}
 	}
 
@@ -733,7 +737,9 @@ module miniup {
 			//rules
 			var str     = g.addRule('string', choice(call('SINGLEQUOTESTRING'), call('DOUBLEQUOTESTRING')));
 			var literal = g.addRule('literal', seq(si('text', str), si('ignorecase', opt(lit("i")))));
-			var ws      = g.addRule('whitespace', choice(call('WHITESPACECHARS'), call('MULTILINECOMMENT'), call('SINGLELINECOMMENT'))); //TODO: or {..}
+			var semanticaction = g.addRule('action', //lit('{'));
+				seq(si(lit('{')), si(list(choice(f.characterClass("[^{}]"), call('action')))), si(lit('}'))));
+			var ws      = g.addRule('whitespace', choice(call('WHITESPACECHARS'), call('MULTILINECOMMENT'), call('SINGLELINECOMMENT'), semanticaction));
 			var identifier = call('IDENTIFIER');
 			var regex   = g.addRule('regex', seq(si('text', call('REGEX'))));
 			var dot     = g.addRule('dot', seq(si('dot', lit('.'))));

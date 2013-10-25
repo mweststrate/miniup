@@ -55,6 +55,8 @@ exports.test3 = function(test) {
     test.done();
 };
 
+
+
 exports.test4 = function(test) {
     parse("x = a a <- 'b'", "b", "b"); //rule not separated by semicolon
 
@@ -81,6 +83,11 @@ exports.testwhitespace = function(test) {
 
     test.done();
 };
+
+exports.testsemanticaction = function(test) {
+    parse("x = {{{sdf}}} 'a'", "a", "a");
+    test.done();
+}
 
 exports.readmetests = function(test) {
     parse("phone = number; number = [0-9]+;", "45", ["4", "5"]);
