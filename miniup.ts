@@ -14,6 +14,9 @@ function miniup(grammar: string, input?: string, opts?: miniup.IParseArgs):any {
 }
 module miniup {
 
+	var FAIL = undefined; //No match was found. Be aware to always use operators that do no type coersion with FAIL and NOTHING. So either '===' or '!=='!
+	var NOTHING = null;   //A match was found, but it either didn't consume any input or didn't match anything that is relevant in the AST. So NOTHING is a successful match.
+
 	export class ParseFunction {
 		ruleName : string;
 		friendlyName : string;
@@ -67,7 +70,7 @@ module miniup {
 					parser.currentPos += match[0].length;
 					return match[0];
 				}
-				return undefined;
+				return FAIL;
 			}
 		}
 
@@ -86,14 +89,13 @@ module miniup {
 		}
 
 		public static literal(keyword: string, ignoreCase: boolean = false): ParseFunction {
-			//TODO: clanup all this regex construction stuff and parsing / unparsing
 			var regexmatcher = MatcherFactory.regexMatcher(new RegExp(RegExpUtil.quoteRegExp(keyword), ignoreCase ? "i" : ""));
 			return new ParseFunction(
 				"'" + keyword + "'",
 				p => {
 					var res = regexmatcher(p);
 					if (res && p.autoParseWhitespace && res.match(/\w$/) && p.getRemainingInput().match(/^\w/))
-						return undefined; //fail if auto parse whitespace is enabled and we end in the middle of a word
+						return FAIL; //fail if auto parse whitespace is enabled and we end in the middle of a word
 					return res;
 				},
 				{ isTerminal: true, friendlyName : "'" + keyword + "'"});
@@ -112,11 +114,11 @@ module miniup {
 				p => {
 					var start = p.currentPos;
 					var res = p.parse(matcher);
-					if (res !== undefined) {
+					if (res !== FAIL) {
 						var end = p.currentPos;
 						return p.getInput().substring(start, end).trim(); //MWE: trim. Really?
 					}
-					return undefined;
+					return FAIL;
 				});
 		}
 
@@ -142,43 +144,42 @@ module miniup {
 				"(" + matcher.toString() + (separator ? " " +separator.toString() : "") + ")" + (atleastOne ? "+" : "*") + (separator ? "?" : ""),
 				function (parser: Parser): any {
 					var res = [];
-					var item, sep = undefined;
+					var item, sep = FAIL;
 					var p;
 
 					do {
 						//store separator from previos iteration
-						if (sep !== undefined && storeSeparator)
+						if (sep !== FAIL && storeSeparator)
 							res.push(sep);
 
 						p = parser.currentPos;
 						item = parser.parse(matcher);
 
 						//consumed nothing?
-						if (item === undefined) {
-							if (separator && sep !== undefined && sep !== null) //should not end with separator, unless sep is optional and didn't consume input
-								return undefined;
+						if (item === FAIL) {
+							if (separator && sep !== FAIL && sep !== NOTHING) //should not end with separator, unless sep is optional and didn't consume input
+								return FAIL;
 
 							break; //we're done
 						}
 
-						//consumed something at least
+						//consumed something at least..?
 						res.push(item);
 
-						//TODO: fix everywhere, null indicates Parser.EMPTY, undefined indicates Parser.FAIL
-						//but, bail out on matchin lambda items eternally (unless sep does not consume anything as well!)
-						if (parser.currentPos == p && (!separator || sep === null))
+						//..but, bail out on matchin lambda items eternally (unless sep does not consume anything as well!)
+						if (parser.currentPos == p && (!separator || sep === NOTHING))
 							break; //or throw? -> throw new ParseException(parser, "Rule '" + this + "' can match just nothing an unlimited amount of times. Please fix the grammar. ")
 
-					} while (item !== undefined && (!separator || (sep = parser.parse(separator)) !== undefined));
+					} while (item !== FAIL && (!separator || (sep = parser.parse(separator)) !== FAIL));
 
-					return atleastOne && !res.length ? undefined : res;
+					return atleastOne && !res.length ? FAIL : res;
 			});
 		}
 
 		public static optional(matcher: ParseFunction): ParseFunction {
 			return new ParseFunction(matcher.toString() + "?", (parser: Parser): any => {
 				var res = parser.parse(matcher);
-				return res === undefined ? null : res;
+				return res === FAIL ? NOTHING : res;
 			});
 		}
 
@@ -207,10 +208,10 @@ module miniup {
 							if (parser.extendedAST)
 								result[-1 + ((<any>result).length = ((<any>result).length || 0) + 1)] = itemres;
 						}
-						return itemres !== undefined;
+						return itemres !== FAIL;
 					});
 
-					return success ? result : undefined;
+					return success ? result : FAIL;
 				},
 				{ sequence : items});
 		}
@@ -224,7 +225,7 @@ module miniup {
 
 				function (parser: Parser): any {
 					var start = parser.currentPos;
-					var res = undefined;
+					var res = FAIL;
 					var isleftrecursive = false;
 					var error: RecursionException;
 					var recursingchoice : ParseFunction;
@@ -232,7 +233,7 @@ module miniup {
 
 					choices.some((choice, idx) => {
 						try {
-							return undefined !== (res = parser.parse(choice));
+							return FAIL !== (res = parser.parse(choice));
 						}
 						catch(e) {
 							if (e instanceof RecursionException
@@ -270,7 +271,7 @@ module miniup {
 					var seed = parser.parse(seedmatcher);
 					var basepos = start; //input needs to consume during loop, to avoid endless list!
 
-					if (seed === undefined) {
+					if (seed === FAIL) {
 						parser.log("> found no seed to solve recursion")
 						throw error;
 					}
@@ -279,7 +280,7 @@ module miniup {
 					while(true) {
 						parser.memoize(error.func, parser.currentPos, parser.currentPos, seed);
 
-						if (seed !== undefined && parser.currentPos > basepos) {
+						if (seed !== FAIL && parser.currentPos > basepos) {
 
 							if (!parser.cleanAST && seed instanceof Object)
 								Util.extend(seed, {
@@ -312,7 +313,7 @@ module miniup {
 						l = left.length;
 						for(var i = l -1; i >= 0; i--) {
 							var item = parser.parse(left[i].expr);
-							if (item !== undefined) {
+							if (item !== FAIL) {
 								if (left[i].label)
 									res[left[i].label] = item;
 								left.splice(i, 1);
@@ -330,16 +331,16 @@ module miniup {
 			return new ParseFunction("&" + predicate.toString(), (parser: Parser): any => {
 				var prepos = parser.currentPos;
 				//TODO: do *not* update best match while parsing predicates!
-				var matches = undefined !== parser.parse(predicate);
+				var matches = FAIL !== parser.parse(predicate);
 				parser.currentPos = prepos;//rewind
-				return matches ? null : undefined;
+				return matches ? NOTHING : FAIL;
 			});
 		}
 
 		public static negativeLookAhead(predicate: ParseFunction): ParseFunction {
 			var ppm = MatcherFactory.positiveLookAhead(predicate);
 			return new ParseFunction("!" + predicate.toString(), (parser: Parser): any => {
-				return parser.parse(ppm) === undefined ? null : undefined; //undefined == no match. null == match, so invert.
+				return parser.parse(ppm) === FAIL ? NOTHING : FAIL; //FAIL == no match. NOTHING == match, so invert.
 			});
 		}
 
@@ -347,7 +348,7 @@ module miniup {
 			return new ParseFunction(
 				"",
 				(parser: Parser): any => {
-					return null;
+					return NOTHING;
 				});
 		}
 
@@ -381,8 +382,8 @@ module miniup {
 				(parser: Parser): any => {
 					var res = parser.parse(listparser);
 
-					if (res === undefined)
-						return undefined;
+					if (res === FAIL)
+						return FAIL;
 
 					if (res.length === 1)
 						return res[0];
@@ -511,7 +512,7 @@ module miniup {
 
 		parseInput(func: ParseFunction) : any {
 			var res = this.parse(func);
-			if (res === undefined) {
+			if (res === FAIL) {
 				if (this.expected.length >= this.input.length)
 					throw new ParseException(this, "Unexpected end of input");
 				throw new ParseException(this, "Failed to parse");
@@ -526,7 +527,7 @@ module miniup {
 		parse(func: ParseFunction): any {
 			var startpos = this.currentPos,
 				isMatch = false,
-				result = undefined;
+				result = FAIL;
 
 			try {
 				this.stackdepth++;
@@ -542,7 +543,7 @@ module miniup {
 					result = this.consumeMemoized(func);
 					if (result == Parser.RecursionDetected) {
 						this.log(" | (recursion detected)");
-						result = undefined; //fix isMatch detection
+						result = FAIL; //fix isMatch detection
 //	TODO: needed?					delete this.memoizedParseFunctions[func.memoizationId][startpos]
 
 						throw new RecursionException(this, func);
@@ -574,7 +575,7 @@ module miniup {
 				return result;
 			}
 			finally {
-				isMatch = result !== undefined;
+				isMatch = result !== FAIL;
 
 				if (isMatch) {
 					if (!this.isParsingWhitespace && this.autoParseWhitespace)
@@ -605,7 +606,7 @@ module miniup {
 				func.memoizationId = Parser.nextMemoizationId++;
 
 			if (!this.memoizedParseFunctions[func.memoizationId]) {
-				this.memoizedParseFunctions[func.memoizationId] = {};
+				this.memoizedParseFunctions[func.memoizationId] = {}; //TODO: needed?
 				return false;
 			}
 			return this.memoizedParseFunctions[func.memoizationId][this.currentPos] !== undefined;
@@ -908,7 +909,7 @@ module miniup {
 							var seq = this.astToMatcherInner(ast.expr);
 							if (!seq.sequence || seq.sequence.length < 2) {
 								this.errors.push({ ast: ast, msg: "A set ('#') should consist of at least two items"})
-								//return null; //hmmm
+								//return null; //hmmm //TODO: remove
 							}
 							return f.set.apply(f, seq.sequence);
 					}
