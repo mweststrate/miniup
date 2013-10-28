@@ -174,6 +174,8 @@ exports.bugtests = function(test) {
     parse('x=[[]', "[", "[");
     parse('x=[*\\\\/[]+', "[*/\\", ["[","*","/","\\"]);
 
+    parse('x=.', '\n', '\n');
+
     test.done();
 };
 

@@ -104,7 +104,8 @@ module miniup {
 		public static dot(): ParseFunction {
 			return new ParseFunction(
 				".",
-				MatcherFactory.regexMatcher(/./),
+				//Note that javascript /./ does not match everything: http://stackoverflow.com/questions/1979884/how-to-use-javascript-regex-over-multiple-lines
+				MatcherFactory.regexMatcher(/[\s\S]/),
 				{ isTerminal: true });
 		}
 
