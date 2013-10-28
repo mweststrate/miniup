@@ -731,6 +731,7 @@ module miniup {
 		}
 
 		private static bootstrap(): Grammar {
+			//TODO: use empty label where possible
 			var g = new Grammar(), f = MatcherFactory;
 			var seq = f.sequence, opt = f.optional, choice = f.choice, list = f.list, lit = f.literal, call = f.call, si = MatcherFactory.sequenceItem;
 			GrammarReader.mixinDefaultRegexes(g);
@@ -957,7 +958,7 @@ module miniup {
 		public static DOUBLEQUOTESTRING = /"([^"\\]|(\\.))*"/;
 		public static SINGLELINECOMMENT = /\/\/.*(\n|$)/;
 		public static MULTILINECOMMENT = /\/\*(?:[^*]|\*(?!\/))*?\*\//;
-		public static CHARACTERCLASS = /\[([^\\\]\[]|(\\.))*\]/;
+		public static CHARACTERCLASS = /\[([^\\\]]|(\\.))*\]/;
 		public static INTEGER = /(-|\+)?\d+/;
 		public static FLOAT =  /[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?/;
 		public static BOOLEAN = /(true|false)\b/;

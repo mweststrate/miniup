@@ -169,7 +169,10 @@ exports.bugtests = function(test) {
 
     parse("x = l:('0'?)* r:'1'", "1", { l: [ null ], r:"1"}) //0?* is a never ending rule
 
-    parse("A = '7'", "7", "7"); //TODO: goes wrong from the command line at least
+    parse("A = '7'", 7, "7");
+
+    parse('x=[[]', "[", "[");
+    parse('x=[*\\\\/[]+', "[*/\\", ["[","*","/","\\"]);
 
     test.done();
 };
