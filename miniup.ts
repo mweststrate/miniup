@@ -504,6 +504,7 @@ module miniup {
 			this.input = "" + input;
 			Util.extend(this, opts);
 		}
+		//TODO: support to use input from filename somewhere
 
 		public getRemainingInput(): string {
 			return this.input.substring(this.currentPos);
