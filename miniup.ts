@@ -127,15 +127,13 @@ module miniup {
 			return new ParseFunction(ruleName, p => {
 				var rule = p.grammar.rule(ruleName);
 				var prevWhitespace = p.autoParseWhitespace;
-				try { //Optimization: only put in try..finally if parseWhitespace will be changed by this rule
-					if (rule.autoParseWhitespace !== undefined)
-						p.autoParseWhitespace = rule.autoParseWhitespace;
 
-					return p.parse(rule);
-				}
-				finally {
-					p.autoParseWhitespace = prevWhitespace;
-				}
+				if (rule.autoParseWhitespace !== undefined)
+					p.autoParseWhitespace = rule.autoParseWhitespace;
+
+				var res = p.parse(rule);
+				p.autoParseWhitespace = prevWhitespace;
+				return res;
 			});
 		}
 
@@ -241,6 +239,7 @@ module miniup {
 								&& parser.allowLeftRecursion
 								&& idx < choices.length -1 //recursion in the last choice cannot be solved
 							) {
+
 								isleftrecursive = true; //mark left recursive and try the net choice
 								recursingchoice = choice;
 								recursingpos = idx; //TODO: not needed anymore
@@ -507,7 +506,7 @@ module miniup {
 		//TODO: support to use input from filename somewhere
 
 		public getRemainingInput(): string {
-			return this.input.substring(this.currentPos);
+			return this.input.substring(this.currentPos); //substring will share the original string so goes easy on the mem and cpu.
 		}
 
 		public getInput(): string { return this.input; }
@@ -531,7 +530,6 @@ module miniup {
 				isMatch = false,
 				result = FAIL;
 
-			try {
 				this.stackdepth++;
 
 				//consume whitespace
@@ -561,9 +559,11 @@ module miniup {
 					//finally... parse!
 					try {
 						result = func.parse(this);
-					} finally {
+					} catch(e) {
+						this.stackdepth--;
 						this.unstoreExpected(func);
 						this.unmemoize(func, startpos); //TODO: still needed? for the case that parse threw. Make sure LR state is always removed. New state will be stored later on
+						throw e;
 					}
 
 					//enrich result with match information
@@ -574,21 +574,19 @@ module miniup {
 					this.memoize(func, startpos, this.currentPos, result);
 				}
 
-				return result;
-			}
-			finally {
-				isMatch = result !== FAIL;
+				//wrap up.
 
-				if (isMatch) {
+				if (result !== FAIL) {
 					if (!this.isParsingWhitespace && this.autoParseWhitespace)
 						this.consumeWhitespace();
 				}
 				else
 					this.currentPos = startpos; //rewind
 
-				this.log(" \\" + func.toString() + (isMatch ? " V" : " X") + " @" + this.currentPos);
+				this.log(" \\" + func.toString() + (result !== FAIL ? " V" : " X") + " @" + this.currentPos);
 				this.stackdepth--;
-			}
+				this.unstoreExpected(func);
+				return result;
 		}
 
 		memoize(func: ParseFunction, startpos: number, endpos: number, result: any) {
@@ -654,7 +652,7 @@ module miniup {
 	}
 
 	export class ParseException {
-		public name = "Miniup.ParseException";
+		public name = "Miniup.ParseException";//TODO: miniup.Par..
 		public message : string;
 		public coords: TextCoords;
 		public expected : string[] = [];
@@ -713,6 +711,7 @@ module miniup {
 
 	export class RecursionException extends ParseException {
 		constructor(parser: Parser, public func: ParseFunction) {
+			//TODO: this.name = miniup.RecursionException;
 			super(parser, "Grammar error: Left recursion found in rule '" + func.toString() + "'");
 		}
 	}
