@@ -441,7 +441,8 @@ exports.leftrecursionwithAST = function(test) {
         "Product <- Expr (('*' / '/') Expr);"+
         "Sum <- Expr (('+' / '-') Expr)*";
 
-    parse(g, "7", ["7"]);
+    //parse(g, "7", ["7"]);
+    parse(g, "7", {});
     parse(g, "7+7",{});
     parse(g, "7*6+5*4",{});
     parse(g, "7*(6+5)", {});

@@ -142,12 +142,14 @@ module miniup {
 
 		public static call(ruleName: string): ParseFunction {
 			var rule;
-			return new ParseFunction(ruleName, (p: Parser) => {
+			return new ParseFunction(ruleName, function (p: Parser) {
 				rule = rule || p.grammar.rule(ruleName); //cache the rule
-				//TODO: optimize
-				//calls are inlined after resolving them the first time. That should improve performance as it reduces
+
+				//further speed up: calls are inlined after resolving them the first time. That should improve performance as it reduces
 				//lookups. Note that this creates clones, so it assumes matchers have no internal state!
-				//Util.extend(this, rule);
+				//If inlining somehow cases grammar modifictions not to work, just disable (or make configurable) the next line:
+				Util.extend(this, rule);
+
 				return p.parse(rule);
 			});
 		}
