@@ -556,7 +556,8 @@ module miniup {
 				var memo : MemoizeResult = this.getMemoEntry(func, startpos);
 
 				if (memo.endPos !== -1) { //we have knowledge!
-					this.log(" /" + func.toString() + " ? (memo)");
+					if (this.debug)
+						this.log(" /" + func.toString() + " ? (memo)");
 
 					result = memo.result;
 					this.currentPos = memo.endPos;
@@ -571,7 +572,8 @@ module miniup {
 				}
 
 				else {
-					this.log(" /" + func.toString() + " ?");
+					if (this.debug)
+						this.log(" /" + func.toString() + " ?");
 					memo.endPos = startpos;
 
 					this.storeExpected(func);
@@ -605,7 +607,8 @@ module miniup {
 				else
 					this.currentPos = startpos; //rewind
 
-				this.log(" \\" + func.toString() + (result !== FAIL ? " V" : " X") + " @" + this.currentPos);
+				if (this.debug)
+					this.log(" \\" + func.toString() + (result !== FAIL ? " V" : " X") + " @" + this.currentPos);
 				this.stackdepth--;
 				this.unstoreExpected(func);
 				return result;
