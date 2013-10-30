@@ -16,6 +16,8 @@ module miniup {
 
 	var FAIL = undefined; //No match was found. Be aware to always use operators that do no type coersion with FAIL and NOTHING. So either '===' or '!=='!
 	var NOTHING = null;   //A match was found, but it either didn't consume any input or didn't match anything that is relevant in the AST. So NOTHING is a successful match.
+	var RECURSION = { recursion : true };
+
 
 	export class ParseFunction {
 		static nextMemoizationId = 0;
@@ -179,7 +181,7 @@ module miniup {
 						res.push(item);
 
 						//..but, bail out on matchin lambda items eternally (unless sep does not consume anything as well!)
-						if (parser.currentPos == p && (!separator || sep === NOTHING))
+						if (parser.currentPos === p && (!separator || sep === NOTHING))
 							break; //or throw? -> throw new ParseException(parser, "Rule '" + this + "' can match just nothing an unlimited amount of times. Please fix the grammar. ")
 
 					} while (item !== FAIL && (!separator || (sep = parser.parse(separator)) !== FAIL));
@@ -202,7 +204,7 @@ module miniup {
 		}
 
 		public static sequence(...items: ISequenceItem[]): ParseFunction {
-			if (items.length == 1 && !items[0].label)
+			if (items.length === 1 && !items[0].label)
 				return items[0].expr;
 
 			return new ParseFunction(
@@ -332,7 +334,7 @@ module miniup {
 								left.splice(i, 1);
 							}
 						}
-					} while (left.length && l != left.length)
+					} while (left.length > 0 && l !== left.length)
 
 					left.forEach(i => i.label && (res[i.label] = null)); //make sure each label is available in the result
 
@@ -353,7 +355,7 @@ module miniup {
 		public static negativeLookAhead(predicate: ParseFunction): ParseFunction {
 			var ppm = MatcherFactory.positiveLookAhead(predicate);//todo: inline positive lookahead
 			return new ParseFunction("!" + predicate.toString(), (parser: Parser): any => {
-				return parser.parse(ppm) === FAIL ? NOTHING : FAIL; //FAIL == no match. NOTHING == match, so invert.
+				return parser.parse(ppm) === FAIL ? NOTHING : FAIL; //FAIL === no match. NOTHING === match, so invert.
 			});
 		}
 
@@ -369,7 +371,7 @@ module miniup {
 		public static operators(ops:IOperatorDef[], operand: ParseFunction): ParseFunction {
 			var base : ParseFunction;
 			for(var i=0; i < ops.length; i++)
-				base = MatcherFactory.singleOperator(ops[i], i == 0 ? operand : base)
+				base = MatcherFactory.singleOperator(ops[i], i === 0 ? operand : base)
 
 			return new ParseFunction(
 				["@operator", ops.map(op => (op.left?"left":"right" + op.operator)).join(" "), "on", operand.toString()].join(" "),
@@ -441,9 +443,9 @@ module miniup {
 				throw new Error("Anonymous rules cannot be registered in a grammar. ");
 			if (!replace && this.rules[rule.ruleName])
 				throw new Error("Rule '" + rule.ruleName + "' is already defined");
-			if ("whitespace" == rule.ruleName)
+			if ("whitespace" === rule.ruleName)
 				this.whitespaceMatcher = rule;
-			if (this.startSymbol == null)
+			if (!this.startSymbol)
 				this.startSymbol = rule.ruleName;
 
 			this.rules[rule.ruleName] = rule;
@@ -502,8 +504,6 @@ module miniup {
 		extendedAST: boolean =false;
 		allowLeftRecursion : boolean = true;
 
-		private static RecursionDetected = { recursion : true };
-
 		currentPos: number = 0;
 		private memoizedParseFunctions = {}; //position-> parseFunction -> MemoizeResult
 		private isParsingWhitespace = false;
@@ -554,7 +554,7 @@ module miniup {
 					this.log(" /" + func.toString() + " ? (memo)");
 
 					result = this.consumeMemoized(func);
-					if (result == Parser.RecursionDetected) {
+					if (result === RECURSION) {
 						this.log(" | (recursion detected)");
 						result = FAIL; //fix isMatch detection
 //	TODO: needed?					delete this.memoizedParseFunctions[func.memoizationId][startpos]
@@ -565,7 +565,7 @@ module miniup {
 
 				else {
 					this.log(" /" + func.toString() + " ?");
-					this.memoize(func, startpos, startpos, Parser.RecursionDetected);
+					this.memoize(func, startpos, startpos, RECURSION);
 
 					this.storeExpected(func);
 
@@ -693,7 +693,7 @@ module miniup {
 			//if friendly names are used, report the error on the position the friendly name starts
 			if (nonPartialMatches.length) {
 				pos = nonPartialMatches[0].pos;
-				expected = nonPartialMatches.filter(x => x.pos == pos).map(x => x.name);
+				expected = nonPartialMatches.filter(x => x.pos === pos).map(x => x.name);
 				if (parser.expected[pos])
 					expected = expected.concat(parser.expected[pos].map(x => x instanceof Object ? x.name : x))
 			}
@@ -951,7 +951,7 @@ module miniup {
 					return f.importMatcher(ast.grammar, ast.rule);
 				case "operator":
 					var operators: IOperatorDef[] = (<any[]>ast.operators).map(opdef => ({
-						left: opdef.associativity == null || opdef.associativity == "@left",
+						left: opdef.associativity === null || opdef.associativity === "@left",
 						operator: this.astToMatcher(opdef.operator)
 					}));
 
