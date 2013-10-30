@@ -18,6 +18,8 @@ module miniup {
 	var NOTHING = null;   //A match was found, but it either didn't consume any input or didn't match anything that is relevant in the AST. So NOTHING is a successful match.
 
 	export class ParseFunction {
+		static nextMemoizationId = 0;
+
 		ruleName : string;
 		friendlyName : string;
 		memoizationId: number;
@@ -25,6 +27,7 @@ module miniup {
 		sequence : ISequenceItem[];
 
 		constructor(private asString: string, public parse : (parser: Parser) => any, opts? : Object) {
+			this.memoizationId = ++ParseFunction.nextMemoizationId;
 			if (opts)
 				Util.extend(this, opts);
 		}
@@ -499,7 +502,6 @@ module miniup {
 		extendedAST: boolean =false;
 		allowLeftRecursion : boolean = true;
 
-		private static nextMemoizationId = 1;
 		private static RecursionDetected = { recursion : true };
 
 		currentPos: number = 0;
@@ -618,9 +620,6 @@ module miniup {
 		}
 
 		isMemoized(func: ParseFunction): boolean {
-			if (func.memoizationId === undefined) //TODO: do during creation
-				func.memoizationId = ++Parser.nextMemoizationId;
-
 			if (this.memoizedParseFunctions[func.memoizationId] === undefined) {
 				this.memoizedParseFunctions[func.memoizationId] = {}; //TODO: needed?
 				return false;
@@ -847,7 +846,6 @@ module miniup {
 		private requiredRules : Array<{ ast: any; name: string; }> = [];
 		private allMatchers : Object = {}; //rulestring -> matcher
 		private errors : { msg:string; ast:any; }[] =[];
-
 
 		constructor(private input: string, private inputName: string = "grammar source"){}
 
