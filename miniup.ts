@@ -135,10 +135,14 @@ module miniup {
 				)
 		}
 
-		public static call(ruleName: string): ParseFunction { //TODO: Optimize: replace all call's directly with the rule when building the grammar.
+		public static call(ruleName: string): ParseFunction {
 			var rule;
-			return new ParseFunction(ruleName, p => {
-				rule = rule || p.grammar.rule(ruleName);
+			return new ParseFunction(ruleName, (p: Parser) => {
+				rule = rule || p.grammar.rule(ruleName); //cache the rule
+				//TODO: optimize
+				//calls are inlined after resolving them the first time. That should improve performance as it reduces
+				//lookups. Note that this creates clones, so it assumes matchers have no internal state!
+				//Util.extend(this, rule);
 				return p.parse(rule);
 			});
 		}
@@ -229,6 +233,7 @@ module miniup {
 				"(" + choices.map(x => x.toString()).join(" | ") + ")",
 
 				function (parser: Parser): any {
+					//todo optimize: diff implemetnation if left recursion is not supported?!
 					var start = parser.currentPos;
 					var res = FAIL;
 					var isleftrecursive = false;
@@ -343,7 +348,7 @@ module miniup {
 		}
 
 		public static negativeLookAhead(predicate: ParseFunction): ParseFunction {
-			var ppm = MatcherFactory.positiveLookAhead(predicate);
+			var ppm = MatcherFactory.positiveLookAhead(predicate);//todo: inline positive lookahead
 			return new ParseFunction("!" + predicate.toString(), (parser: Parser): any => {
 				return parser.parse(ppm) === FAIL ? NOTHING : FAIL; //FAIL == no match. NOTHING == match, so invert.
 			});
