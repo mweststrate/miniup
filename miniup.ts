@@ -117,15 +117,16 @@ module miniup {
 					var res = p.parse(matcher);
 					if (res !== FAIL) {
 						var end = p.currentPos;
-						return p.getInput().substring(start, end).trim(); //MWE: trim. Really?
+						return p.input.substring(start, end).trim(); //MWE: TODO: trim. Really?
 					}
 					return FAIL;
 				});
 		}
 
 		public static call(ruleName: string): ParseFunction { //Optimization: replace all call's directly with the rule when building the grammar.
+			var rule;
 			return new ParseFunction(ruleName, p => {
-				var rule = p.grammar.rule(ruleName);
+				rule = rule || p.grammar.rule(ruleName);
 				var prevWhitespace = p.autoParseWhitespace;
 
 				if (rule.autoParseWhitespace !== undefined)
@@ -249,7 +250,6 @@ module miniup {
 							}
 							throw e;
 						}
-						return false;
 					})
 
 					if (!isleftrecursive)
@@ -285,7 +285,7 @@ module miniup {
 							if (!parser.cleanAST && seed instanceof Object)
 								Util.extend(seed, {
 									$start : start,
-									$text : parser.getInput().substring(start, parser.currentPos),
+									$text : parser.input.substring(start, parser.currentPos),
 									$rule : seed.$rule || this.ruleName || ""
 								})
 
@@ -533,7 +533,7 @@ module miniup {
 				this.stackdepth++;
 
 				//consume whitespace
-				if (!this.isParsingWhitespace && this.autoParseWhitespace)
+				if (this.autoParseWhitespace === true && this.isParsingWhitespace === false)
 					this.consumeWhitespace();
 
 				//check memoization cache
@@ -567,8 +567,9 @@ module miniup {
 					}
 
 					//enrich result with match information
-					if (!this.cleanAST && result instanceof Object && !result.$rule)
-						Util.extend(result, { $start : startpos, $text : this.getInput().substring(startpos, this.currentPos), $rule : func.ruleName });
+					//TODO: optimize: move to sequence / list
+					if (this.cleanAST === false && result instanceof Object && !result.$rule)
+						Util.extend(result, { $start : startpos, $text : this.input.substring(startpos, this.currentPos), $rule : func.ruleName });
 
 					//store memoization result
 					this.memoize(func, startpos, this.currentPos, result);
@@ -577,7 +578,7 @@ module miniup {
 				//wrap up.
 
 				if (result !== FAIL) {
-					if (!this.isParsingWhitespace && this.autoParseWhitespace)
+					if (this.autoParseWhitespace === true && this.isParsingWhitespace === false)
 						this.consumeWhitespace();
 				}
 				else
@@ -590,10 +591,14 @@ module miniup {
 		}
 
 		memoize(func: ParseFunction, startpos: number, endpos: number, result: any) {
-			this.memoizedParseFunctions[func.memoizationId][startpos] = <MemoizeResult> {
+			var  m =  <MemoizeResult> {
 				result: result,
 				endPos: endpos
 			};
+			if (this.memoizedParseFunctions[func.memoizationId] === undefined)
+				this.memoizedParseFunctions[func.memoizationId] = { startpos : m };
+			else
+				this.memoizedParseFunctions[func.memoizationId][startpos] = m;
 		}
 
 		//TODO: used?
@@ -602,10 +607,10 @@ module miniup {
 		}
 
 		isMemoized(func: ParseFunction): boolean {
-			if (!func.memoizationId)
-				func.memoizationId = Parser.nextMemoizationId++;
+			if (func.memoizationId === undefined) //TODO: do during creation
+				func.memoizationId = ++Parser.nextMemoizationId;
 
-			if (!this.memoizedParseFunctions[func.memoizationId]) {
+			if (this.memoizedParseFunctions[func.memoizationId] === undefined) {
 				this.memoizedParseFunctions[func.memoizationId] = {}; //TODO: needed?
 				return false;
 			}
