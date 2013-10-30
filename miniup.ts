@@ -295,7 +295,9 @@ module miniup {
 
 					parser.log("> found seed for recursion, growing on " + recursingchoice.memoizationId + " recur: " + error.func.memoizationId+ " seed: " + (seed.$text?seed.$text:seed));
 					while(true) {
-						parser.memoize(error.func, parser.currentPos, parser.currentPos, seed);
+						var memo = parser.getMemoEntry(error.func, parser.currentPos);
+						memo.endPos = parser.currentPos;
+						memo.result = seed;
 
 						if (seed !== FAIL && parser.currentPos > basepos) {
 
@@ -551,14 +553,17 @@ module miniup {
 					this.consumeWhitespace();
 
 				//check memoization cache
-				//TODO: optimize, only checkout once
-				if (this.isMemoized(func)) {
+				var memo : MemoizeResult = this.getMemoEntry(func, startpos);
+
+				if (memo.endPos !== -1) { //we have knowledge!
 					this.log(" /" + func.toString() + " ? (memo)");
 
-					result = this.consumeMemoized(func);
+					result = memo.result;
+					this.currentPos = memo.endPos;
+
 					if (result === RECURSION) {
 						this.log(" | (recursion detected)");
-						result = FAIL; //fix isMatch detection
+// TODO: not needed anymore						result = FAIL; //fix isMatch detection
 //	TODO: needed?					delete this.memoizedParseFunctions[func.memoizationId][startpos]
 
 						throw new RecursionException(this, func);
@@ -567,7 +572,7 @@ module miniup {
 
 				else {
 					this.log(" /" + func.toString() + " ?");
-					this.memoize(func, startpos, startpos, RECURSION);
+					memo.endPos = startpos;
 
 					this.storeExpected(func);
 
@@ -577,7 +582,7 @@ module miniup {
 					} catch(e) {
 						this.stackdepth--;
 						this.unstoreExpected(func);
-						this.unmemoize(func, startpos); //TODO: still needed? for the case that parse threw. Make sure LR state is always removed. New state will be stored later on
+						memo.endPos = -1; //this.unmemoize(func, startpos); //TODO: still needed? for the case that parse threw. Make sure LR state is always removed. New state will be stored later on
 						throw e;
 					}
 
@@ -587,7 +592,8 @@ module miniup {
 						Util.extend(result, { $start : startpos, $text : this.input.substring(startpos, this.currentPos), $rule : func.ruleName });
 
 					//store memoization result
-					this.memoize(func, startpos, this.currentPos, result);
+					memo.endPos = this.currentPos;
+					memo.result = result;
 				}
 
 				//wrap up.
@@ -605,34 +611,15 @@ module miniup {
 				return result;
 		}
 
-		memoize(func: ParseFunction, startpos: number, endpos: number, result: any) {
-			var  m =  <MemoizeResult> {
-				result: result,
-				endPos: endpos
-			};
-			if (this.memoizedParseFunctions[func.memoizationId] === undefined)
-				this.memoizedParseFunctions[func.memoizationId] = { startpos : m };
-			else
-				this.memoizedParseFunctions[func.memoizationId][startpos] = m;
-		}
+		getMemoEntry(func: ParseFunction, startpos: number) {
+			var base = this.memoizedParseFunctions[func.memoizationId];
+			if (base === undefined)
+				base = this.memoizedParseFunctions[func.memoizationId] = {};
 
-		//TODO: used?
-		unmemoize(func: ParseFunction, startpos: number) {
-			delete this.memoizedParseFunctions[func.memoizationId][startpos];
-		}
-
-		isMemoized(func: ParseFunction): boolean {
-			if (this.memoizedParseFunctions[func.memoizationId] === undefined) {
-				this.memoizedParseFunctions[func.memoizationId] = {}; //TODO: needed?
-				return false;
-			}
-			return this.memoizedParseFunctions[func.memoizationId][this.currentPos] !== undefined;
-		}
-
-		consumeMemoized(func: ParseFunction): any {
-			var m: MemoizeResult = this.memoizedParseFunctions[func.memoizationId][this.currentPos];
-			this.currentPos = m.endPos;
-			return m.result;
+			var res  = base[startpos];
+			if (res === undefined)
+				res = base[startpos] = { result: RECURSION, endPos : -1 }
+			return res;
 		}
 
 		consumeWhitespace() {
