@@ -94,7 +94,7 @@ module miniup {
 				"'" + keyword + "'",
 				p => {
 					var res = regexmatcher(p);
-					if (res && p.autoParseWhitespace && res.match(/\w$/) && p.getRemainingInput().match(/^\w/))
+					if (res && p.autoParseWhitespace === true && res.match(/\w$/) && p.getRemainingInput().match(/^\w/)) //TODO: optimize: no recreate of the whtiespace matchers
 						return FAIL; //fail if auto parse whitespace is enabled and we end in the middle of a word
 					return res;
 				},
@@ -123,7 +123,7 @@ module miniup {
 				});
 		}
 
-		public static call(ruleName: string): ParseFunction { //Optimization: replace all call's directly with the rule when building the grammar.
+		public static call(ruleName: string): ParseFunction { //TODO: Optimize: replace all call's directly with the rule when building the grammar.
 			var rule;
 			return new ParseFunction(ruleName, p => {
 				rule = rule || p.grammar.rule(ruleName);
@@ -537,6 +537,7 @@ module miniup {
 					this.consumeWhitespace();
 
 				//check memoization cache
+				//TODO: optimize, only checkout once
 				if (this.isMemoized(func)) {
 					this.log(" /" + func.toString() + " ? (memo)");
 
@@ -635,7 +636,7 @@ module miniup {
 			var p = this.currentPos;
 
 			if (!this.isParsingWhitespace && func.friendlyName)
-				this.friendlyNames.unshift({ pos : p, name: func.friendlyName});
+				this.friendlyNames.unshift({ pos : p, name: func.friendlyName}); //TODO: optimize: unshift versus push
 
 			if (func.isTerminal && !this.isParsingWhitespace) {
 				if (!this.expected[p])
