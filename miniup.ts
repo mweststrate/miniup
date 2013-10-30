@@ -23,7 +23,6 @@ module miniup {
 		memoizationId: number;
 		isTerminal = false;
 		sequence : ISequenceItem[];
-		autoParseWhitespace: boolean = undefined;
 
 		constructor(private asString: string, public parse : (parser: Parser) => any, opts? : Object) {
 			if (opts)
@@ -123,18 +122,24 @@ module miniup {
 				});
 		}
 
+		public static whitespaceModifier(autoMatchWhitespace: boolean, expr: ParseFunction) {
+			return new ParseFunction(
+				autoMatchWhitespace ? "@whitespace-on" : "@whitespace-off",
+					p => {
+						var prevWhitespace = p.autoParseWhitespace;
+						p.autoParseWhitespace = autoMatchWhitespace;
+						var res = p.parse(expr);
+						p.autoParseWhitespace = prevWhitespace;
+						return res;
+					}
+				)
+		}
+
 		public static call(ruleName: string): ParseFunction { //TODO: Optimize: replace all call's directly with the rule when building the grammar.
 			var rule;
 			return new ParseFunction(ruleName, p => {
 				rule = rule || p.grammar.rule(ruleName);
-				var prevWhitespace = p.autoParseWhitespace;
-
-				if (rule.autoParseWhitespace !== undefined)
-					p.autoParseWhitespace = rule.autoParseWhitespace;
-
-				var res = p.parse(rule);
-				p.autoParseWhitespace = prevWhitespace;
-				return res;
+				return p.parse(rule);
 			});
 		}
 
@@ -813,24 +818,23 @@ module miniup {
 			  ), true)),
 			  si('operand', prefixed)));
 
-			var choicerule = g.addRule('choice', list(choice(regex, operators, sequence, lambda), true, lit('/')));
+			var whitespacemodifier = g.addRule('whitespacemodifier', choice(
+			  seq(si('whitespaceflag', f.regex(/@whitespace-off|@whitespace-on/)), si('expr', sequence)),
+			  sequence
+			));
+
+			var choicerule = g.addRule('choice', list(choice(regex, operators, whitespacemodifier, lambda), true, lit('/')));
 
 			var expression = g.addRule('expression', choicerule);
-
-			var whitespaceflag = g.addRule('whitespaceflag', f.regex(/@whitespace-on|@whitespace-off/));
 
 			var rule = g.addRule('rule', seq(
 			  si('name', identifier),
 			  si('displayName', opt(str)),
 			  si(choice(lit('='),lit('<-'))),
-			  si('autoParseWhitespace', opt(whitespaceflag)),
 			  si('expr', expression),
 			  si(opt(lit(';')))));
 
-			g.addRule('grammar', Util.extend(
-				seq(si('rules', f.list(rule, true))),
-				{ autoParseWhitespace: true }));
-
+			g.addRule('grammar', f.whitespaceModifier(true, seq(si('rules', f.list(rule, true)))));
 			g.startSymbol = "grammar";
 			return g;
 		}
@@ -850,8 +854,6 @@ module miniup {
 				var r = this.astToMatcher(ast.expr);
 				if (ast.displayName)
 					r.friendlyName = RegExpUtil.unescapeQuotedString(ast.displayName);
-				if (ast.autoParseWhitespace)
-					r.autoParseWhitespace = ast.autoParseWhitespace == '@whitespace-on'
 				g.addRule(ast.name, r);
 			});
 
@@ -951,6 +953,8 @@ module miniup {
 					}));
 
 					return f.operators(operators, this.astToMatcher(ast.operand));
+				case "whitespacemodifier":
+					return f.whitespaceModifier(ast.whitespaceflag === '@whitespace-on', this.astToMatcher(ast.expr));
 				default:
 					throw new Error("Unimplemented ruletype: " + ast.$rule);
 			}
