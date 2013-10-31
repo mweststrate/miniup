@@ -14,6 +14,7 @@ function miniup(grammar: string, input?: string, opts?: miniup.IParseArgs):any {
 }
 module miniup {
 
+	//TODO: optimize by inlining
 	var FAIL = undefined; //No match was found. Be aware to always use operators that do no type coersion with FAIL and NOTHING. So either '===' or '!=='!
 	var NOTHING = null;   //A match was found, but it either didn't consume any input or didn't match anything that is relevant in the AST. So NOTHING is a successful match.
 	var RECURSION = { recursion : true };
@@ -69,8 +70,8 @@ module miniup {
 		private static regexMatcher(regex: RegExp): (p:Parser) => any {
 			var r = new RegExp("^" + regex.source, regex.ignoreCase ? "i" : "");
 			return (parser: Parser) : any => {
-				var match = parser.getRemainingInput().match(r);
-				if (match) {
+				var match = parser.getRemainingInput().match(r); //TODO: optimize check if properly cached, since they are called so often!
+				if (match) { //TODO: optimize !== null check
 					parser.currentPos += match[0].length;
 					return match[0];
 				}
@@ -97,7 +98,7 @@ module miniup {
 			return new ParseFunction(
 				"'" + keyword + "'",
 				p => {
-					var res = regexmatcher(p);
+					var res = regexmatcher(p); //TODO: optimize: called very often!
 					if (res && p.autoParseWhitespace === true && res.match(/\w$/) && p.getRemainingInput().match(/^\w/)) //TODO: optimize: no recreate of the whtiespace matchers
 						return FAIL; //fail if auto parse whitespace is enabled and we end in the middle of a word
 					return res;
@@ -159,13 +160,14 @@ module miniup {
 			return new ParseFunction(
 				"(" + matcher.toString() + (separator ? " " +separator.toString() : "") + ")" + (atleastOne ? "+" : "*") + (separator ? "?" : ""),
 				function (parser: Parser): any {
-					var res = [];
+					var res = []; //optimize: allocate only if needed
 					var item, sep = FAIL;
 					var p;
+					var startpos = parser.currentPos;
 
 					do {
 						//store separator from previos iteration
-						if (sep !== FAIL && storeSeparator)
+						if (sep !== FAIL && storeSeparator === true)
 							res.push(sep);
 
 						p = parser.currentPos;
@@ -188,7 +190,7 @@ module miniup {
 
 					} while (item !== FAIL && (!separator || (sep = parser.parse(separator)) !== FAIL));
 
-					return atleastOne && !res.length ? FAIL : res;
+					return atleastOne && res.length === 0 ? FAIL : parser.enrich(res, this, startpos);
 			});
 		}
 
@@ -208,12 +210,14 @@ module miniup {
 		public static sequence(...items: ISequenceItem[]): ParseFunction {
 			if (items.length === 1 && !items[0].label)
 				return items[0].expr;
+			var hasEmptyLabel = items.some(item => item.label === "")
 
 			return new ParseFunction(
 				"(" + items.map(i => (i.label ? i.label + ":" : i.label === "" ? "::" : "") + i.expr.toString()).join(" ") + ")",
 
-				(parser: Parser): any => {
-					var result = {};
+				function (parser: Parser) {
+					var startpos = parser.currentPos;
+					var result = {}; //TODO: optimize allocate only ifneeded
 					var success = items.every(item => {
 						var itemres = parser.parse(item.expr);
 						if (item.label === "")
@@ -227,7 +231,7 @@ module miniup {
 						return itemres !== FAIL;
 					});
 
-					return success ? result : FAIL;
+					return success  === true ? hasEmptyLabel === true ? result : parser.enrich(result, this, startpos) : FAIL;
 				},
 				{ sequence : items});
 		}
@@ -269,7 +273,7 @@ module miniup {
 						}
 					})
 
-					if (!isleftrecursive)
+					if (isleftrecursive === false)
 						return res;
 
 					// handle left recursion. Left recursion is parsed by using basically the follow on-the-fly refactoring of the grammar
@@ -325,8 +329,9 @@ module miniup {
 		public static set(...items: ISequenceItem[]): ParseFunction {
 			return new ParseFunction(
 				"(" + items.map(i => (i.label ? i.label + ":" : "") + i.expr.toString()).join(" ") + ")#",
-				(parser: Parser): any => {
+				function (parser: Parser): any {
 					var left : ISequenceItem[] = [].concat(items),
+						startpos = parser.currentPos,
 						l : number, res = {};
 					do {
 						l = left.length;
@@ -342,7 +347,7 @@ module miniup {
 
 					left.forEach(i => i.label && (res[i.label] = null)); //make sure each label is available in the result
 
-					return res; //set matcher always succeeds. It might just have matched nothing
+					return parser.enrich(res, this, startpos); //set matcher always succeeds. It might just have matched nothing
 				});
 		}
 
@@ -357,7 +362,7 @@ module miniup {
 		}
 
 		public static negativeLookAhead(predicate: ParseFunction): ParseFunction {
-			var ppm = MatcherFactory.positiveLookAhead(predicate);//todo: inline positive lookahead
+			var ppm = MatcherFactory.positiveLookAhead(predicate);//todo: optimize inline positive lookahead
 			return new ParseFunction("!" + predicate.toString(), (parser: Parser): any => {
 				return parser.parse(ppm) === FAIL ? NOTHING : FAIL; //FAIL === no match. NOTHING === match, so invert.
 			});
@@ -379,8 +384,8 @@ module miniup {
 
 			return new ParseFunction(
 				["@operator", ops.map(op => (op.left?"left":"right" + op.operator)).join(" "), "on", operand.toString()].join(" "),
-				(parser: Parser): any => {
-					return parser.parse(base);
+				function (parser: Parser): any {
+					return parser.parse(base);//TODO: enrich
 				}
 			)
 		}
@@ -548,14 +553,14 @@ module miniup {
 
 				this.stackdepth++;
 
-				//consume whitespace
+				//consume whitespace //TODO: make part of the parse phase? optimize..
 				if (this.autoParseWhitespace === true && this.isParsingWhitespace === false)
 					this.consumeWhitespace();
 
 				//check memoization cache
 				var memo : MemoizeResult = this.getMemoEntry(func, startpos);
 
-				if (memo.endPos !== -1) { //we have knowledge!
+				if (memo.endPos !== -1) { //we have knowledge! //TODO: test with caching disabled!
 					if (this.debug)
 						this.log(" /" + func.toString() + " ? (memo)");
 
@@ -581,17 +586,16 @@ module miniup {
 					//finally... parse!
 					try {
 						result = func.parse(this);
+
+						//Optimize: TODO: how to check this the fastest?
+						if (this.cleanAST === false && result && func.ruleName && !result.$rule)
+							result.$rule = func.ruleName;
 					} catch(e) {
 						this.stackdepth--;
 						this.unstoreExpected(func);
 						memo.endPos = -1; //this.unmemoize(func, startpos); //TODO: still needed? for the case that parse threw. Make sure LR state is always removed. New state will be stored later on
 						throw e;
 					}
-
-					//enrich result with match information
-					//TODO: optimize: move to sequence / list
-					if (this.cleanAST === false && result instanceof Object && !result.$rule)
-						Util.extend(result, { $start : startpos, $text : this.input.substring(startpos, this.currentPos), $rule : func.ruleName });
 
 					//store memoization result
 					memo.endPos = this.currentPos;
@@ -601,6 +605,7 @@ module miniup {
 				//wrap up.
 
 				if (result !== FAIL) {
+					//TODO: optimize make this part of the parse phase?
 					if (this.autoParseWhitespace === true && this.isParsingWhitespace === false)
 						this.consumeWhitespace();
 				}
@@ -610,7 +615,8 @@ module miniup {
 				if (this.debug)
 					this.log(" \\" + func.toString() + (result !== FAIL ? " V" : " X") + " @" + this.currentPos);
 				this.stackdepth--;
-				this.unstoreExpected(func);
+
+				this.unstoreExpected(func); //TODO: wrong! make part of the parse phase. Optimize..
 				return result;
 		}
 
@@ -634,23 +640,34 @@ module miniup {
 		friendlyNames : { pos: number; name: string; }[] = [];
 
 		storeExpected(func: ParseFunction) {
+
 			var p = this.currentPos;
 			var names = this.friendlyNames;
 
-			if (!this.isParsingWhitespace && func.friendlyName)
+			if (this.isParsingWhitespace === false && func.friendlyName)
 				names.push({ pos : p, name: func.friendlyName});
 
 			if (func.isTerminal && !this.isParsingWhitespace) {
 				if (!this.expected[p])
 					this.expected[p] = [];
-				//last resort is toString(), which is ugly for classes and regexes
+				//last resort is toString(), which is ugly for classes and regexes //TODO: optimize.. but slow?
 				this.expected[p].push(func.friendlyName || names[names.length - 1] || func.toString());
 			}
 		}
 
 		unstoreExpected(func: ParseFunction) {
+			//TODO: optimize test with friendlynames disabled
 			if (!this.isParsingWhitespace && func.friendlyName)
 				this.friendlyNames.pop();
+		}
+
+		enrich(ast: any, func: ParseFunction, startpos: number) : any{
+			if (this.cleanAST === false) {
+				ast.$start = startpos;
+				ast.$text = this.input.substring(startpos, this.currentPos);
+//				ast.$rule = this.stack[this.stack.length -1];
+			}
+			return ast;
 		}
 
 		log(msg: string) {
@@ -697,12 +714,11 @@ module miniup {
 
 			this.coords = Util.getCoords(parser.input, pos, endpos);
 
-			expected = expected.sort().reverse().reduce((x, y) => { //Reverse because quoted terminals is nicer in front of non-terminal
+			this.expected = expected.sort().reverse().reduce((x, y) => { //Reverse because quoted terminals is nicer in front of non-terminal
 				if (x[0] !== y)
 					x.unshift(y); //reduce to non-unique items
 				return x;
 			}, [])
-			this.expected = expected;
 
 			this.message = Util.format("{1}({2},{3}): {0}\n{4}\n{5}\nExpected {6}",
 				message,
@@ -969,7 +985,7 @@ module miniup {
 				case "whitespacemodifier":
 					return f.whitespaceModifier(ast.whitespaceflag === '@whitespace-on', this.astToMatcher(ast.expr));
 				default:
-					throw new Error("Unimplemented ruletype: " + ast.$rule);
+					throw new Error("Unimplemented ruletype in: " + JSON.stringify(ast));
 			}
 		}
 	}
