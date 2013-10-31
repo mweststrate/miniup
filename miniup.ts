@@ -563,9 +563,6 @@ module miniup {
 				isMatch = false,
 				result = FAIL;
 
-				this.stackdepth++;
-
-
 				//check memoization cache
 				var memo : MemoizeResult = this.getMemoEntry(func, startpos);
 
@@ -588,46 +585,45 @@ module miniup {
 				else {
 					if (this.debug)
 						this.log(" /" + func.toString() + " ?");
+					this.stackdepth++;
 
 					memo.endPos = startpos;
 
 					//consume whitespace
 					if (this.autoParseWhitespace === true && this.isParsingWhitespace === false)
 						this.consumeWhitespace();
-
-					this.storeExpected(func);
+					if (this.isParsingWhitespace === false)
+						this.storeExpected(func);
 
 
 					//finally... parse!
 					try {
 						result = func.parse(this);
 
-						this.unstoreExpected(func);
 
+						if (result === FAIL)
+							this.currentPos = startpos; //rewind
 						//Optimize: TODO: how to check this the fastest?
-						if (this.cleanAST === false && result && func.ruleName && !result.$rule)
+						else if (this.cleanAST === false && result !== null && !result.$rule && func.ruleName)
 							result.$rule = func.ruleName;
 
-					} catch(e) {
+						memo.endPos = this.currentPos;
+						memo.result = result;
+
+						if (this.isParsingWhitespace === false) //TODO: duplication
+							this.unstoreExpected(func);
 						this.stackdepth--;
-						this.unstoreExpected(func);
+					} catch(e) {
+						if (this.isParsingWhitespace === false)
+							this.unstoreExpected(func);
+						this.stackdepth--;
 						memo.endPos = -1; //this.unmemoize(func, startpos); //TODO: still needed? for the case that parse threw. Make sure LR state is always removed. New state will be stored later on
 						throw e;
 					}
-
-					//store memoization result
-					memo.endPos = this.currentPos;
-					memo.result = result;
 				}
-
-				//wrap up.
-
-				if (result === FAIL)
-					this.currentPos = startpos; //rewind
 
 				if (this.debug)
 					this.log(" \\" + func.toString() + (result !== FAIL ? " V" : " X") + " @" + this.currentPos);
-				this.stackdepth--;
 
 				return result;
 		}
