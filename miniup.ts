@@ -660,7 +660,7 @@ module miniup {
 	}
 
 	export class ParseException {
-		public name = "Miniup.ParseException";//TODO: miniup.Par..
+		public name = "miniup.ParseException";
 		public message : string;
 		public coords: TextCoords;
 		public expected : string[] = [];
@@ -719,8 +719,8 @@ module miniup {
 
 	export class RecursionException extends ParseException {
 		constructor(parser: Parser, public func: ParseFunction) {
-			//TODO: this.name = miniup.RecursionException;
 			super(parser, "Grammar error: Left recursion found in rule '" + func.toString() + "'");
+			this.name = "miniup.RecursionException";
 		}
 	}
 

@@ -317,7 +317,7 @@ exports.improvecoverage = function(test) {
         assert.ok(false);
     }
     catch (e){
-        assert.equal(e.toString(), "Miniup.ParseException: input(1,1): Unexpected end of input\nb\n^\nExpected 'a'")
+        assert.equal(e.toString(), "miniup.ParseException: input(1,1): Unexpected end of input\nb\n^\nExpected 'a'")
         assert.equal(e.getLineNr(), 1)
     }
 
