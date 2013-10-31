@@ -635,15 +635,16 @@ module miniup {
 
 		storeExpected(func: ParseFunction) {
 			var p = this.currentPos;
+			var names = this.friendlyNames;
 
 			if (!this.isParsingWhitespace && func.friendlyName)
-				this.friendlyNames.unshift({ pos : p, name: func.friendlyName}); //TODO: optimize: unshift versus push
+				names.push({ pos : p, name: func.friendlyName});
 
 			if (func.isTerminal && !this.isParsingWhitespace) {
 				if (!this.expected[p])
 					this.expected[p] = [];
 				//last resort is toString(), which is ugly for classes and regexes
-				this.expected[p].push(func.friendlyName || this.friendlyNames[0] || func.toString());
+				this.expected[p].push(func.friendlyName || names[names.length - 1] || func.toString());
 			}
 		}
 
