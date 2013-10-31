@@ -362,7 +362,17 @@ module miniup {
 		}
 
 		public static negativeLookAhead(predicate: ParseFunction): ParseFunction {
-			var ppm = MatcherFactory.positiveLookAhead(predicate);//todo: optimize inline positive lookahead
+/*			//TODO: mwe: i'm a bit puzzled, but not using the positiveLookAhead matcher appears to 5% slower! very weird
+			return new ParseFunction("!" + predicate.toString(), (parser: Parser): any => {
+				var prepos = parser.currentPos;
+				//TODO: do *not* update best match while parsing predicates!
+				//TODO: do not update best match while parsing whitespace either!
+				var matches = FAIL !== parser.parse(predicate);
+				parser.currentPos = prepos;//rewind
+				return matches ? FAIL : NOTHING;
+			});
+*/
+			var ppm = MatcherFactory.positiveLookAhead(predicate);
 			return new ParseFunction("!" + predicate.toString(), (parser: Parser): any => {
 				return parser.parse(ppm) === FAIL ? NOTHING : FAIL; //FAIL === no match. NOTHING === match, so invert.
 			});
@@ -590,6 +600,8 @@ module miniup {
 						//Optimize: TODO: how to check this the fastest?
 						if (this.cleanAST === false && result && func.ruleName && !result.$rule)
 							result.$rule = func.ruleName;
+
+						this.unstoreExpected(func); //TODO: wrong! make part of the parse phase. Optimize..
 					} catch(e) {
 						this.stackdepth--;
 						this.unstoreExpected(func);
@@ -616,7 +628,6 @@ module miniup {
 					this.log(" \\" + func.toString() + (result !== FAIL ? " V" : " X") + " @" + this.currentPos);
 				this.stackdepth--;
 
-				this.unstoreExpected(func); //TODO: wrong! make part of the parse phase. Optimize..
 				return result;
 		}
 
