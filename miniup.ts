@@ -659,13 +659,17 @@ module miniup {
 		}
 	}
 
-	export class ParseException {
-		public name = "miniup.ParseException";
-		public message : string;
+	export class Exception {
+		constructor(public name: string, public message?: string){}
+		public toString():string { return this.name + ": " + this.message }
+	}
+
+	export class ParseException extends Exception {
 		public coords: TextCoords;
 		public expected : string[] = [];
 
 		constructor(parser: Parser, message: string) {
+			super("miniup.ParseException");
 			var pos = Math.max(parser.currentPos, parser.expected.length - 1);
 			var endpos = pos;
 			var expected : string[] = parser.expected[pos] ? parser.expected[pos] : [];
@@ -710,8 +714,6 @@ module miniup {
 			);
 		}
 
-		public toString():string { return this.name + ": " + this.message }
-
 		public getColumn():number { return this.coords.col; }
 		public getEndColumn(): number { return this.coords.col + this.coords.length; }
 		public getLineNr():number { return this.coords.line;}
@@ -721,6 +723,12 @@ module miniup {
 		constructor(parser: Parser, public func: ParseFunction) {
 			super(parser, "Grammar error: Left recursion found in rule '" + func.toString() + "'");
 			this.name = "miniup.RecursionException";
+		}
+	}
+
+	export class GrammarException extends Exception {
+		constructor(public message: string) {
+			super("miniup.GrammarException", message);
 		}
 	}
 
@@ -843,7 +851,16 @@ module miniup {
 		constructor(private input: string, private inputName: string = "grammar source"){}
 
 		public build(): Grammar {
-			var ast = GrammarReader.getMiniupGrammar().parse(this.input);
+			var ast;
+			try {
+				ast = GrammarReader.getMiniupGrammar().parse(this.input);
+			}
+			catch(e) {
+				if (e instanceof ParseException)
+					throw new GrammarException(e.message)
+				throw e;
+			}
+
 			var g = new Grammar();
 
 			(<any[]>ast.rules).forEach((ast: any) => {
@@ -872,10 +889,10 @@ module miniup {
 			});
 
 			if (this.errors.length > 0)
-				throw this.errors.map(e => {
+				throw new GrammarException(this.errors.map(e => {
 					var coords = Util.getCoords(this.input, e.ast.$start)
 					return Util.format("Invalid grammar: at {0} ({1},{2}): {3}", this.inputName, coords.line, coords.col, e.msg)
-				}).join("\n");
+				}).join("\n"));
 		}
 
 		astToMatcher(ast: any): ParseFunction {
@@ -1092,13 +1109,14 @@ module miniup {
 				process.exit(0);
 			}
 
-			//get the grammar
-			if (argv.s)
-				grammar = Grammar.loadFromFile(argv.s)
-			else if (argv.g)
-				grammar = miniup.Grammar.load(argv.g, "input")
-			else
-				grammar = miniup.GrammarReader.getMiniupGrammar();
+			function handleException(e) {
+				if (e instanceof miniup.Exception) {
+					console.error(e.toString());
+					process.exit(1);
+				}
+				else
+					throw e;
+			}
 
 			function processInput (input: string) {
 				try {
@@ -1118,14 +1136,23 @@ module miniup {
 						console.log(JSON.stringify(res, null, 2));
 				}
 				catch (e) {
-					if (e instanceof miniup.ParseException) {
-						console.error(e.toString());
-						process.exit(1);
-					}
-					else
-						throw e;
+					handleException(e);
 				}
 			}
+
+			//get the grammar
+			try {
+				if (argv.s)
+					grammar = Grammar.loadFromFile(argv.s)
+				else if (argv.g)
+					grammar = miniup.Grammar.load(argv.g, "input")
+				else
+					grammar = miniup.GrammarReader.getMiniupGrammar();
+			}
+			catch (e) {
+				handleException(e);
+			}
+
 
 			//get the input
 			if (argv.i) {
