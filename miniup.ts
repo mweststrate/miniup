@@ -135,6 +135,8 @@ module miniup {
 						var prevWhitespace = p.autoParseWhitespace;
 						p.autoParseWhitespace = autoMatchWhitespace;
 						var res = p.parse(expr);
+						if (autoMatchWhitespace) //parse any remaining whitespace if needed
+							p.consumeWhitespace();
 						p.autoParseWhitespace = prevWhitespace;
 						return res;
 					}
@@ -563,9 +565,6 @@ module miniup {
 
 				this.stackdepth++;
 
-				//consume whitespace //TODO: make part of the parse phase? optimize..
-				if (this.autoParseWhitespace === true && this.isParsingWhitespace === false)
-					this.consumeWhitespace();
 
 				//check memoization cache
 				var memo : MemoizeResult = this.getMemoEntry(func, startpos);
@@ -589,19 +588,26 @@ module miniup {
 				else {
 					if (this.debug)
 						this.log(" /" + func.toString() + " ?");
+
 					memo.endPos = startpos;
 
+					//consume whitespace
+					if (this.autoParseWhitespace === true && this.isParsingWhitespace === false)
+						this.consumeWhitespace();
+
 					this.storeExpected(func);
+
 
 					//finally... parse!
 					try {
 						result = func.parse(this);
 
+						this.unstoreExpected(func);
+
 						//Optimize: TODO: how to check this the fastest?
 						if (this.cleanAST === false && result && func.ruleName && !result.$rule)
 							result.$rule = func.ruleName;
 
-						this.unstoreExpected(func); //TODO: wrong! make part of the parse phase. Optimize..
 					} catch(e) {
 						this.stackdepth--;
 						this.unstoreExpected(func);
@@ -616,12 +622,7 @@ module miniup {
 
 				//wrap up.
 
-				if (result !== FAIL) {
-					//TODO: optimize make this part of the parse phase?
-					if (this.autoParseWhitespace === true && this.isParsingWhitespace === false)
-						this.consumeWhitespace();
-				}
-				else
+				if (result === FAIL)
 					this.currentPos = startpos; //rewind
 
 				if (this.debug)
@@ -785,7 +786,7 @@ module miniup {
 			var literal = g.addRule('literal', seq(si('text', str), si('ignorecase', opt(lit("i")))));
 			var semanticaction = g.addRule('action', //lit('{'));
 				seq(si(lit('{')), si(list(choice(f.characterClass("[^{}]"), call('action')))), si(lit('}'))));
-			var ws      = g.addRule('whitespace', choice(call('WHITESPACECHARS'), call('MULTILINECOMMENT'), call('SINGLELINECOMMENT'), semanticaction));
+			var ws      = g.addRule('whitespace', list(choice(call('WHITESPACECHARS'), call('MULTILINECOMMENT'), call('SINGLELINECOMMENT'), semanticaction)));
 			var identifier = call('IDENTIFIER');
 			var regex   = g.addRule('regex', seq(si('text', call('REGEX'))));
 			var dot     = g.addRule('dot', seq(si('dot', lit('.'))));

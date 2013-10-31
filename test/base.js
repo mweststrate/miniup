@@ -503,7 +503,7 @@ exports.testpegjs = function(test) {
     var g = miniup.Grammar.loadFromFile("test/pegjs/javascript.pegjs");
     g.parse("var x;");
 
-    g.parse(miniup.CLI.readStringFromFile("miniup.js"));
+    g.parse(miniup.CLI.readStringFromFile("test/javascripttest.js"));
     test.done();
 }
 
