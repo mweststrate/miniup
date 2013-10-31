@@ -162,7 +162,7 @@ module miniup {
 			return new ParseFunction(
 				"(" + matcher.toString() + (separator ? " " +separator.toString() : "") + ")" + (atleastOne ? "+" : "*") + (separator ? "?" : ""),
 				function (parser: Parser): any {
-					var res = []; //optimize: allocate only if needed
+					var res = [];
 					var item, sep = FAIL;
 					var p;
 					var startpos = parser.currentPos;
@@ -219,12 +219,14 @@ module miniup {
 
 				function (parser: Parser) {
 					var startpos = parser.currentPos;
-					var result = {}; //TODO: optimize allocate only ifneeded
+					var result ;
 					var success = items.every(item => {
 						var itemres = parser.parse(item.expr);
 						if (item.label === "")
 							result = itemres;
 						else {
+							if (result === undefined)
+								result ={};
 							if (item.label) //we are interested in the result
 								result[item.label] = itemres;
 							if (parser.extendedAST)
