@@ -93,15 +93,29 @@ module miniup {
 				{ isTerminal: true });
 		}
 
+		private static endsWithWord = /\w$/;
+		private static startsWithWord = /^\w/;
+
 		public static literal(keyword: string, ignoreCase: boolean = false): ParseFunction {
-			var regexmatcher = MatcherFactory.regexMatcher(new RegExp(RegExpUtil.quoteRegExp(keyword), ignoreCase ? "i" : ""));
+			var length = keyword.length;
+			var cmp = ignoreCase ? keyword.toLowerCase() : keyword;
 			return new ParseFunction(
 				"'" + keyword + "'",
 				p => {
-					var res = regexmatcher(p); //TODO: optimize: called very often!
-					if (res && p.autoParseWhitespace === true && res.match(/\w$/) && p.getRemainingInput().match(/^\w/)) //TODO: optimize: no recreate of the whtiespace matchers
-						return FAIL; //fail if auto parse whitespace is enabled and we end in the middle of a word
-					return res;
+					var val = p.getRemainingInput().substring(0, length)
+
+					if (ignoreCase ? val.toLowerCase() == cmp : val == cmp) {
+						p.currentPos += length;
+
+						//fail if auto parse whitespace is enabled and we end in the middle of a word
+						if (p.autoParseWhitespace === true
+							&& MatcherFactory.endsWithWord.test(val)
+							&& MatcherFactory.startsWithWord.test(p.getRemainingInput()))
+							return FAIL;
+
+						return val;
+					}
+					return FAIL;
 				},
 				{ isTerminal: true, friendlyName : "'" + keyword + "'"});
 		}
