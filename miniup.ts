@@ -49,6 +49,7 @@ module miniup {
 
 	export class MatcherFactory {
 
+		//TODO: move down
 		public static importMatcher(language: string, rule: string) {
 			var call = MatcherFactory.call(rule);
 
@@ -162,10 +163,11 @@ module miniup {
 			return new ParseFunction(ruleName, function (p: Parser) {
 				rule = rule || p.grammar.rule(ruleName); //cache the rule
 
-				//further speed up: calls are inlined after resolving them the first time. That should improve performance as it reduces
-				//lookups. Note that this creates clones, so it assumes matchers have no internal state!
-				//If inlining somehow cases grammar modifictions not to work, just disable (or make configurable) the next line:
-				Util.extend(this, rule);
+					//further speed up: calls are inlined after resolving them the first time. That should improve performance as it reduces
+					//lookups. Note that this creates clones, so it assumes matchers have no internal state!
+					//If inlining somehow cases grammar modifictions not to work, just disable (or make configurable) the next line:
+					if (p.optimize)
+						Util.extend(this, rule);
 
 				return p.parse(rule);
 			});
@@ -531,6 +533,7 @@ module miniup {
 		cleanAST?: boolean;
 		extendedAST?: boolean;
 		allowLeftRecursion? : boolean;
+		optimize? : boolean;
 	}
 
 	export class Parser implements IParseArgs {
@@ -540,6 +543,7 @@ module miniup {
 		cleanAST: boolean = false;
 		extendedAST: boolean =false;
 		allowLeftRecursion : boolean = true;
+		optimize : boolean = true;
 
 		currentPos: number = 0;
 		private memoizedParseFunctions = {}; //position-> parseFunction -> MemoizeResult
@@ -892,6 +896,8 @@ module miniup {
 
 		public build(): Grammar {
 			var ast;
+
+			Util.timeReport("Start building grammar");
 			try {
 				ast = GrammarReader.getMiniupGrammar().parse(this.input);
 			}
@@ -900,6 +906,7 @@ module miniup {
 					throw new GrammarException(e.message)
 				throw e;
 			}
+			Util.timeReport("Parsed grammar");
 
 			var g = new Grammar();
 
@@ -915,8 +922,10 @@ module miniup {
 
 			if (!g.hasRule("whitespace"))
 				g.addRule("whitespace", MatcherFactory.call("WHITESPACECHARS"));
+			Util.timeReport("Built grammar");
 
 			this.consistencyCheck(g);
+			Util.timeReport("Checked grammar");
 
 			return g;
 		}
@@ -1114,6 +1123,14 @@ module miniup {
 		public static debug(msg: string, ...args: string[]) {
 			console && console.log(Util.format.apply(null, [msg].concat(args)));
 		}
+
+
+		private static start : number = +(new Date());
+		public static enableTimeReport: boolean  = false;
+		public static timeReport(msg: string) {
+			if (Util.enableTimeReport)
+				console.log(Util.format("[+{0}] {1}", (+new Date()) - Util.start, msg))
+		}
 	}
 
 	export class CLI {
@@ -1137,7 +1154,9 @@ module miniup {
 				.describe('e', 'Extended AST. Item without label will be added to the AST as well').alias("e", "extended")
 				.describe('h', 'Print this help').alias('h', 'help')
 				.describe('l', 'Disable left recursion').alias('l', 'no-left-recursion')
-				.boolean('rvceh'.split(''))
+				.describe('O', 'No grammar optimizations').alias('O', 'no-optimization')
+				.describe('r', 'Print a parse report insteadof generation output').alias('r', 'report')
+				.boolean('rvcehOr'.split(''))
 				.string("giso".split(''))
 
 			//help
@@ -1147,6 +1166,10 @@ module miniup {
 			if (argv.h) {
 				optimist.showHelp();
 				process.exit(0);
+			}
+			else if (argv.r) {
+				Util.enableTimeReport = true;
+				Util.timeReport("Started parser");
 			}
 
 			function handleException(e) {
@@ -1166,14 +1189,17 @@ module miniup {
 						cleanAST: argv.c,
 						extendedAST: argv.e,
 						inputName : inputName,
-						allowLeftRecursion : !argv.l
+						allowLeftRecursion : !argv.l,
+						optimize : !argv.O
 					});
 
 					//store
 					if (argv.o)
 						CLI.writeStringToFile(argv.o, JSON.stringify(res))
-					else
+					else if (!argv.r)
 						console.log(JSON.stringify(res, null, 2));
+
+					Util.timeReport("Done " + (res === FAIL ? "(Parse failed)" : "(Parse success)"));
 				}
 				catch (e) {
 					handleException(e);
@@ -1192,6 +1218,7 @@ module miniup {
 			catch (e) {
 				handleException(e);
 			}
+			Util.timeReport("Obtained grammar");
 
 
 			//get the input
