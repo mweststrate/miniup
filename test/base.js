@@ -333,6 +333,8 @@ exports.testunicode = function(test) {
     assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\xFFa'")), "aÿa");
     assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\077a'")), "a?a");
 
+    //TODO: parse("x = 'a' u:[\u1234] 'a'", "aሴa", { u: "ሴ"})
+
     test.done();
 }
 

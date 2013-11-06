@@ -94,8 +94,7 @@ module miniup {
 				{ isTerminal: true });
 		}
 
-		private static endsWithWord = /\w$/;
-		private static startsWithWord = /^\w/;
+		private static wordChar = /\w/;
 
 		public static literal(keyword: string, ignoreCase: boolean = false): ParseFunction {
 			var length = keyword.length;
@@ -103,15 +102,15 @@ module miniup {
 			return new ParseFunction(
 				"'" + keyword + "'",
 				p => {
-					var val = p.getRemainingInput().substring(0, length)
+					var val = p.input.substr(p.currentPos, length)
 
 					if (ignoreCase ? val.toLowerCase() == cmp : val == cmp) {
 						p.currentPos += length;
 
 						//fail if auto parse whitespace is enabled and we end in the middle of a word
 						if (p.autoParseWhitespace === true
-							&& MatcherFactory.endsWithWord.test(val)
-							&& MatcherFactory.startsWithWord.test(p.getRemainingInput()))
+							&& MatcherFactory.wordChar.test(val.charAt(val.length -1))
+							&& MatcherFactory.wordChar.test(p.input.charAt(p.currentPos)))
 							return FAIL;
 
 						return val;
