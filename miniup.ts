@@ -88,9 +88,17 @@ module miniup {
 		}
 
 		public static characterClass(characterClass: string, ignoreCase: boolean = false): ParseFunction {
+			//TODO: do not use a regex at all!
+			var re = new RegExp(characterClass, ignoreCase ? "i":"");
 			return new ParseFunction(
 				characterClass + (ignoreCase ? "i":""),
-				MatcherFactory.regexMatcher(new RegExp(characterClass, ignoreCase ? "i":"")),
+				p => {
+					var c = p.input.charAt(p.currentPos);
+					if (!re.test(c))
+						return FAIL;
+					p.currentPos ++;
+					return c;
+				},
 				{ isTerminal: true });
 		}
 
