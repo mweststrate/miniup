@@ -132,10 +132,9 @@ module miniup {
 			return new ParseFunction(
 				".",
 				p => {
-					var c = p.input.charAt(p.currentPos);
-					if (c=== '')
+					var c = p.input.charAt(p.currentPos++);
+					if (c === '')
 						return FAIL;
-					p.currentPos++;
 					return c;
 				},
 				{ isTerminal: true });
@@ -248,8 +247,13 @@ module miniup {
 				function (parser: Parser) {
 					var startpos = parser.currentPos;
 					var result ;
-					var success = items.every(item => {
+					for (var i = 0; i < items.length; i++) {
+						var item = items[i];
 						var itemres = parser.parse(item.expr);
+						if (itemres === FAIL)
+							return FAIL;
+
+
 						if (item.label === "")
 							result = itemres;
 						else {
@@ -260,10 +264,9 @@ module miniup {
 							if (parser.extendedAST)
 								result[-1 + ((<any>result).length = ((<any>result).length || 0) + 1)] = itemres;
 						}
-						return itemres !== FAIL;
-					});
+					};
 
-					return success  === true ? hasEmptyLabel === true ? result : parser.enrich(result, this, startpos) : FAIL;
+					return hasEmptyLabel === true ? result : parser.enrich(result, this, startpos);
 				},
 				{ sequence : items});
 		}
