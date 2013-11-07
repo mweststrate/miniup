@@ -71,6 +71,31 @@ exports.test4 = function(test) {
     test.done();
 }
 
+exports.testchars = function(test) {
+    parse("x = [a]", "a", "a");
+    parse("x = [a]", "c", fail(1));
+    parse("x = [ab]", "b", "b");
+    parse("x = [a-z]", "d", "d");
+    parse("x = [a-z]", "A", fail(1));
+    parse("x = [Ba-zA]", "A", "A");
+    parse("x = [Ba-zA]", "B", "B");
+    parse("x = [Ba-zA]", "d", "d");
+    parse("x = [Ba-zA]", "C", fail(1));
+    parse("x = [a-zA-Z]", "C", "C");
+
+    parse("x = [-]", "-", "-");
+    parse("x = [\\\\]", "\\", "\\");
+    parse("x = [\\]]", "]", "]");
+    parse("x = [a\\-z]", "-", "-");
+    parse("x = [a\\-z]", "z", "z");
+    parse("x = [a\\-z]", "d", fail(1));
+
+    parse("x = [\\u0123]", "\u0123", "\u0123");
+
+    //TODO: with casing..!
+    test.done();
+}
+
 exports.testwhitespace = function(test) {
     parse("x = @whitespace-on 'x'; whitespace = WHITESPACECHARS", ' x ', "x");
     parse("x = @whitespace-on 'x'; whitespace = '.'+", '..x.', "x");

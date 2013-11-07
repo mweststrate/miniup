@@ -88,16 +88,50 @@ module miniup {
 		}
 
 		public static characterClass(characterClass: string, ignoreCase: boolean = false): ParseFunction {
-			//TODO: do not use a regex at all!
-			var re = new RegExp(characterClass, ignoreCase ? "i":"");
+			//TODO: support ignorecase
+			var chars = characterClass;
+			var charSet = {};
+			var ranges : { min: string; max: string; }[] = [];
+
+			//console.log(characterClass, chars, charSet, ranges);
+
+			chars = RegExpUtil.unescapeQuotedString(chars);
+
+			//console.log(characterClass, chars, charSet, ranges);
+
+			chars = chars.replace(/\\([-\\\]])/g, (_, char) => {
+				charSet[char] = 1;
+				return '';
+			})
+
+			var negate = chars[0] == "^";
+			if (negate)
+				chars = chars.substring(1);
+			//console.log(characterClass, chars, charSet, ranges);
+
+			chars = chars.replace(/([\s\S])-([\s\S])/g, function(_, min, max) {
+				ranges.push({min:min, max:max});
+				return "";
+			});
+
+			//console.log(characterClass, chars, charSet, ranges);
+			for(var i = 0; i < chars.length; i++)
+				charSet[chars.charAt(i)] = 1;
+
+			//console.log(characterClass, chars, charSet, ranges);
+
 			return new ParseFunction(
 				characterClass + (ignoreCase ? "i":""),
 				p => {
-					var c = p.input.charAt(p.currentPos);
-					if (!re.test(c))
-						return FAIL;
-					p.currentPos ++;
-					return c;
+					var c = p.input.charAt(p.currentPos++);
+					for(var i = 0; i < ranges.length; i++) {
+						var range = ranges[i];
+						if (c >= range.min && c <= range.max)
+							return negate ? FAIL : c;
+					}
+					if (charSet[c] !== undefined)
+						return negate ? FAIL : c;
+					return negate ? c : FAIL;
 				},
 				{ isTerminal: true });
 		}
@@ -1082,11 +1116,11 @@ module miniup {
 				.replace(/\\b/g, "\b")
 				.replace(/\\'/g, "'")
 				.replace(/\\"/g, "\"")
-				.replace(/\\0/g, "\0")
 				//http://stackoverflow.com/questions/7885096/how-do-i-decode-a-string-with-escaped-unicode
-				.replace(/\\u(d){4}/, (m,code) => String.fromCharCode(parseInt(code, 16)))
-				.replace(/\\x(d){2}/, (m,code) => "" + parseInt(code, 16))
-				.replace(/\\0(d){2}/, (m,code) => "" + parseInt(code, 8))
+				.replace(/\\u(\d{4})/g, (m,code) => String.fromCharCode(parseInt(code, 16)))
+				.replace(/\\x(\d{2})/g, (m,code) => String.fromCharCode(parseInt(code, 16)))
+				.replace(/\\0(\d{2})/g, (m,code) => String.fromCharCode(parseInt(code, 8)))
+				.replace(/\\0/g, "\0")
 		}
 	}
 
