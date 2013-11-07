@@ -287,9 +287,12 @@ module miniup {
 					var recursingchoice : ParseFunction;
 					var recursingpos: number;
 
-					choices.some((choice, idx) => {
+					for(var idx = 0; idx < choices.length; idx++) {
+						var choice = choices[idx];
 						try {
-							return FAIL !== (res = parser.parse(choice));
+							res = parser.parse(choice);
+							if (res !== FAIL)
+								break;
 						}
 						catch(e) {
 							if (e instanceof RecursionException
@@ -302,11 +305,11 @@ module miniup {
 								recursingpos = idx; //TODO: not needed anymore
 								error = <RecursionException> e;
 								parser.log("> Detected recursion in " + e.func.toString() + " @ " + parser.currentPos) //TODO: improve LR logging
-								return true; //break the loop
+								break;
 							}
 							throw e;
 						}
-					})
+					}
 
 					if (isleftrecursive === false)
 						return res;
@@ -593,6 +596,7 @@ module miniup {
 			}
 		}
 
+		//TODO: optimize speed up by doing 2 phase in second phase error reporting?
 		parse(func: ParseFunction): any {
 			var startpos = this.currentPos,
 				isMatch = false,
