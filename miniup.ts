@@ -1209,8 +1209,8 @@ module miniup {
 				.describe('h', 'Print this help').alias('h', 'help')
 				.describe('l', 'Disable left recursion').alias('l', 'no-left-recursion')
 				.describe('O', 'No grammar optimizations').alias('O', 'no-optimization')
-				.describe('r', 'Print a parse report insteadof generation output').alias('r', 'report')
-				.boolean('rvcehOr'.split(''))
+				.describe('R', 'Print a parse report insteadof generation output').alias('R', 'report')
+				.boolean('rvcehOR'.split(''))
 				.string("giso".split(''))
 
 			//help
@@ -1221,7 +1221,7 @@ module miniup {
 				optimist.showHelp();
 				process.exit(0);
 			}
-			else if (argv.r) {
+			else if (argv.R) {
 				Util.enableTimeReport = true;
 				Util.timeReport("Started parser");
 			}
@@ -1250,7 +1250,7 @@ module miniup {
 					//store
 					if (argv.o)
 						CLI.writeStringToFile(argv.o, JSON.stringify(res))
-					else if (!argv.r)
+					else if (!argv.R)
 						console.log(JSON.stringify(res, null, 2));
 
 					Util.timeReport("Done " + (res === FAIL ? "(Parse failed)" : "(Parse success)"));
