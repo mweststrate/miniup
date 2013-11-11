@@ -94,7 +94,8 @@ module miniup {
 			var ranges : { min: string; max: string; }[] = [];
 
 			//console.log(characterClass, chars, charSet, ranges);
-
+			//TODO: auto detect ranges!
+			//TODO: then apply this to optimize 1 branch as well, including the escaping fixes for RegExpUtil
 			chars = RegExpUtil.unescapeQuotedString(chars);
 
 			//console.log(characterClass, chars, charSet, ranges);
@@ -1117,9 +1118,9 @@ module miniup {
 				.replace(/\\'/g, "'")
 				.replace(/\\"/g, "\"")
 				//http://stackoverflow.com/questions/7885096/how-do-i-decode-a-string-with-escaped-unicode
-				.replace(/\\u(\d{4})/g, (m,code) => String.fromCharCode(parseInt(code, 16)))
-				.replace(/\\x(\d{2})/g, (m,code) => String.fromCharCode(parseInt(code, 16)))
-				.replace(/\\0(\d{2})/g, (m,code) => String.fromCharCode(parseInt(code, 8)))
+				.replace(/\\u([0-9a-fA-F]{4})/g, (m,code) => String.fromCharCode(parseInt(code, 16)))
+				.replace(/\\x([0-9a-fA-F]{2})/g, (m,code) => String.fromCharCode(parseInt(code, 16)))
+				.replace(/\\0([0-7]{2})/g, (m,code) => String.fromCharCode(parseInt(code, 8)))
 				.replace(/\\0/g, "\0")
 		}
 	}
