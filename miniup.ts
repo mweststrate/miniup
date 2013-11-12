@@ -88,26 +88,52 @@ module miniup {
 		}
 
 		public static characterClass(characterClass: string, ignoreCase: boolean = false): ParseFunction {
+			if (characterClass==="[]")
+				return MatcherFactory.lambda();
+
 			//TODO: support ignorecase
 			var chars = characterClass;
 			var charSet = {};
 			var ranges : { min: string; max: string; }[] = [];
+
 
 			//console.log(characterClass, chars, charSet, ranges);
 			//TODO: auto detect ranges!
 			//TODO: then apply this to optimize 1 branch as well, including the escaping fixes for RegExpUtil
 			chars = RegExpUtil.unescapeQuotedString(chars);
 
+			var negate = chars[0] == "^";
+			if (negate)
+				chars = chars.substring(1);
+
 			//console.log(characterClass, chars, charSet, ranges);
+			//TODO: only if optimize enabled!
+			//TODO: write unit test for this!
+			//console.log("rewrite " + chars + "....");
+			var charArray = chars.split("").map(x => x.charCodeAt(0));
+			chars = "";
+
+			var start = 0;
+			while(start < charArray.length) {
+				var range = 0;
+				while(charArray[start + range + 1] === charArray[start] + range + 1)
+					range++;
+
+				if (range > 5 && false) { //magic number!
+					chars += String.fromCharCode(charArray[start]) + "-" + String.fromCharCode(charArray[start + range]);
+					start += range;
+				}
+				else
+					chars += String.fromCharCode(charArray[start]);
+				start++;
+			}
+			//console.log("to... " + chars );
 
 			chars = chars.replace(/\\([-\\\]])/g, (_, char) => {
 				charSet[char] = 1;
 				return '';
 			})
 
-			var negate = chars[0] == "^";
-			if (negate)
-				chars = chars.substring(1);
 			//console.log(characterClass, chars, charSet, ranges);
 
 			chars = chars.replace(/([\s\S])-([\s\S])/g, function(_, min, max) {
