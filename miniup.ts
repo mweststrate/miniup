@@ -116,7 +116,7 @@ module miniup {
 			//TODO: only if optimize enabled!
 			//TODO: write unit test for this!
 			//console.log("rewrite " + chars + "....");
-/*			var charArray = chars.split("").map(x => x.charCodeAt(0));
+			var charArray = chars.split("").map(x => x.charCodeAt(0));
 			chars = "";
 
 			var start = 0;
@@ -125,8 +125,8 @@ module miniup {
 				while(charArray[start + range + 1] === charArray[start] + range + 1)
 					range++;
 
-				if (range > 5 && false) { //magic number!
-					chars += String.fromCharCode(charArray[start]) + "-" + String.fromCharCode(charArray[start + range]);
+				if (range > 5) { //magic number!
+					chars = chars.substr( -range) + String.fromCharCode(charArray[start]) + "-" + String.fromCharCode(charArray[start + range]);
 					start += range;
 				}
 				else
@@ -134,7 +134,7 @@ module miniup {
 				start++;
 			}
 			//console.log("to... " + chars );
-*/
+
 			chars = chars.replace(/\\([-\\\]])/g, (_, char) => {
 				charSet[char] = 1;
 				return '';
