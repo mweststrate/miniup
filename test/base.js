@@ -102,16 +102,22 @@ exports.testchars = function(test) {
     parse("x = [b-gik-quv]","c","c");
 
     parse("x = [-]", "-", "-");
+    parse("x = [\-]", "-", "-");
+    parse("x = [\\-]", "-", "-");
     parse("x = [\\\\]", "\\", "\\");
     parse("x = [\\]]", "]", "]");
     parse("x = [a\\-z]", "-", "-");
     parse("x = [a\\-z]", "z", "z");
     parse("x = [a\\-z]", "d", fail(1));
 
+    parse("x = [\u0123]", "\u0123", "\u0123");
     parse("x = [\\u0123]", "\u0123", "\u0123");
     parse("x = []", "", null); //matches nothing
     parse("x = []", "d", fail(1)); //matches nothing
     parse("x = [^]", "d", "d"); //matches anything
+
+    parse("x = [\v]", "v", fail(1));
+    parse("x = [\v]", "\v", "\v");
 
     //TODO: with casing..!
     test.done();
@@ -549,7 +555,7 @@ exports.impossible = function(test) {
 
 exports.testpegjs = function(test) {
     var g = miniup.Grammar.loadFromFile("test/pegjs/javascript.pegjs");
-    //g.parse("var x;");
+    g.parse("var x;");
 
     g.parse(miniup.CLI.readStringFromFile("test/javascripttest.js"));
     test.done();

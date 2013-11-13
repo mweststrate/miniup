@@ -100,7 +100,13 @@ module miniup {
 			//console.log(characterClass, chars, charSet, ranges);
 			//TODO: auto detect ranges!
 			//TODO: then apply this to optimize 1 branch as well, including the escaping fixes for RegExpUtil
-			chars = RegExpUtil.unescapeQuotedString(chars);
+
+			//extract \- first! otherwise they will be unescaped in the next step. MWE fix: this will fail on \\- ?!
+	/*		chars = chars.replace(/\\-/g,() => {
+				charSet["-"] = 1;
+				return "";
+			});
+	*/		chars = RegExpUtil.unescapeQuotedString(chars);
 
 			var negate = chars[0] == "^";
 			if (negate)
@@ -110,7 +116,7 @@ module miniup {
 			//TODO: only if optimize enabled!
 			//TODO: write unit test for this!
 			//console.log("rewrite " + chars + "....");
-			var charArray = chars.split("").map(x => x.charCodeAt(0));
+/*			var charArray = chars.split("").map(x => x.charCodeAt(0));
 			chars = "";
 
 			var start = 0;
@@ -128,7 +134,7 @@ module miniup {
 				start++;
 			}
 			//console.log("to... " + chars );
-
+*/
 			chars = chars.replace(/\\([-\\\]])/g, (_, char) => {
 				charSet[char] = 1;
 				return '';
@@ -684,7 +690,7 @@ module miniup {
 
 				else {
 					if (this.debug)
-						this.log(" /" + func.toString() + " ?");
+						this.log(" /" + func.toString() + " ? @ " + startpos );
 					this.stackdepth++;
 
 					memo.endPos = startpos;
@@ -723,7 +729,7 @@ module miniup {
 				}
 
 				if (this.debug)
-					this.log(" \\" + func.toString() + (result !== FAIL ? " V" : " X") + " @" + this.currentPos);
+					this.log(" \\" + func.toString() + (result !== FAIL ? " V" : " X") + " @" + startpos + ".." + this.currentPos);
 
 				return result;
 		}
@@ -1141,6 +1147,7 @@ module miniup {
 				.replace(/\\t/g, "\t")
 				.replace(/\\f/g, "\f")
 				.replace(/\\b/g, "\b")
+				.replace(/\\v/g, "\v")
 				.replace(/\\'/g, "'")
 				.replace(/\\"/g, "\"")
 				//http://stackoverflow.com/questions/7885096/how-do-i-decode-a-string-with-escaped-unicode
@@ -1148,6 +1155,7 @@ module miniup {
 				.replace(/\\x([0-9a-fA-F]{2})/g, (m,code) => String.fromCharCode(parseInt(code, 16)))
 				.replace(/\\0([0-7]{2})/g, (m,code) => String.fromCharCode(parseInt(code, 8)))
 				.replace(/\\0/g, "\0")
+				//.replace(/\\(.)/g, (m, code) : string => code) //{ throw "Unknown escape sequence: '\\" + code + "'"; })
 		}
 	}
 
