@@ -95,7 +95,8 @@ module miniup {
 
 			//TODO: support ignorecase
 			var chars = characterClass;
-			var charSet = [];
+			var charSet = []; //MWE: array are not considerably faster than objects, so that gives the feeling that hash lookups
+			//are as fast as array index lookups, indicating that array index lookups are probably not thát fast.
 
 			var negate = chars[1] == "^";
 			if (negate)
@@ -105,25 +106,25 @@ module miniup {
 
 			//extract \- first! otherwise they will be unescaped in the next step. MWE fix: this will fail on \\- ?!
 			chars = chars.replace(/\\-/g,() => {
-				charSet["-".charCodeAt(0)] = 1;
+				charSet["-".charCodeAt(0)] = true;
 				return "";
 			});
 
 			chars = chars.replace(/([\s\S])-([\s\S])/g, function(_, min, max) {
 				for(var i = min.charCodeAt(0); i <= max.charCodeAt(0); i++)
-					charSet[i] = 1;
+					charSet[i] = true;
 				return "";
 			});
 
-			chars.split("").forEach(char => charSet[char.charCodeAt(0)] = 1);
+			chars.split("").forEach(char => charSet[char.charCodeAt(0)] = true);
 
 			return new ParseFunction(
 				characterClass + (ignoreCase ? "i":""),
 				p => {
-					var c = p.input.charCodeAt(p.currentPos++);
-					if (charSet[c] === 1)
-						return negate ? FAIL : String.fromCharCode(c);
-					return negate ? String.fromCharCode(c) : FAIL;
+					var match = charSet[p.input.charCodeAt(p.currentPos)];
+					if ((match && !negate) || (!match && negate))
+						return p.input.charAt(p.currentPos++);
+					return FAIL;
 				},
 				{ isTerminal: true });
 		}
