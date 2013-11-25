@@ -27,6 +27,7 @@ module miniup {
 		friendlyName : string;
 		memoizationId: number;
 		isTerminal = false;
+		isCharClass = false;
 		sequence : ISequenceItem[];
 
 		constructor(private asString: string, public parse : (parser: Parser) => any, opts? : Object) {
@@ -95,7 +96,7 @@ module miniup {
 
 			//TODO: support ignorecase
 			var chars = characterClass;
-			var charSet = []; //MWE: array are not considerably faster than objects, so that gives the feeling that hash lookups
+			var charSet = [] //MWE: array are not considerably faster than objects, so that gives the feeling that hash lookups
 			//are as fast as array index lookups, indicating that array index lookups are probably not thát fast.
 
 			var negate = chars[1] == "^";
@@ -106,27 +107,26 @@ module miniup {
 
 			//extract \- first! otherwise they will be unescaped in the next step. MWE fix: this will fail on \\- ?!
 			chars = chars.replace(/\\-/g,() => {
-				charSet["-".charCodeAt(0)] = true;
+				charSet["-".charCodeAt(0)] = 0x01;
 				return "";
 			});
 
 			chars = chars.replace(/([\s\S])-([\s\S])/g, function(_, min, max) {
 				for(var i = min.charCodeAt(0); i <= max.charCodeAt(0); i++)
-					charSet[i] = true;
+					charSet[i] = 0x01;
 				return "";
 			});
 
-			chars.split("").forEach(char => charSet[char.charCodeAt(0)] = true);
+			chars.split("").forEach(char => charSet[char.charCodeAt(0)] = 0x01);
 
 			return new ParseFunction(
 				characterClass + (ignoreCase ? "i":""),
 				p => {
-					var match = charSet[p.input.charCodeAt(p.currentPos)];
-					if ((match && !negate) || (!match && negate))
-						return p.input.charAt(p.currentPos++);
-					return FAIL;
+					if (charSet[p.input.charCodeAt(p.currentPos)] === 0x01)
+						return negate ? FAIL : p.input.charAt(p.currentPos++);
+					return negate ? p.input.charAt(p.currentPos++) : FAIL;
 				},
-				{ isTerminal: true });
+				{ isTerminal: true, isCharClass : true });
 		}
 
 		private static wordChar = /\w/;
@@ -298,15 +298,38 @@ module miniup {
 				{ sequence : items});
 		}
 
+		static optimizeChoices(choices : ParseFunction[]) : ParseFunction[] {
+			//TODO: if optimizer, move to optimizer class
+			for(var i = choices.length -1; i > 0; i--) {
+				if (choices[i].isCharClass && choices[i-1].isCharClass) {
+					if ((choices[i][1] === '^') === (choices[i-1][1] === '^')) { //TODO: check i option?
+						var cm = MatcherFactory.characterClass(
+								choices[i-1].toString().replace(/]$/,"") + choices[i].toString().substring(1)
+								,false);
+						console.info("optimized", choices[i-1], choices[i], " --> ", cm);
+						choices.splice(i -1, 2, cm);
+					}
+				}
+			}
+			return choices;
+		}
+
 		public static choice(...choices: ParseFunction[]): ParseFunction {
+			var optimized = false;
+
 			if (choices.length === 1)
 				return choices[0];
 
 			return new ParseFunction(
-				"(" + choices.map(x => x.toString()).join(" | ") + ")",
+				"(" + choices.map(x => x.toString()).join(" / ") + ")",
 
 				function (parser: Parser): any {
 					//todo optimize: diff implemetnation if left recursion is not supported?!
+					if (!optimized) {
+						choices = MatcherFactory.optimizeChoices(choices);
+						optimized = true;
+					}
+
 					var start = parser.currentPos;
 					var res = FAIL;
 					var isleftrecursive = false;
