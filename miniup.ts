@@ -50,24 +50,6 @@ module miniup {
 
 	export class MatcherFactory {
 
-		public static importMatcher(language: string, rule: string) {
-			var call = MatcherFactory.call(rule);
-
-			return new ParseFunction(
-				"@" + language + "." + rule,
-				p => {
-					var thisGrammar = p.grammar;
-					var g = Grammar.get(language);
-					try {
-						p.grammar = g;
-						return p.parse(call);
-					}
-					finally {
-						p.grammar = thisGrammar;
-					}
-				});
-		}
-
 		public static regex(regex: RegExp): ParseFunction {
 			var r = new RegExp("^" + regex.source, regex.ignoreCase ? "i" : "");
 			return new ParseFunction(
@@ -469,6 +451,23 @@ module miniup {
 				});
 		}
 
+		public static importMatcher(language: string, rule: string) {
+			var call = MatcherFactory.call(rule);
+
+			return new ParseFunction(
+				"@" + language + "." + rule,
+				p => {
+					var thisGrammar = p.grammar;
+					var g = Grammar.get(language);
+					try {
+						p.grammar = g;
+						return p.parse(call);
+					}
+					finally {
+						p.grammar = thisGrammar;
+					}
+				});
+		}
 
 		public static operators(ops:IOperatorDef[], operand: ParseFunction): ParseFunction {
 			var base : ParseFunction;
