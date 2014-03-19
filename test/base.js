@@ -44,7 +44,7 @@ exports.test3 = function(test) {
     parse("x = 'x'", 'x', 'x');
     parse("x <- 'x'", 'x', 'x');
     parse("x = y:'x'", 'x', { y: 'x'});
-    parse("x = y:'x'", 'x', 'x', { optimize : true});
+    parse("x = y:'x'", 'x', { y: 'x'}, { optimize : true});
     parse("x 'stuff' = y:'x'", 'x', { y: 'x'}, { optimize : true});
     parse("x = 'x'", ' x', fail(1));
     parse("x = 'x'", 'X', fail(1));
