@@ -12,13 +12,12 @@ function miniup(grammar: string, input?: string, opts?: miniup.IParseArgs):any {
 		return miniup.Grammar.load(grammar);
 	return miniup(grammar).parse(input, opts);
 }
+
 module miniup {
 
-	//TODO: optimize by inlining
 	var FAIL = undefined; //No match was found. Be aware to always use operators that do no type coersion with FAIL and NOTHING. So either '===' or '!=='!
 	var NOTHING = null;   //A match was found, but it either didn't consume any input or didn't match anything that is relevant in the AST. So NOTHING is a successful match.
 	var RECURSION = { recursion : true };
-
 
 	export class ParseFunction {
 		static nextMemoizationId = 0;
@@ -41,7 +40,7 @@ module miniup {
 		}
 
 		public toSource(): string {
-			return (this.ruleName ? this.ruleName + " = " : "") + this.asString; //TODO: friendlyname and whitespace
+			return (this.ruleName ? this.ruleName + (this.friendlyName ? " '" + this.friendlyName + "'":"") + " = " : "") + this.asString;
 		}
 	}
 

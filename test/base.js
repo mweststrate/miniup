@@ -22,6 +22,7 @@ function parse(grammar, input, expected, opts) {
     }
     else if (expected instanceof Object && res instanceof Object) //either object or array
         assert.deepEqual(res, expected);
+        //TODO: check whether unparse -> parse yields the same result
     else
         assert.equal(res, expected);
 
@@ -43,6 +44,8 @@ exports.test3 = function(test) {
     parse("x = 'x'", 'x', 'x');
     parse("x <- 'x'", 'x', 'x');
     parse("x = y:'x'", 'x', { y: 'x'});
+    parse("x = y:'x'", 'x', 'x', { optimize : true});
+    parse("x 'stuff' = y:'x'", 'x', { y: 'x'}, { optimize : true});
     parse("x = 'x'", ' x', fail(1));
     parse("x = 'x'", 'X', fail(1));
     parse("x = 'x'i", 'X', "X");
@@ -68,6 +71,7 @@ exports.test4 = function(test) {
 
     parse("x 'frienlyname' = a a 'friendlyname2' <- 'b'", "b", "b"); //rule not separated by semicolon
 
+//TODO: test alternative start symbol
     test.done();
 }
 
@@ -530,6 +534,16 @@ exports.testerrorreporting = function (test) {
     testErrors("x=z+;z 'ding' = [a][b]", "abaca", 3,2,["ding"]);
     testErrors("x = number / 'abc'; number 'number' = [-]? [0-9]+ ([.][0-9]+)?", "1.asef", 1, 3, ["number"]);
 
+
+    //TODO: this one is wrong!
+/*
+ ./miniup -g "x='a'* 'ab'" "ab"
+
+    miniup.ParseException: input(1,1): Failed to parse
+ab
+^
+Expected <nothing>*/
+
     test.done();
 }
 
@@ -553,6 +567,23 @@ exports.impossible = function(test) {
     parse("A = 'x' A 'x' / 'x'", "xxxxx", fail(6)) //This one actually valid!
     //but left descendent parsers without backtracking cannot handle this pattern:
 
+
+    test.done();
+}
+
+exports.testoptimize = function(test) {
+    assert.equal(/a*ab/.exec("ab"), "ab")
+
+//TODO: test if the optimizations itself work correctly
+
+    parse("x = A B A='a'* B='ab'", "ab", fail(2), {optimize : false }) //+ / * / ? modifiers are possesive in peg js, but not in regexpes
+    parse("x = A B A='a'* B='ab'", "ab", fail(2), {optimize : true })
+
+    assert.equal(/(ab|a)b/.exec("ab")[0], "ab");
+    parse("x = A B A=('a' 'b'/'a') B='b'", "ab", fail(3), { optimize : false });
+    parse("x = A B A=('a' 'b'/'a') B='b'", "ab", fail(3), { optimize : true });
+
+    //TODO: error on i flag + optimize
 
     test.done();
 }
