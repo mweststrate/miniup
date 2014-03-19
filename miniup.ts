@@ -50,7 +50,6 @@ module miniup {
 
 	export class MatcherFactory {
 
-		//TODO: move down
 		public static importMatcher(language: string, rule: string) {
 			var call = MatcherFactory.call(rule);
 
@@ -69,22 +68,18 @@ module miniup {
 				});
 		}
 
-		private static regexMatcher(regex: RegExp): (p:Parser) => any {
-			var r = new RegExp("^" + regex.source, regex.ignoreCase ? "i" : "");
-			return (parser: Parser) : any => {
-				var match = parser.getRemainingInput().match(r); //TODO: optimize check if properly cached, since they are called so often!
-				if (match) { //TODO: optimize !== null check
-					parser.currentPos += match[0].length;
-					return match[0];
-				}
-				return FAIL;
-			}
-		}
-
 		public static regex(regex: RegExp): ParseFunction {
+			var r = new RegExp("^" + regex.source, regex.ignoreCase ? "i" : "");
 			return new ParseFunction(
 				regex.toString(),
-				MatcherFactory.regexMatcher(regex),
+				(parser: Parser) : any => {
+					var match = parser.getRemainingInput().match(r); //TODO: optimize check if properly cached, since they are called so often!
+					if (match !== null) {
+						parser.currentPos += match[0].length;
+						return match[0];
+					}
+					return FAIL;
+				},
 				{ isTerminal: true });
 		}
 
