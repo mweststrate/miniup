@@ -11,15 +11,49 @@
 			<td width="50%"><textarea id="grammar" rows="20">x = x 'a' / 'a'</textarea></td>
 			<td><textarea id="input" rows="20">aaa</textarea></td>
 		</tr>
+		<tr>
+			<td>
+				<form id="opts">
+					<label for="startSymbol">startSymbol</label>
+					<input type="input" id="startSymbol"><br/>
+					<input type="checkbox" value="true" checked id="debug">
+					<label for="debug">debug</label></br/>
+					<input type="checkbox" value="true" id="cleanAST">
+					<label for="cleanAST">cleanAST</label></br/>
+					<input type="checkbox" value="true" id="extendedAST">
+					<label for="extendedAST">extendedAST</label></br/>
+					<input type="checkbox" value="true" checked id="allowLeftRecursion">
+					<label for="allowLeftRecursion">allowLeftRecursion</label></br/>
+					<input type="checkbox" value="true" checked id="optimize">
+					<label for="optimize">optimize</label></br/>
+				</form>
+			</td>
+		</tr>
+
 	</table>
+	<div id="output"></div>
 	<script type="text/javascript">
+		function escapeHTML(text) {
+			return $('<div/>').text(text).html();
+		}
+
 		$('#parse').on('click', function() {
 			//var g = miniup.GrammarReader.getMiniupGrammar();
 			//var r = g.parse($('#grammar').val());
 			//$('#input').val(JSON.stringify(r));
 			//console.dir(r);
-			var g = miniup.Grammar.load($('#grammar').val());
-			console.dir(g.parse($('#input').val(), { debug: true }));
+			var params = {};
+			$("#opts input").map(function() {
+				var elem = $(this);
+				params[elem.attr('id')] = (elem.attr('type') == 'checkbox') ? elem.attr('checked') == 'checked' : elem.attr('value');
+			});
+			try {
+				var g = miniup.Grammar.load($('#grammar').val(), params);
+				$('#output').text(JSON.stringify(g.parse($('#input').val())));
+			}
+			catch (e) {
+				$('#output').html(escapeHTML(e.name + ":\n\n" + e.message).replace(/\n/gi, "<br/>"));
+			}
 		})
 	</script>
 </body>
