@@ -37,6 +37,29 @@
 			return $('<div/>').text(text).html();
 		}
 
+		function renderData(data, node) {
+			if (typeof data == "object") {
+				var elem = $("<div><span class='expander'>+</span><table class='data'></table></div>").appendTo(node);
+				var table = $("table", elem).appendTo(node);
+				for(var key in data) {
+					var td = $("<td>").appendTo($("<tr><td>" + escapeHTML(key) + "</td></tr>", {
+						'class' : key.match(/^\$/) ? "builtin-attr" : key.match(/^\d+$/) ? "builtin-attr" : "attr"
+					}).appendTo(table));
+					renderData(data[key], td);
+				}
+			}
+			else if (typeof data == "array") {
+				var elem = $("<div><span class='expander'>+</span><table class='data'></table></div>").appendTo(node);
+				var table = $("table", elem).appendTo(node);
+				for(var i = 0; i< data.length; i++) {
+					var td = $("<td>").appendTo($("<tr><td class='table-index'>" + i + "</td></tr>").appendTo(table));
+					renderData(data[i], td);
+				}
+			}
+			else
+				$("<span class='text'/>").text(data).appendTo(node);
+		}
+
 		$('#parse').on('click', function() {
 			//var g = miniup.GrammarReader.getMiniupGrammar();
 			//var r = g.parse($('#grammar').val());
@@ -48,8 +71,9 @@
 				params[elem.attr('id')] = (elem.attr('type') == 'checkbox') ? elem.attr('checked') == 'checked' : elem.attr('value');
 			});
 			try {
-				var g = miniup.Grammar.load($('#grammar').val(), params);
-				$('#output').text(JSON.stringify(g.parse($('#input').val())));
+				var g = miniup.Grammar.load($('#grammar').val());
+				var data = g.parse($('#input').val(), params);
+				renderData(data, $('#output'));
 			}
 			catch (e) {
 				$('#output').html(escapeHTML(e.name + ":\n\n" + e.message).replace(/\n/gi, "<br/>"));
