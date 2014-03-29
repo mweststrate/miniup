@@ -1,0 +1,136 @@
+@font-face {
+  font-family: 'Poiret One';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Poiret One'), local('PoiretOne-Regular'), url(poiretone.ttf) format('truetype');
+}
+
+body {
+	padding: 0px;
+	font-family: 'Verdana';
+	margin: 0px;
+}
+
+.logo {
+	float: left;
+	height: 100px;
+}
+
+h1, #parse-button {
+	font-family: 'Poiret One', Arial;
+	color: white;
+	margin: 8px 0px;
+}
+
+textarea, .fullwidth {
+	width: 100%;
+}
+
+textarea, input {
+	border-radius: 2px;
+	border-style: none;
+	padding: 4px;
+}
+
+table {
+	width: 100%;
+}
+
+td {
+	padding: 0px 20px 20px 0px;
+}
+
+.inner-container {
+	margin-right: auto;
+	margin-left: auto;
+	min-width: 320px;
+	max-width: 1024px;
+	padding: 20px;
+}
+
+#intro-container, #grammar-container {
+	background-color: #222;
+	color: #ddd;
+}
+
+#input-container {
+	background-color: #ddd;
+}
+
+#input-container, #output-container {
+	box-shadow: 0px 2px 5px #333 inset;
+}
+
+#input-container h1 {
+	color: #222;
+}
+
+#input-wrapper {
+	display: table-cell;
+	width: 100%;
+	padding-right: 40px;
+}
+
+#opts-wrapper {
+	display: table-cell;
+	width: 240px;
+	min-width: 240px;
+}
+
+#parse-button {
+	padding: 4px 12px;
+	border-radius: 2px;
+	border: 1px solid green;
+	background-color: green;
+	font-size: 1.2em;
+}
+
+#output-container {
+	background-color: rgb(79, 175, 60);
+}
+
+#output-container.error {
+	background-color: rgb(150,0,0);
+}
+
+#output {
+	padding: 8px;
+	border-radius: 4px;
+	border-style: 1px solid #ccc;
+}
+
+.error #output {
+	border-color: red;
+	font-family: 'courier new';
+	background-color: white;
+}
+
+.output #output {
+	border: 1px solid green;
+	font-size: 0.8em;
+}
+
+.data {
+	margin-left: 20px;
+}
+
+.builtin-attr, builtin-attr {
+	font-color: #ccc;
+	font-style: italic;
+}
+
+.attr .key {
+	font-color: blue;
+}
+
+.attr .value {
+	font-color: red;
+}
+
+.expander {
+	cursor: pointer;
+	border: 1px solid #ccc;
+	border-radius: 2px;
+	display: inline-block;
+}
+
