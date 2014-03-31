@@ -97,12 +97,12 @@ td {
 	padding: 8px;
 	border-radius: 4px;
 	border-style: 1px solid #ccc;
+	background-color: white;
 }
 
 .error #output {
 	border-color: red;
 	font-family: 'courier new';
-	background-color: white;
 }
 
 .output #output {
@@ -110,27 +110,8 @@ td {
 	font-size: 0.8em;
 }
 
-.data {
-	margin-left: 20px;
+#startSymbol {
+	background-color: #ddd;
+	border: 1px solid #888;
+	width: 80px;
 }
-
-.builtin-attr, builtin-attr {
-	font-color: #ccc;
-	font-style: italic;
-}
-
-.attr .key {
-	font-color: blue;
-}
-
-.attr .value {
-	font-color: red;
-}
-
-.expander {
-	cursor: pointer;
-	border: 1px solid #ccc;
-	border-radius: 2px;
-	display: inline-block;
-}
-

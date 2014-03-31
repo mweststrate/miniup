@@ -22,29 +22,27 @@
 			</div>
 			<div id="input-container">
 				<div class="inner-container">
-					<h1>Input</h1>
-							<div id="input-wrapper">
-								<p><b>Input</b></p>
-								<textarea id="input" tabindex="2">aaa</textarea>
-								<input type="button" value="Parse!" id="parse-button" tabindex="3"/>
-							</div>
-							<div id="opts-wrapper">
-								<p><b>Parse options</b></p>
-								<form id="opts">
-									<!--TODO: remove debug mode? -->
-									<input type="checkbox" value="true" id="cleanAST">
-									<label for="cleanAST">Clean AST</label></br/>
-									<input type="checkbox" value="true" checked id="extendedAST">
-									<label for="extendedAST">Extended AST</label></br/>
-									<input type="checkbox" value="true" checked id="allowLeftRecursion">
-									<label for="allowLeftRecursion">Support left recursion</label></br/>
-									<input type="checkbox" value="true" checked id="optimize">
-									<label for="optimize">Use optimizations</label></br/>
-									<label for="startSymbol">Start symbol:</label>
-									<br/><br/>
-									<input type="input" id="startSymbol" class="fullwidth"><br/>
-								</form>
-							</div>
+					<div id="input-wrapper">
+						<h1>Input</h1>
+						<textarea id="input" tabindex="2">aaa</textarea>
+						<input type="button" value="Parse!" id="parse-button" tabindex="3"/>
+					</div>
+					<div id="opts-wrapper">
+						<p><b>Parse options</b></p>
+						<form id="opts">
+							<!--TODO: remove debug mode? -->
+							<input type="checkbox" value="true" id="cleanAST">
+							<label for="cleanAST">Clean AST</label></br/>
+							<input type="checkbox" value="true" checked id="extendedAST">
+							<label for="extendedAST">Extended AST</label></br/>
+							<input type="checkbox" value="true" checked id="allowLeftRecursion">
+							<label for="allowLeftRecursion">Support left recursion</label></br/>
+							<input type="checkbox" value="true" checked id="optimize">
+							<label for="optimize">Use optimizations</label></br/>
+							<label for="startSymbol">Start symbol:</label>
+							<input type="input" id="startSymbol"><br/>
+						</form>
+					</div>
 				</div>
 			</div>
 			<div id="output-container">
@@ -61,7 +59,7 @@
 					return $('<div/>').text(text).html();
 				}
 
-				$('#parse-button').on('click', function() {
+				function parse() {
 					var params = {};
 					$("#opts input").map(function() {
 						var elem = $(this);
@@ -77,7 +75,10 @@
 						$('#output-container').removeClass("output").addClass("error");
 						$('#output').html(escapeHTML(e.name + ":\n\n" + e.message).replace(/\n/gi, "<br/>"));
 					}
-				});
+				};
+
+				$('#parse-button').on('click', parse);
+				$("#input").blur(parse);
 
 				$("#input, #grammar").blur(function() {
 					$(this).animate({'height': 40});
