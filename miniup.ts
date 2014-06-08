@@ -779,7 +779,7 @@ module miniup {
 			super("miniup.ParseException");
 			var pos = Math.max(parser.currentPos, parser.expected.length - 1);
 			var endpos = pos;
-			var expected : string[] = parser.expected[pos] ? parser.expected[pos] : [];
+			var expected : any[] = parser.expected[pos] ? parser.expected[pos] : [];
 
 			//If some terminal, like a characterclass or regex failed,
 			//but hasn't a nice descriptive name, we might fallback to giving the error at a position
@@ -804,7 +804,7 @@ module miniup {
 
 			this.coords = Util.getCoords(parser.input, pos, endpos);
 
-			this.expected = expected.sort().reverse().reduce((x, y) => { //Reverse because quoted terminals is nicer in front of non-terminal
+			this.expected = expected.sort().reverse().reduce((x : any[], y) => { //Reverse because quoted terminals is nicer in front of non-terminal
 				if (x[0] !== y)
 					x.unshift(y); //reduce to non-unique items
 				return x;
