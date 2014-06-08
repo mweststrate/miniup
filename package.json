@@ -2,8 +2,11 @@
   "name": "miniup",
   "version": "0.0.1",
   "description": "Miniup pragmatic parsing library",
+  "preferGlobal" : true,
   "main": "miniup.js",
-  "bin": "miniup",
+  "bin": {
+    "miniup" : "miniup.js"
+  },
   "author":          {
     "name":  "Michel Weststrate",
     "email": "mweststrate@gmail.com",
@@ -25,13 +28,12 @@
     "parse"
   ],
   "author": "Michel Weststrate",
-  "license": "BSD",
+  "license": "MIT",
   "readmeFilename": "README.md",
-  "gitHead": "65fbd86dfb592d7d501e55efac5502a2753f7585",
   "devDependencies": {
     "jake": "latest",
     "nodeunit": "latest",
-    "typescript" : "~0.9.1.1",
+    "typescript" : "1.0.x",
     "istanbul" : "latest"
   },
   "dependencies": {

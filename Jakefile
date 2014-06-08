@@ -7,6 +7,11 @@ file("miniup.js", ["miniup.ts"], { async: true }, function() {
 	//TODO: use tsc from node_modules instead of global!
 	jake.exec(["tsc miniup.ts"], {printStdout: true}, function () {
 		console.log('Build completed');
+
+		var shellbang = "#!/usr/bin/env node\n"
+		var fs = require('fs');
+		fs.writeFileSync('miniup.js', shellbang + fs.readFileSync('miniup.js'));
+
 		complete();
 	});
 })
