@@ -5,7 +5,7 @@
   "preferGlobal" : true,
   "main": "miniup.js",
   "bin": {
-    "miniup" : "miniup.js"
+    "miniup" : "miniup-cli.js"
   },
   "author":          {
     "name":  "Michel Weststrate",

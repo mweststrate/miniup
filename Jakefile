@@ -10,7 +10,7 @@ file("miniup.js", ["miniup.ts"], { async: true }, function() {
 
 		var shellbang = "#!/usr/bin/env node\n"
 		var fs = require('fs');
-		fs.writeFileSync('miniup.js', shellbang + fs.readFileSync('miniup.js'));
+		fs.writeFileSync('miniup-cli.js', shellbang + fs.readFileSync('miniup.js'));
 
 		complete();
 	});
