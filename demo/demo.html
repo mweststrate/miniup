@@ -10,13 +10,14 @@
 	<body>
 		<div class="content">
 			<div id="intro-container">
-				<div class="">
+				<div class="inner-container">
 					<img src="../res/miniup.png" class="logo"/><h1>Miniup - Lightweight Parsing Library</h1>
 				</div>
 			</div>
 			<div id="grammar-container">
 				<div class="inner-container">
 					<h1>Grammar</h1>
+					Load example: <select id="exampleselect"></select><br/>
 					<textarea id="grammar" tabindex="1">x = x 'a' / 'a'</textarea>
 				</div>
 			</div>
@@ -51,6 +52,29 @@
 					<div id="output" class="output" tabindex="4"></div>
 				</div>
 			</div>
+			<table id="examples" style="display:none">
+				<tr>
+					<td>Calculator (miniup style)</td>
+					<td>
+expr = @whitespace-on binary
+binary = ('*' / '/') > ('+' / '-') > paren
+paren = '(' expr: expr ')' / prim
+prim = FLOAT / INTEGER / '-' prim
+					</td>
+					<td>3 * 4 + (5.6 + 7) * -8
+				</td>
+				<tr>
+					<td>Calculator (classic PEG style, no whitespace)</td>
+					<td>
+e1 = l:e2 r:( op:'+' e:e2 / op:'-' e:e2 )*
+e2 = l:e3 r:( op:'*' e:e3 / op:'/' e:e3 )*
+e3 = minus:'-' value:value / value
+value = [0-9]+ / paren
+paren = '(' e:e1 ')'
+					</td>
+					<td>3*4+(5+7)*-8
+				</td>
+			</table>
 		</div>
 
 		<script type="text/javascript">
@@ -85,6 +109,23 @@
 				}).focus(function() {
 					$(this).animate({'height': 200});
 				});
+
+				$("#exampleselect").on('change', function(e) {
+					var row = $("#examples tr").eq(e.target.value);
+					$("#grammar").attr("value", row.children().eq(1).text());
+					$("#input").attr("value", row.children().eq(2).text());
+				});
+
+				$("#examples tr").each(function(i, item) {
+					$("<option>").text($("td", item).eq(0).text()).attr("value", i).appendTo("#exampleselect");
+				});
+
+				// set initial example value.....
+				// http://stackoverflow.com/questions/7055729/
+				el = document.getElementById('exampleselect');
+				ev = document.createEvent('Event');
+				ev.initEvent('change', true, false);
+				el.dispatchEvent(ev);
 			});
 		</script>
 	</body>

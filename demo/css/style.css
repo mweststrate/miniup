@@ -51,6 +51,7 @@ td {
 #intro-container, #grammar-container {
 	background-color: #222;
 	color: #ddd;
+	padding: 8px;
 }
 
 #input-container {
