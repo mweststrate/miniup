@@ -32,6 +32,12 @@ textarea, input {
 	padding: 4px;
 }
 
+textarea {
+  transition: height 0.2s;
+  -webkit-transition: height 0.2s;
+  -moz-transition: height 0.2s;
+}
+
 table {
 	width: 100%;
 }

@@ -4,6 +4,7 @@
 		<script src="../miniup.js"></script>
 		<script src="js/jquery-1.7.1.min.js"></script>
 		<script src="js/jquery.jsonview.js"></script>
+		<script src="js/jquery.autosize.min.js"></script>
 		<link rel="stylesheet" href="css/jquery.jsonview.css" />
 		<link rel="stylesheet" href="css/style.css" />
 	</head>
@@ -104,16 +105,13 @@ paren = '(' e:e1 ')'
 				$('#parse-button').on('click', parse);
 				$("#input").blur(parse);
 
-				$("#input, #grammar").blur(function() {
-					$(this).animate({'height': 40});
-				}).focus(function() {
-					$(this).animate({'height': 200});
-				});
+				$("textarea").autosize();
 
 				$("#exampleselect").on('change', function(e) {
 					var row = $("#examples tr").eq(e.target.value);
 					$("#grammar").attr("value", row.children().eq(1).text());
 					$("#input").attr("value", row.children().eq(2).text());
+					$("textarea").trigger("autosize.resize");
 				});
 
 				$("#examples tr").each(function(i, item) {
