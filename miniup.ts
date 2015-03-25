@@ -15,6 +15,8 @@ function miniup(grammar: string, input?: string, opts?: miniup.IParseArgs):any {
 
 module miniup {
 
+	//TODO: optimization: don't use forEach, push, pop, shift, filter, map on performance critical parts!
+
 	var FAIL = undefined; //No match was found. Be aware to always use operators that do no type coersion with FAIL and NOTHING. So either '===' or '!=='!
 	var NOTHING = null;   //A match was found, but it either didn't consume any input or didn't match anything that is relevant in the AST. So NOTHING is a successful match.
 	var RECURSION = { recursion : true };
@@ -860,11 +862,11 @@ module miniup {
 			GrammarReader.mixinDefaultRegexes(g);
 
 			//rules
-			var str     = g.addRule('string', choice(call('SINGLEQUOTESTRING'), call('DOUBLEQUOTESTRING')));
+			var str     = g.addRule('string', choice(call('SINGLEQUOTEDSTRING'), call('DOUBLEQUOTEDSTRING')));
 			var literal = g.addRule('literal', seq(si('text', str), si('ignorecase', opt(lit("i")))));
 			var semanticaction = g.addRule('action', //lit('{'));
 				seq(si(lit('{')), si(list(choice(f.characterClass("[^{}]"), call('action')))), si(lit('}'))));
-			var ws      = g.addRule('whitespace', list(choice(call('WHITESPACECHARS'), call('MULTILINECOMMENT'), call('SINGLELINECOMMENT'), semanticaction)));
+			var ws      = g.addRule('whitespace', list(choice(call('WHITESPACE'), call('MULTILINECOMMENT'), call('SINGLELINECOMMENT'), semanticaction)));
 			var identifier = call('IDENTIFIER');
 			var regex   = g.addRule('regex', seq(si('text', call('REGEX'))));
 			var dot     = g.addRule('dot', seq(si('dot', lit('.'))));
@@ -945,7 +947,10 @@ module miniup {
 			  si('expr', expression),
 			  si(opt(lit(';')))));
 
-			g.addRule('grammar', f.whitespaceModifier(true, seq(si('rules', f.list(rule, true)))));
+			g.addRule('grammar', f.whitespaceModifier(true, choice(
+				seq(si('rules', f.list(rule, true))),
+				seq(si('expr', expression)) //a single expression without name is a valid grammar as well
+			)));
 			g.startSymbol = "grammar";
 			return g;
 		}
@@ -972,6 +977,14 @@ module miniup {
 
 			var g = new Grammar();
 
+			if (ast.expr) {
+				//denormalize to a rule
+				ast.rules = [{
+					name : 'grammar',
+					expr : ast.expr
+				}];
+			}
+
 			(<any[]>ast.rules).forEach((ast: any) => {
 				var r = this.astToMatcher(ast.expr);
 				if (ast.displayName)
@@ -983,7 +996,7 @@ module miniup {
 			GrammarReader.mixinDefaultRegexes(g);
 
 			if (!g.hasRule("whitespace"))
-				g.addRule("whitespace", MatcherFactory.call("WHITESPACECHARS"));
+				g.addRule("whitespace", MatcherFactory.call("WHITESPACE"));
 			Util.timeReport("Built grammar");
 
 			this.consistencyCheck(g);
@@ -1087,10 +1100,10 @@ module miniup {
 
 	export class RegExpUtil {
 		public static IDENTIFIER = /[a-zA-Z_][a-zA-Z_0-9]*/;
-		public static WHITESPACECHARS = /\s+/;
+		public static WHITESPACE = /\s+/;
 		public static REGEX = /\/([^\\\/]|(\\.))*\/i?/;
-		public static SINGLEQUOTESTRING = /'([^'\\]|(\\.))*'/;
-		public static DOUBLEQUOTESTRING = /"([^"\\]|(\\.))*"/;
+		public static SINGLEQUOTEDSTRING = /'([^'\\]|(\\.))*'/;
+		public static DOUBLEQUOTEDSTRING = /"([^"\\]|(\\.))*"/;
 		public static SINGLELINECOMMENT = /\/\/.*(\n|$)/;
 		public static MULTILINECOMMENT = /\/\*(?:[^*]|\*(?!\/))*?\*\//;
 		public static CHARACTERCLASS = /\[([^\\\]]|(\\.))*\]/;

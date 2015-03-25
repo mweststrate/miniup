@@ -12,7 +12,9 @@
 		<div class="content">
 			<div id="intro-container">
 				<div class="inner-container">
-					<img src="../res/miniup.png" class="logo"/><h1>Miniup - Lightweight Parsing Library</h1>
+					<img src="../res/miniup.png" class="logo" />
+					<h1>Miniup - Lightweight Parsing Library</h1>
+					<p>This is cool! A PEG parser in javascript for rapid prototyping! Further questions? Checkout the README at the <a href="https://github.com/mweststrate/miniup" style="color: white !important">GitHub repo of miniup</a></p>
 				</div>
 			</div>
 			<div id="grammar-container">
@@ -33,9 +35,9 @@
 						<p><b>Parse options</b></p>
 						<form id="opts">
 							<!--TODO: remove debug mode? -->
-							<input type="checkbox" value="true" id="cleanAST">
+							<input type="checkbox" value="true" checked id="cleanAST">
 							<label for="cleanAST">Clean AST</label></br/>
-							<input type="checkbox" value="true" checked id="extendedAST">
+							<input type="checkbox" value="true" id="extendedAST">
 							<label for="extendedAST">Extended AST</label></br/>
 							<input type="checkbox" value="true" checked id="allowLeftRecursion">
 							<label for="allowLeftRecursion">Support left recursion</label></br/>
@@ -51,6 +53,7 @@
 				<div class="inner-container">
 					<h1>Output</h1>
 					<div id="output" class="output" tabindex="4"></div>
+					<p>No visible results? Try fiddling with the Extended AST (to add unlabeled items to the result) and the Clean AST options (to introduce parse position and text capturing)</p>
 				</div>
 			</div>
 			<table id="examples" style="display:none">
@@ -109,9 +112,10 @@ paren = '(' e:e1 ')'
 
 				$("#exampleselect").on('change', function(e) {
 					var row = $("#examples tr").eq(e.target.value);
-					$("#grammar").attr("value", row.children().eq(1).text());
-					$("#input").attr("value", row.children().eq(2).text());
+					$("#grammar").val($.trim(row.children().eq(1).text()));
+					$("#input").val($.trim(row.children().eq(2).text()));
 					$("textarea").trigger("autosize.resize");
+					parse();
 				});
 
 				$("#examples tr").each(function(i, item) {
@@ -124,6 +128,8 @@ paren = '(' e:e1 ')'
 				ev = document.createEvent('Event');
 				ev.initEvent('change', true, false);
 				el.dispatchEvent(ev);
+
+				parse();
 			});
 		</script>
 	</body>

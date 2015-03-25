@@ -132,7 +132,7 @@ exports.testchars = function(test) {
 }
 
 exports.testwhitespace = function(test) {
-    parse("x = @whitespace-on 'x'; whitespace = WHITESPACECHARS", ' x ', "x");
+    parse("x = @whitespace-on 'x'; whitespace = WHITESPACE", ' x ', "x");
     parse("x = @whitespace-on 'x'; whitespace = '.'+", '..x.', "x");
     parse("x = @whitespace-on 'x'", '\t\t\ty ', fail(4));
     parse("x = @whitespace-on 'x'+", 'x x', ['x', 'x']);
@@ -177,17 +177,18 @@ exports.readmetests = function(test) {
 
 exports.extensionstest = function(test) {
     parse("foo = @whitespace-on 'foo' bars:$('bar'+) 'baz'", "foo bar bar baz", { bars: "bar bar" });
+    parse("@whitespace-on 'foo' bars:$('bar'+) 'baz'", "foo bar bar baz", { bars: "bar bar" }); //anonymous rule
     parse("foo = 'idontlike ' !'coffee' what:/[a-z]*/", "idontlike tea" , { what: "tea" });
     parse("float = /[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?/", "-34.3e523" , "-34.3e523");
     parse("args = args:(expr ; ',')*; expr = 'dummy'", "dummy" , { args: ["dummy"] });
     parse("args = args:(expr ; ',')*; expr = 'dummy'", "dummy,dummy,dummy" , { args: ["dummy", "dummy", "dummy"]});
 
-    parse("x=('a' 'b'; 'c' 'd')+", "abcdabcdab",[{},{},{}])
+    parse("x=('a' 'b'; 'c' 'd')+", "abcdabcdab",[{},{},{}]);
 
     parse("modifiers = @whitespace-on (public:'public' static:'static' final: 'final')#", "final public", {public:"public", static: null, final: "final"});
 
     parse(
-        "numbers = @whitespace-on ($number)+; number = @whitespace-off '-'? [0-9] + ('.' [0-9]+)?; whitespace = WHITESPACECHARS;",
+        "numbers = @whitespace-on ($number)+; number = @whitespace-off '-'? [0-9] + ('.' [0-9]+)?; whitespace = WHITESPACE;",
         "42  3.16  -12",
         ["42", "3.16", "-12"]
     );
@@ -385,7 +386,7 @@ exports.improvecoverage = function(test) {
 }
 
 exports.testunicode = function(test) {
-    var g = miniup.Grammar.load("x = SINGLEQUOTESTRING")
+    var g = miniup.Grammar.load("x = SINGLEQUOTEDSTRING")
     assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a'")), "a");
     assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\na'")), "a\na");
     assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\ta'")), "a\ta");
