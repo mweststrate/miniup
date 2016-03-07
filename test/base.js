@@ -589,14 +589,6 @@ exports.testoptimize = function(test) {
     test.done();
 }
 
-exports.testpegjs = function(test) {
-    var g = miniup.Grammar.loadFromFile("test/pegjs/javascript.pegjs");
-    g.parse("var x;");
-
-    g.parse(miniup.CLI.readStringFromFile("test/javascripttest.js"));
-    test.done();
-}
-
 if ((typeof(module) !== "undefined" && !module.parent) || typeof(window) !== "undefined") {
     if (typeof(runtests) !== "undefined")
         runtests(exports);

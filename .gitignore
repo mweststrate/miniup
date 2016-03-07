@@ -1,5 +1,5 @@
 miniup.js
-miniup-cli.js
+miniup.d.ts
 node_modules
 .idea
 coverage

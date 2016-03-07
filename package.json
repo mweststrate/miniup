@@ -2,21 +2,17 @@
   "name": "miniup",
   "version": "0.0.1",
   "description": "Miniup pragmatic parsing library",
-  "preferGlobal" : true,
   "main": "miniup.js",
+  "typings": "miniup",
   "bin": {
-    "miniup" : "miniup-cli.js"
+    "miniup": "miniup-cli.js"
   },
-  "author":          {
-    "name":  "Michel Weststrate",
-    "email": "mweststrate@gmail.com",
-    "url":   "https://github.com/mweststrate/miniup"
-  },
-  "directories": {
-    "test": "test"
-  },
+  "author": "Michel Weststrate",
   "scripts": {
-    "test": "jake test"
+    "test": "npm run build && nodeunit test/base.js",
+    "build": "tsc",
+    "prepublish": "npm run build",
+    "coverage": "istanbul cover test/base.js"
   },
   "repository": {
     "type": "git",
@@ -27,14 +23,18 @@
     "peg",
     "parse"
   ],
-  "author": "Michel Weststrate",
+  "files": [
+    "res",
+    "miniup-cli.js",
+    "miniup.js",
+    "miniup.d.ts"
+  ],
   "license": "MIT",
   "readmeFilename": "README.md",
   "devDependencies": {
-    "jake": "latest",
-    "nodeunit": "latest",
-    "typescript" : "1.0.x",
-    "istanbul" : "latest"
+    "istanbul": "^0.4.2",
+    "nodeunit": "^0.9.1",
+    "typescript": "^1.8.7"
   },
   "dependencies": {
     "optimist": "~0.6.0"
