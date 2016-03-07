@@ -549,10 +549,10 @@ Expected <nothing>*/
 }
 
 exports.testshortAPI = function(test) {
-    var g = miniup("x='3'");
+    var g = miniup.default("x='3'");
     assert.equal(g.parse("3"), "3");
 
-    assert.equal(miniup("x='4'", "4"), "4");
+    assert.equal(miniup.default("x='4'", "4"), "4");
     test.done();
 }
 
