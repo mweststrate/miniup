@@ -1,6 +1,6 @@
 {
   "name": "miniup",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Miniup pragmatic parsing library",
   "main": "miniup.js",
   "typings": "miniup",
