@@ -22,6 +22,7 @@ var RECURSION = { recursion : true };
 export class ParseFunction {
 	static nextMemoizationId = 0;
 
+	// TODO: optimization: initialize all fields
 	ruleName : string;
 	friendlyName : string;
 	memoizationId: number;
@@ -29,6 +30,7 @@ export class ParseFunction {
 	isCharClass = false;
 	sequence : ISequenceItem[];
 
+	// TODO: strong type options object
 	constructor(private asString: string, public parse : (parser: Parser) => any, opts? : Object) {
 		this.memoizationId = ++ParseFunction.nextMemoizationId;
 		if (opts)
@@ -120,9 +122,10 @@ export class MatcherFactory {
 
 					//fail if auto parse whitespace is enabled and we end in the middle of a word
 					if (p.autoParseWhitespace === true
-						&& MatcherFactory.wordChar.test(val.charAt(val.length -1))
-						&& MatcherFactory.wordChar.test(p.input.charAt(p.currentPos)))
+							&& MatcherFactory.wordChar.test(val.charAt(val.length -1))
+							&& MatcherFactory.wordChar.test(p.input.charAt(p.currentPos))) {
 						return FAIL;
+					}
 
 					return val;
 				}
@@ -190,6 +193,7 @@ export class MatcherFactory {
 	public static list(matcher: ParseFunction, atleastOne : boolean = false, separator : ParseFunction = null, storeSeparator : boolean = false): ParseFunction {
 		//TODO: throw error on lambda matches based on grammar setting
 		return new ParseFunction(
+			// TOOD: use backticks
 			"(" + matcher.toString() + (separator ? " " +separator.toString() : "") + ")" + (atleastOne ? "+" : "*") + (separator ? "?" : ""),
 			function (parser: Parser): any {
 				var res = [];
@@ -250,18 +254,18 @@ export class MatcherFactory {
 			function (parser: Parser) {
 				var startpos = parser.currentPos;
 				var result ;
+				// TODO: optimize length loop
 				for (var i = 0; i < items.length; i++) {
 					var item = items[i];
 					var itemres = parser.parse(item.expr);
 					if (itemres === FAIL)
 						return FAIL;
 
-
 					if (item.label === "")
 						result = itemres;
 					else {
 						if (result === undefined)
-							result ={};
+							result = {};
 						if (item.label) //we are interested in the result
 							result[item.label] = itemres;
 						if (parser.extendedAST)
@@ -804,6 +808,7 @@ export class ParseException extends Exception {
 
 		this.coords = Util.getCoords(parser.input, pos, endpos);
 
+		// TODO: slice first
 		this.expected = expected.sort().reverse().reduce((x : any[], y) => { //Reverse because quoted terminals is nicer in front of non-terminal
 			if (x[0] !== y)
 				x.unshift(y); //reduce to non-unique items
