@@ -340,7 +340,9 @@ The following options can be provided to the parse function:
 
 # Built-in tokens
 
-The following tokens are available by default in every grammar and can be called by any rule. The *unescape function* is a function that can convert the string matched by the regular expression to a native javascript object. These regexes are all available in the `miniup.RegExpUtil` namespace.
+The following tokens are available by default in every grammar and can be called by any rule.
+These regexes are all available in the `miniup.RegExpUtil` namespace.
+Values for `REGEX`, `INTEGER`, `FLOAT`, `BOOLEAN` and strings will be automatically parsed to the corresponding javascript type.
 
 IDENTIFIER /[a-zA-Z_][a-zA-Z_0-9]*/
 WHITESPACE /\s+/

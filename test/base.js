@@ -387,14 +387,26 @@ exports.improvecoverage = function(test) {
 
 exports.testunicode = function(test) {
     var g = miniup.Grammar.load("x = SINGLEQUOTEDSTRING")
-    assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a'")), "a");
-    assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\na'")), "a\na");
-    assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\ta'")), "a\ta");
-    assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\u1234a'")), "aሴa");
-    assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\xFFa'")), "aÿa");
-    assert.equal(miniup.RegExpUtil.unescapeQuotedString(g.parse("'a\077a'")), "a?a");
+    assert.equal(g.parse("'a'"), "a");
+    assert.equal(g.parse("'a\na'"), "a\na");
+    assert.equal(g.parse("'a\ta'"), "a\ta");
+    assert.equal(g.parse("'a\u1234a'"), "aሴa");
+    assert.equal(g.parse("'a\xFFa'"), "aÿa");
+    assert.equal(g.parse("'a\077a'"), "a?a");
 
     //TODO: parse("x = 'a' u:[\u1234] 'a'", "aሴa", { u: "ሴ"})
+
+    test.done();
+}
+
+exports.testparseprimitives = function(test) {
+    parse("x = SINGLEQUOTEDSTRING", "'hoi hoi\\'hoi'", "hoi hoi'hoi");
+    parse("x = DOUBLEQUOTEDSTRING", '"hoi hoi\\"hoi"', "hoi hoi\"hoi");
+    parse("x = REGEX", "/hi/", /hi/);
+    parse("x = INTEGER", "-17", -17);
+    parse("x = FLOAT", "-17.4", -17.4);
+    parse("x = BOOLEAN", "true", true);
+    parse("x = BOOLEAN", "false", false);
 
     test.done();
 }

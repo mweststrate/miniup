@@ -51,7 +51,7 @@ export interface IOperatorDef { operator:ParseFunction; left:boolean; }
 
 export class MatcherFactory {
 
-	public static regex(regex: RegExp): ParseFunction {
+	public static regex(regex: RegExp, valueParser?:(v:string) => any): ParseFunction {
 		var r = new RegExp("^" + regex.source, regex.ignoreCase ? "i" : "");
 		return new ParseFunction(
 			regex.toString(),
@@ -59,7 +59,7 @@ export class MatcherFactory {
 				var match = parser.getRemainingInput().match(r); //TODO: optimize check if properly cached, since they are called so often!
 				if (match !== null) {
 					parser.currentPos += match[0].length;
-					return match[0];
+					return valueParser ? valueParser(match[0]) : match[0];
 				}
 				return FAIL;
 			},
@@ -854,8 +854,10 @@ export class GrammarReader {
 
 	private static mixinDefaultRegexes(g: Grammar) {
 		for (var key in RegExpUtil)
-			if (RegExpUtil[key] instanceof RegExp)
-				g.addRule(key, Util.extend(MatcherFactory.regex(RegExpUtil[key]), { friendlyName : key.toLowerCase() }));
+			if (RegExpUtil[key] instanceof RegExp) {
+				const parser = RegExpUtil[key + "_PARSE"];
+				g.addRule(key, Util.extend(MatcherFactory.regex(RegExpUtil[key], parser), { friendlyName : key.toLowerCase() }));
+			}
 	}
 
 	private static bootstrap(): Grammar {
@@ -991,7 +993,7 @@ export class GrammarReader {
 		(<any[]>ast.rules).forEach((ast: any) => {
 			var r = this.astToMatcher(ast.expr);
 			if (ast.displayName)
-				r.friendlyName = RegExpUtil.unescapeQuotedString(ast.displayName);
+				r.friendlyName = ast.displayName;
 			g.addRule(ast.name, r);
 		});
 
@@ -1042,9 +1044,9 @@ export class GrammarReader {
 			case "dot":
 				return f.dot();
 			case "literal":
-				return f.literal(RegExpUtil.unescapeQuotedString(ast.text), ast.ignorecase === "i");
+				return f.literal(ast.text, ast.ignorecase === "i");
 			case "regex":
-				return f.regex(RegExpUtil.unescapeRegexString(ast.text));
+				return f.regex(ast.text);
 			case "characters":
 				return f.characterClass(ast.text, ast.ignorecase === "i");
 			case "paren":
@@ -1105,14 +1107,20 @@ export class RegExpUtil {
 	public static IDENTIFIER = /[a-zA-Z_][a-zA-Z_0-9]*/;
 	public static WHITESPACE = /\s+/;
 	public static REGEX = /\/([^\\\/]|(\\.))*\/i?/;
+	public static REGEX_PARSE = value => RegExpUtil.unescapeRegexString(value);
 	public static SINGLEQUOTEDSTRING = /'([^'\\]|(\\.))*'/;
+	public static SINGLEQUOTEDSTRING_PARSE = value => RegExpUtil.unescapeQuotedString(value);
 	public static DOUBLEQUOTEDSTRING = /"([^"\\]|(\\.))*"/;
+	public static DOUBLEQUOTEDSTRING_PARSE = value => RegExpUtil.unescapeQuotedString(value);
 	public static SINGLELINECOMMENT = /\/\/.*(\n|$)/;
 	public static MULTILINECOMMENT = /\/\*(?:[^*]|\*(?!\/))*?\*\//;
 	public static CHARACTERCLASS = /\[([^\\\]]|(\\.))*\]/;
 	public static INTEGER = /(-|\+)?\d+/;
+	public static INTEGER_PARSE = value => parseInt(value, 10);
 	public static FLOAT =  /[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?/;
+	public static FLOAT_PARSE = value => parseFloat(value);
 	public static BOOLEAN = /(true|false)\b/;
+	public static BOOLEAN_PARSE = value => value === "true";
 	public static LINEENDCHAR = /\r?\n|\u2028|\u2029/;
 
 	public static quoteRegExp(str: string): string {
